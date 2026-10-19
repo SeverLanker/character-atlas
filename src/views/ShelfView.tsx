@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import {
-  ArrowRight, ArrowUpFromLine, BookMarked, BookOpen, Grid2X2, List, Plus, Redo2,
+  ArrowRight, Network, ArrowUpFromLine, BookMarked, BookOpen, Grid2X2, List, Plus, Redo2,
   Search, SlidersHorizontal, Star, Undo2, X,
 } from "lucide-react";
 import { defaultVersion, type Character, type Library } from "../model";
@@ -23,6 +23,7 @@ export interface ShelfViewProps {
   undo: () => void;
   redo: () => void;
   onNewCharacter: () => void;
+  onOpenGraph?: () => void;
   enter: (character: Character) => void;
   toggleFavorite: (character: Character) => void;
   onSearchHit: (hit: SearchHit) => void;
@@ -31,7 +32,7 @@ export interface ShelfViewProps {
 /** 角色书架。状态仍由 App 持有，以便在书架与档案之间切换时保留搜索、排序与布局。 */
 export function ShelfView({
   library, filter, filtered, search, setSearch, sort, setSort, layout, setLayout,
-  canUndo, canRedo, undo, redo, onNewCharacter, enter, toggleFavorite, onSearchHit,
+  canUndo, canRedo, undo, redo, onNewCharacter, onOpenGraph, enter, toggleFavorite, onSearchHit,
 }: ShelfViewProps) {
   return (
             <>
@@ -43,13 +44,16 @@ export function ShelfView({
                   <h1>{filter === "全部角色" ? "角色书架" : filter}</h1>
                   <p>收藏每一个灵魂，记录每一种可能。</p>
                 </div>
-                <button
-                  className="button primary"
-                  onClick={onNewCharacter}
-                >
-                  <Plus size={17} />
-                  创建角色
-                </button>
+                <div className="coc-edit-actions">
+                  {onOpenGraph && <button className="button" onClick={onOpenGraph}><Network size={16} />关系图</button>}
+                  <button
+                    className="button primary"
+                    onClick={onNewCharacter}
+                  >
+                    <Plus size={17} />
+                    创建角色
+                  </button>
+                </div>
               </div>
               <section className="shelf-banner">
                 <div>

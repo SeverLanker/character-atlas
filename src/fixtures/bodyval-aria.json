@@ -1,0 +1,39 @@
+{
+  "body_type": "adult_female",
+  "head_scale": 0.97,
+  "height_cm": 174.3,
+  "hide_hair": false,
+  "leg_length": 0.4,
+  "migrated_from": "bodyval.character/1",
+  "morphs": {
+    "Body_Chest": 0.2,
+    "Body_Hip": 0.0,
+    "Body_LimbThick": 0.0,
+    "Body_Shoulder": 0.0,
+    "Body_Waist": 0.0,
+    "Body_Weight": 0.0,
+    "Body_Bust": 0.0,
+    "Face_Doll": 0.85,
+    "Face_EyeSize": 0.0,
+    "Face_EyeHeight": 0.0,
+    "Face_JawNarrow": 0.0,
+    "Face_CheekSoft": 0.0,
+    "Face_ChinPoint": 0.0,
+    "Face_MidfaceShort": 0.0,
+    "Face_EyeSpacing": 0.0,
+    "Face_EyeWidth": 0.0,
+    "Face_EyeTilt": 0.0,
+    "Face_EarScale": 0.0,
+    "Face_MouthWidth": 0.0,
+    "Face_NoseTip": 0.0
+  },
+  "name": "Aria",
+  "notes": "tall slim adult female 高挑纤细成年女性",
+  "schema": "bodyval.character/3",
+  "hair_preset": "SoftBlonde",
+  "outfit": {
+    "id": "sailor_v1",
+    "visible": false
+  },
+  "brow_preset": "SoftArch"
+}

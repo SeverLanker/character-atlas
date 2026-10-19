@@ -88,6 +88,7 @@ interface Version {
 | conditions | Condition[] | 必填，身体状态 |
 | coc? | CocSheet | 可省略整个字段；若填写则完整字段必填 |
 | display? | Display | 可省略 |
+| body? | BodyProfile | 可省略；body-validator 体型数据与人体图，见下文 |
 
 所有必填列表无内容时用 `[]`。长文可使用换行，应用不将正文作为 HTML 执行；不需要嵌入 `<p>` 等标签。文字没有业务字数上限，但受文件与浏览器存储容量约束。
 
@@ -121,6 +122,30 @@ interface CatalogEntry extends Entry {
 追加导入为副本时，同批导入角色之间的公开与秘密关联会重映射到新 ID。跳过的角色如果已存在则继续指向原角色；目标不在资料库时显示不可用。
 
 `catalog` 保存共享文字模板，不保存角色物品图片。角色中的 `skills`、`items` 是独立副本。模板修改不联动已有角色。
+
+## 体型 Body（可选，0.4.x 起）
+
+保存 [body-validator](https://github.com/SeverLanker/body-validator) 的角色参数和导出的正 / 背面图。旧资料没有此字段，无需迁移；schemaVersion 仍为 2。
+
+```ts
+interface BodyProfile {
+  schema: "bodyval.character/1"; // 叙册内固定此值
+  name: string;
+  body_type: "adult_female" | "adult_male" | "teen_female" | "teen_male" | "child";
+  height_cm: number;   // 30–300
+  leg_length: number;  // -1–1
+  head_scale: number;  // 0.5–2
+  morphs: Record<string, number>; // 每项 -10–10，最多 200 项
+  notes: string;
+  front: string; // 正面图引用，规则同「图片引用」；"" 表示无图
+  back: string;  // 背面图引用
+}
+```
+
+- 导入时接受 `bodyval.character/1`、`/2`、`/3` 文件，只保留上面的通用字段；`hair_preset`、`outfit`、`brow_preset`、`hide_hair` 等 Godot 专用字段会被忽略。
+- `front` / `back` 和照片一样计入完整备份 ZIP 的 `assets/`，追加导入与恢复时重新编号。
+- 秘密档案可在 `overrides.body` 中整体覆盖体型（不按字段合并）；省略则沿用表层。
+- 身体状态页的热区与 `Condition.area` 对应：头部、颈部、胸部、腹部、背部（仅背面）、左臂、右臂、左手、右手、左腿、右腿、左脚、右脚。为兼容旧资料，「躯干」记录会显示在胸部 / 腹部 / 背部上，「左臂」记录也会显示在左手上，依此类推；在筛选里选「躯干」时也会列出胸部、腹部等细分部位的记录。完整映射见 `src/body.ts` 的 `regionAliases`。
 
 ## 秘密档案 Secret
 

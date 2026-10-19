@@ -234,6 +234,10 @@ async function copyIncomingAssets(library: Library, assets: Record<string, Uint8
           if (map.has(i.image)) i.image = map.get(i.image)!;
         for (const i of profile.gallery ?? [])
           if (map.has(i.image)) i.image = map.get(i.image)!;
+        if (profile.body) {
+          if (map.has(profile.body.front)) profile.body.front = map.get(profile.body.front)!;
+          if (map.has(profile.body.back)) profile.body.back = map.get(profile.body.back)!;
+        }
       }
 }
 export async function restoreBackup(bytes: Uint8Array): Promise<Library> {

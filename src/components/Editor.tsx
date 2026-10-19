@@ -1,3 +1,4 @@
+import { BodyImport } from "./BodyImport";
 import { RelationshipEditor } from "./Relationships";
 import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import {
@@ -262,7 +263,7 @@ export function Editor(props: EditorProps) {
     ],
     skills: ["coc", "attributes", "skills"],
     collection: ["items", "gallery"],
-    status: ["coc", "conditions", "statusNote"],
+    status: ["coc", "conditions", "statusNote", "body"],
   };
   function prose(
     key:
@@ -645,6 +646,9 @@ export function Editor(props: EditorProps) {
                     onPatch={(coc) => patch({ coc })}
                   />
                   {prose("statusNote", "状态记录备注", 3)}
+                  <BodyImport body={p.body} hidden={hidden} onUpload={props.onUpload}
+                    onChange={(body) => patch({ body })}
+                    onInherit={hidden && v.secret.overrides.body !== undefined ? () => props.onInherit(["body"]) : undefined} />
                   <p className="editor-empty">标题建议“系统名 · 状态或功能名”。正文可按参数、功能状态、历史变化分段填写；部位支持自由输入，例如皮肤、感官、恢复力。</p>
                   <ListEditor
                     title="身体状态"
@@ -657,7 +661,15 @@ export function Editor(props: EditorProps) {
                         suggestions: [
                           "全身",
                           "头部",
+                          "颈部",
                           "躯干",
+                          "胸部",
+                          "腹部",
+                          "背部",
+                          "左手",
+                          "右手",
+                          "左脚",
+                          "右脚",
                           "左臂",
                           "右臂",
                           "左腿",

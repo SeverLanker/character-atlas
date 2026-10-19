@@ -1,3 +1,5 @@
+import { BodyDiagram } from "./BodyDiagram";
+import { areaMatches, bodyRegionAreas } from "../body";
 import { Relationships } from "./Relationships";
 import type { Character } from "../model";
 import {
@@ -457,11 +459,11 @@ function BodyMap({
 function Status({ p, hidden }: { p: Profile; hidden: boolean }) {
   const [area, setArea] = useState("全部");
   const [query, setQuery] = useState("");
-  const availableAreas = [...new Set([...areas, ...p.conditions.map((c) => c.area).filter(Boolean)])];
+  const availableAreas = [...new Set([...areas, ...(p.body ? bodyRegionAreas : []), ...p.conditions.map((c) => c.area).filter(Boolean)])];
   const selectedArea = availableAreas.includes(area) ? area : "全部";
   const search = query.trim().toLocaleLowerCase();
   const rows = p.conditions.filter(
-    (c) => (selectedArea === "全部" || c.area === selectedArea || c.area === "全身") &&
+    (c) => (p.body ? areaMatches(c.area, selectedArea) : selectedArea === "全部" || c.area === selectedArea || c.area === "全身") &&
       (!search || `${c.title} ${c.text} ${c.area}`.toLocaleLowerCase().includes(search)),
   );
   return (
@@ -477,7 +479,9 @@ function Status({ p, hidden }: { p: Profile; hidden: boolean }) {
           en="A MOMENT IN THE STORY"
         />
         <div className="body-map-wrap">
-          <BodyMap active={selectedArea} onSelect={setArea} p={p} />
+          {p.body
+            ? <BodyDiagram body={p.body} conditions={p.conditions} active={selectedArea} onSelect={setArea} />
+            : <BodyMap active={selectedArea} onSelect={setArea} p={p} />}
           <span className="body-side-label">ANTERIOR VIEW · 点击部位查看</span>
         </div>
         <div className="status-footnote">

@@ -6,6 +6,7 @@
 - 自动保存改为 400 ms 防抖；关闭窗口、恢复、导入、迁址与导出前会立即写入尚未保存的编辑。
 - 新增 ESLint（`npm run lint`）与 `engines`；domain 测试并入 Vitest，Node 20 / 22 均可运行 `npm test`；CI 增加 lint 与类型检查并在 PR 上运行。
 - 内置演示图片无损重新压缩。
+- 身体状态页接入 body-validator：Profile 新增可选 `body`（bodyval.character/1 参数 + 正 / 背面图）；编辑器可导入角色 JSON 与图片；阅读页显示人体图或内置剪影，细分 13 个部位热区，与状态记录联动高亮、筛选；支持秘密档案覆盖与备份往返。
 
 ## 0.4.0
 

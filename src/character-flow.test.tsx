@@ -123,3 +123,63 @@ it("删除默认版本后选取有效默认版本，撤销恢复完整版本和�
     expect(lib!.characters[0].defaultVersionId).toBe(later.id);
   });
 });
+
+it("详细档案照片可预览，名字双向切换秘密资料且不改变剧情版本", async () => {
+  const role = createCharacter("明面姓名");
+  const v = role.versions[0];
+  v.profile.portrait = "builtin:0";
+  v.secret.enabled = true;
+  v.secret.trigger = "portrait";
+  v.secret.overrides = { basics: { name: "秘密真名" }, portrait: "builtin:1" };
+  await saveLibrary({schemaVersion:2,characters:[role]});
+  const {container} = render(<App/>);
+  fireEvent.click(await screen.findByRole("button",{name:"打开明面姓名的档案"}));
+  fireEvent.click(screen.getByRole("button",{name:"放大角色照片"}));
+  expect(screen.getByRole("dialog",{name:"明面姓名的照片"})).toBeTruthy();
+  expect(screen.queryByRole("button",{name:"秘密真名 · 返回公开档案"})).toBeNull();
+  fireEvent.click(screen.getByRole("button",{name:"关闭窗口"}));
+  fireEvent.click(screen.getByRole("button",{name:"明面姓名 · 切换秘密档案"}));
+  expect(screen.getByRole("button",{name:"秘密真名 · 返回公开档案"})).toBeTruthy();
+  expect((screen.getByLabelText("当前剧情版本") as HTMLSelectElement).value).toBe(v.id);
+  fireEvent.click(screen.getByRole("button",{name:"放大角色照片"}));
+  expect(screen.getByRole("dialog",{name:"秘密真名的照片"})).toBeTruthy();
+  expect(container.querySelector('.preview-image .builtin-art')?.getAttribute('style')).toContain('50%');
+  fireEvent.click(screen.getByRole("button",{name:"关闭窗口"}));
+  fireEvent.click(screen.getByRole("button",{name:"身份卡"}));
+  const identity = screen.getByRole("dialog",{name:"身份卡"});
+  expect(identity.querySelector('.id-photo .builtin-art')?.getAttribute('style')).toContain('50%');
+  expect(within(identity).getByText('秘密真名')).toBeTruthy();
+  fireEvent.click(within(identity).getByRole("button",{name:"关闭窗口"}));
+  fireEvent.click(screen.getByRole("button",{name:"秘密真名 · 返回公开档案"}));
+  expect(screen.getByRole("button",{name:"明面姓名 · 切换秘密档案"})).toBeTruthy();
+});
+
+it("未启用秘密身份时名字为普通标题，没有照片时无放大按钮", async () => {
+  const role = createCharacter("普通角色");
+  await saveLibrary({schemaVersion:2,characters:[role]});
+  render(<App/>);
+  fireEvent.click(await screen.findByRole("button",{name:"打开普通角色的档案"}));
+  expect(screen.getByRole("heading",{name:"普通角色"})).toBeTruthy();
+  expect(screen.queryByRole("button",{name:/普通角色 · 切换秘密档案/})).toBeNull();
+  expect(screen.queryByRole("button",{name:"放大角色照片"})).toBeNull();
+});
+
+it("秘密身份照片可单独清空或恢复沿用，不修改公开照片", async () => {
+  const role = createCharacter("独立照片");
+  role.versions[0].profile.portrait = "builtin:0";
+  role.versions[0].secret.enabled = true;
+  role.versions[0].secret.overrides.portrait = "builtin:1";
+  await saveLibrary({schemaVersion:2,characters:[role]});
+  render(<App/>);
+  fireEvent.click(await screen.findByRole("button",{name:"打开独立照片的档案"}));
+  fireEvent.click(screen.getByRole("button",{name:"编辑档案"}));
+  fireEvent.click(within(screen.getByRole("region",{name:"编辑角色档案"})).getByRole("button",{name:"秘密身份"}));
+  const section = screen.getByRole("region",{name:"秘密身份照片"});
+  expect(section.querySelector('.builtin-art')?.getAttribute('style')).toContain('50%');
+  fireEvent.click(within(section).getByRole("button",{name:"移除"}));
+  await waitFor(async () => expect((await loadLibrary())!.characters[0].versions[0].secret.overrides.portrait).toBe(""));
+  expect((await loadLibrary())!.characters[0].versions[0].profile.portrait).toBe("builtin:0");
+  fireEvent.click(within(section).getByRole("button",{name:"照片恢复沿用公开档案"}));
+  await waitFor(async () => expect((await loadLibrary())!.characters[0].versions[0].secret.overrides.portrait).toBeUndefined());
+  expect(section.querySelector('.builtin-art')?.getAttribute('style')).toContain('0%');
+});

@@ -24,12 +24,26 @@ export function mergeLibraries(current: Library, incoming: Library, choices: Imp
   validateLibrary(current); validateLibrary(incoming);
   const result = structuredClone(current);
   result.schemaVersion = 2;
+  const prepared = new Map<string, Character>();
+  for (const character of incoming.characters) {
+    const choice = choices[character.id] ?? defaultImportChoice(current, character);
+    if (choice !== 'skip') prepared.set(character.id, choice === 'copy' && current.characters.some(c => c.id === character.id) ? freshCharacter(character) : structuredClone(character));
+  }
+  for (const clone of prepared.values()) {
+    for (const version of clone.versions) {
+      for (const profile of [version.profile, version.secret.overrides]) {
+        for (const relation of profile.relationships ?? []) {
+          if (relation.targetCharacterId && prepared.has(relation.targetCharacterId)) relation.targetCharacterId = prepared.get(relation.targetCharacterId)!.id;
+        }
+      }
+    }
+  }
   for (const character of incoming.characters) {
     const choice = choices[character.id] ?? defaultImportChoice(current, character);
     if (choice === "skip") continue;
     const index = result.characters.findIndex((row) => row.id === character.id);
-    if (choice === "replace" && index >= 0) result.characters[index] = structuredClone(character);
-    else result.characters.push(index >= 0 ? freshCharacter(character) : structuredClone(character));
+    if (choice === "replace" && index >= 0) result.characters[index] = prepared.get(character.id)!;
+    else result.characters.push(prepared.get(character.id)!);
   }
   if (incoming.catalog?.length) {
     result.catalog ??= [];

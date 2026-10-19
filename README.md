@@ -109,7 +109,7 @@ src/backup.test.ts        ZIP 校验测试
 
 ## 交付状态
 
-已生成 Windows x64 程序及 NSIS 安装包，另提供独立离线 HTML 预览和完整源码。前端、桌面编译及测试范围见 `VERIFICATION.md`。安装包通过 Linux 交叉编译生成，尚未完成真实 Windows 桌面上的安装和视觉检查。
+已生成 Windows x64 程序及 NSIS 安装包，另提供独立离线 HTML 预览和完整源码。前端、桌面编译及测试范围见 `VERIFICATION.md`。正式发布安装包由 GitHub Actions 的 Windows 环境构建并执行原生存储测试；尚未完成本机真实 Windows 桌面的安装与视觉验收。
 
 ## 0.2.0 交互与资料升级
 

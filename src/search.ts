@@ -5,12 +5,16 @@ export interface SearchDocument { characterId: string; name: string; versionId: 
 export interface SearchHit extends SearchDocument { snippet: string }
 export function buildSearchIndex(library: Library, includeSecret = false): SearchDocument[] {
   const docs: SearchDocument[] = [];
+  const names = new Map(library.characters.map(c => [c.id, c.name]));
   for (const character of library.characters) {
     for (const version of character.versions) {
       function add(text: unknown, field: string, page: Page, hidden: boolean) {
         if (typeof text === "string" && text.trim()) docs.push({ characterId: character.id, name: character.name, versionId: version.id, versionName: version.name, page, hidden, field, text });
       }
       function profileDocs(profile: Overrides, hidden: boolean) {
+        for (const relation of profile.relationships ?? []) {
+          if (relation.targetCharacterId) add(names.get(relation.targetCharacterId), '关联角色', 'archive', hidden);
+        }
         for (const [key, text] of Object.entries(profile.basics ?? {})) add(text, basicLabels[key as keyof typeof basicLabels] ?? key, "archive", hidden);
         for (const [key, field] of Object.entries({ quote: "引言", summary: "简介", personality: "性格", appearance: "外貌", background: "背景", statusNote: "状态备注" }))
           add(profile[key as keyof Overrides], field, key === "statusNote" ? "status" : "archive", hidden);

@@ -79,7 +79,7 @@ interface Version {
 | background | string | 必填，背景 |
 | statusNote | string | 必填，当前版本状态备注 |
 | events | Entry[] | 必填，经历；建议标题“年份 · 事件名” |
-| relationships | Entry[] | 必填，关系；建议标题“对象 · 关系” |
+| relationships | Relationship[] | 必填，关系；建议标题“对象 · 关系” |
 | customFields | Entry[] | 必填，自由主题 |
 | attributes | Attribute[] | 必填，自定义属性 |
 | skills | Skill[] | 必填，文字技能、法术、专长 |
@@ -111,8 +111,14 @@ interface CatalogEntry extends Entry {
   kind: "skill" | "spell" | "specialty" | "item";
   rank: string;
   common: boolean;
+  tags?: string[]; // 最多 50 个，每个最多 100 字；编辑器保存时去空白、去重
+  favorite?: boolean; // 条目库收藏，不影响角色中的精选能力
 }
 ```
+
+`Relationship` 继承 `Entry`，增加可选 `targetCharacterId?: string`，指向资料库角色 ID。旧文字关系无需添加此字段。目标缺失时保留原描述，不按名称猜测目标。关联属于当前版本及当前身份；跳转目标使用默认公开版本。反向关联只检查其他角色的默认公开版本，不读取后期版本或秘密覆盖。
+
+追加导入为副本时，同批导入角色之间的公开与秘密关联会重映射到新 ID。跳过的角色如果已存在则继续指向原角色；目标不在资料库时显示不可用。
 
 `catalog` 保存共享文字模板，不保存角色物品图片。角色中的 `skills`、`items` 是独立副本。模板修改不联动已有角色。
 

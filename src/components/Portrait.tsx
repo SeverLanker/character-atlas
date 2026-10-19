@@ -12,19 +12,19 @@ export function Portrait({
   onClick?: () => void;
   label?: string;
 }) {
-  const [url, setUrl] = useState("");
-  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState({ image: '', url: '', failed: false });
+  const url = loaded.image === image ? loaded.url : '';
+  const failed = loaded.image === image && loaded.failed;
   useEffect(() => {
     let alive = true;
-    setUrl("");
-    setFailed(false);
+    setLoaded({ image, url: '', failed: false });
     if (image && !image.startsWith("builtin:"))
       imageUrl(image)
         .then((url) => {
-          if (alive) setUrl(url);
+          if (alive) setLoaded({ image, url, failed: false });
         })
         .catch(() => {
-          if (alive) setFailed(true);
+          if (alive) setLoaded({ image, url: '', failed: true });
         });
     return () => {
       alive = false;
@@ -46,7 +46,7 @@ export function Portrait({
         <img
           src={url}
           alt={label ?? "角色图片"}
-          onError={() => setFailed(true)}
+          onError={() => setLoaded(current => current.image === image ? { ...current, failed: true } : current)}
         />
       ) : (
         <div className="portrait-placeholder">

@@ -1,3 +1,4 @@
+import { IdentityDisplay } from "./components/IdentityDisplay";
 import {
   useCallback,
   useEffect,
@@ -88,6 +89,8 @@ import { RecoveryPanel } from "./components/RecoveryPanel";
 import { ImportPanel } from "./components/ImportPanel";
 import { LibrarySearch } from "./components/LibrarySearch";
 import type { SearchHit } from "./search";
+import { ReadingView } from "./components/ReadingView";
+import { VersionCompare } from "./components/VersionCompare";
 import { Portrait } from "./components/Portrait";
 let saveChain: Promise<void> = Promise.resolve();
 function queueSave(library: Library, forceSnapshot = false) {
@@ -206,6 +209,8 @@ export default function App() {
     );
   const [copyName, setCopyName] = useState("");
   const [backupRevision, setBackupRevision] = useState(0);
+  const [comparing, setComparing] = useState(false);
+  const [relationTrail, setRelationTrail] = useState<{ characterId: string; versionId: string; page: Page; hidden: boolean }[]>([]);
   const [searchHit, setSearchHit] = useState<SearchHit | null>(null);
   const [newName, setNewName] = useState(""),
     [newCollection, setNewCollection] = useState(""),
@@ -367,6 +372,7 @@ export default function App() {
       setHidden(false);
   }, [library, activeId, versionId]);
   function enter(character: Character) {
+    setRelationTrail([]);
     setSearchHit(null);
     setActiveId(character.id);
     setVersionId(defaultVersion(character).id);
@@ -484,6 +490,19 @@ export default function App() {
   function selectVersion(id: string) {
     setVersionId(id);
     setHidden(false);
+  }
+  function openRelated(character: Character) {
+    if (!c || !v) return;
+    const trail = [...relationTrail, { characterId: c.id, versionId: v.id, page, hidden }];
+    enter(character);
+    setRelationTrail(trail);
+  }
+  function returnRelated() {
+    const previous = relationTrail.at(-1);
+    if (!previous || !library?.characters.some(role => role.id === previous.characterId)) return;
+    setActiveId(previous.characterId); setVersionId(previous.versionId); setPage(previous.page);
+    setHidden(previous.hidden); setEditing(false); setSearchHit(null);
+    setRelationTrail(relationTrail.slice(0, -1));
   }
   function duplicate(name: string) {
     if (!v || !c) return;
@@ -885,6 +904,11 @@ export default function App() {
                     <br />
                     把想象中的他们，认真收进书页。
                   </p>
+                  <div className="shelf-metrics" aria-label="资料库概览">
+                    <span><b>{library.characters.length}</b>位角色</span>
+                    <span><b>{library.characters.reduce((sum, role) => sum + role.versions.length, 0)}</b>段篇章</span>
+                    <span><b>{new Set(library.characters.map(role => role.collection).filter(Boolean)).size}</b>个世界</span>
+                  </div>
                 </div>
                 <div className="banner-art" aria-hidden="true">
                   <div className="banner-book back">
@@ -1073,6 +1097,7 @@ export default function App() {
                   返回书架
                 </button>
                 <div className="dossier-actions">
+                  {!!relationTrail.length && library.characters.some(role => role.id === relationTrail.at(-1)!.characterId) && <button className="button small" onClick={returnRelated}>返回 {library.characters.find(role => role.id === relationTrail.at(-1)!.characterId)?.name}</button>}
                   <button
                     className="icon-button"
                     aria-label="撤销修改"
@@ -1096,6 +1121,7 @@ export default function App() {
                     <ContactRound size={15} />
                     身份卡
                   </button>
+                  <button className="button small" aria-expanded={comparing} onClick={() => setComparing(!comparing)}>版本对比</button>
                   <label className="version-picker">
                     <Clock3 size={14} />
                     <select
@@ -1140,6 +1166,7 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              {comparing && <VersionCompare key={c.id} character={c} currentId={v.id} characters={library.characters} />}
               <div className="dossier-title-row">
                 <div>
                   <span className="eyebrow">
@@ -1205,6 +1232,7 @@ export default function App() {
                 )}
 {editing && c && v && p && (
         <Editor
+          characters={library.characters}
           character={c}
           catalog={library?.catalog ?? []}
           onCatalog={(catalog) => setLibrary((lib) => lib ? { ...lib, catalog } : lib, true)}
@@ -1284,11 +1312,14 @@ export default function App() {
         />
       )}
                 {!editing && (<>
-                <div
-                  className="book-spread"
-                  key={v.id + "-" + page + "-" + hidden}
+                <ReadingView
+                  key={c.id + v.id + hidden}
+                  storageKey={JSON.stringify([c.id, v.id, hidden])}
+                  page={page} onPage={setPage} revision={v.updatedAt}
                 >
                   <BookPages
+                    characters={library.characters} currentId={c.id} onOpenCharacter={openRelated}
+                    onToggleSecret={v.secret.enabled ? reveal : undefined}
                     page={page}
                     profile={p}
                     hidden={hidden}
@@ -1299,7 +1330,7 @@ export default function App() {
                       收押登记<span>REGISTERED</span>
                     </div>
                   )}
-                </div>
+                </ReadingView>
                 </>)}
                 <div className="book-edge" />
               </div>
@@ -1354,7 +1385,7 @@ export default function App() {
                           } as const
                         )[v.secret.trigger]
                       }
-                      中，也许藏着另一段故事。请在身份卡中查看。
+                      中，也许藏着另一段故事。可在身份卡中触发，或点击详细档案的姓名。
                     </>
                   ) : (
                     <>
@@ -1383,13 +1414,7 @@ export default function App() {
           bare
           onClose={() => setModal(null)}
         >
-          <div
-            data-side={hidden ? "secret" : "public"}
-            className={
-              "identity-surface " +
-              (hidden ? "theme-" + v.secret.theme : "theme-ivory")
-            }
-          >
+          <IdentityDisplay hidden={hidden} theme={v.secret.theme}>
             <IdentityCard
               profile={p}
               hidden={hidden}
@@ -1409,7 +1434,7 @@ export default function App() {
                   : undefined
               }
             />
-          </div>
+          </IdentityDisplay>
         </Modal>
       )}
       {modal === "copyVersion" && v && (

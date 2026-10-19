@@ -1,3 +1,5 @@
+import { Relationships } from "./Relationships";
+import type { Character } from "../model";
 import {
   ArrowUpRight,
   Bookmark,
@@ -16,6 +18,7 @@ import {
   CocVitals,
   ThresholdValue,
 } from "./CocPanel";
+import { ReadingText } from "./ReadingView";
 import { Portrait } from "./Portrait";
 const dash = (s: string) => s || "未记录";
 function Empty({ text }: { text: string }) {
@@ -61,6 +64,7 @@ export function IdentityCard({
 }) {
   return (
     <div className={"id-card " + (hidden ? "restricted-card" : "")}>
+      <span className="id-card-glint" aria-hidden="true" />
       <div className="id-top">
         <Flower2 size={15} />
         <span>
@@ -105,6 +109,7 @@ export function IdentityCard({
             </div>
           )}
           <div className="barcode" />
+          <div className="id-security" aria-hidden="true"><i className="id-chip" /><span>{hidden ? 'RESTRICTED / PERSONNEL ARCHIVE' : 'PERSONAL / CHARACTER ARCHIVE'}</span></div>
         </div>
         {onEmblem ? (
           <button
@@ -123,7 +128,7 @@ export function IdentityCard({
     </div>
   );
 }
-function Archive({ p, hidden }: { p: Profile; hidden: boolean }) {
+function Archive({ p, hidden, characters, currentId, onOpenCharacter, onPreview, onToggleSecret }: { p: Profile; hidden: boolean; characters: Character[]; currentId: string; onOpenCharacter?: (c: Character) => void; onPreview: (ref: string, caption: string) => void; onToggleSecret?: () => void }) {
   return (
     <>
       <section className="paper-page">
@@ -137,10 +142,10 @@ function Archive({ p, hidden }: { p: Profile; hidden: boolean }) {
           en="THE PERSON BEHIND THE NAME"
         />
         <div className="archive-identity">
-          <Portrait image={p.portrait} />
+          <Portrait image={p.portrait} onClick={p.portrait ? () => onPreview(p.portrait, `${p.basics.name || "角色"}的照片`) : undefined} label="放大角色照片" />
           <div>
             {visibleBasic(p, "code") && <small>{p.basics.code}</small>}
-            {visibleBasic(p, "name") && <h3>{p.basics.name}</h3>}
+            {visibleBasic(p, "name") && <h3 aria-label={p.basics.name}>{onToggleSecret ? <button className="text-button archive-name" onClick={onToggleSecret} title={hidden ? '点击返回公开档案' : '点击切换秘密档案'} aria-label={`${p.basics.name} · ${hidden ? '返回公开档案' : '切换秘密档案'}`}>{p.basics.name}</button> : p.basics.name}</h3>}
             {visibleBasic(p, "occupation") && (
               <p>{p.basics.occupation || "身份待记录"}</p>
             )}
@@ -149,7 +154,7 @@ function Archive({ p, hidden }: { p: Profile; hidden: boolean }) {
         {p.quote && (
           <blockquote className="archive-quote">{p.quote}</blockquote>
         )}
-        {p.summary && <p className="archive-summary">{p.summary}</p>}
+        {p.summary && <ReadingText className="archive-summary" text={p.summary} />}
         <div className="dossier-grid">
           {Object.entries(basicLabels)
             .filter(
@@ -173,7 +178,7 @@ function Archive({ p, hidden }: { p: Profile; hidden: boolean }) {
             {p.customFields.map((f) => (
               <div key={f.id}>
                 <span>{f.title}</span>
-                <p>{f.text}</p>
+                <ReadingText text={f.text} />
               </div>
             ))}
           </div>
@@ -182,7 +187,7 @@ function Archive({ p, hidden }: { p: Profile; hidden: boolean }) {
           <div className="prose-block">
             <small>APPEARANCE</small>
             <h3>外貌特征</h3>
-            <p>{p.appearance || "尚未记录。"}</p>
+            <ReadingText text={p.appearance || "尚未记录。"} />
           </div>
         )}
         <div className="folio-bottom">
@@ -199,17 +204,17 @@ function Archive({ p, hidden }: { p: Profile; hidden: boolean }) {
           <div className="prose-block first">
             <small>PERSONALITY</small>
             <h3>性格侧写</h3>
-            <p>{p.personality || "尚未记录。"}</p>
+            <ReadingText text={p.personality || "尚未记录。"} />
           </div>
         )}
         {(p.display?.hideEmpty === false || p.background.trim()) && (
           <div className="prose-block">
             <small>BACKGROUND</small>
             <h3>背景故事</h3>
-            <p>{p.background || "故事等待被写下。"}</p>
+            <ReadingText text={p.background || "故事等待被写下。"} />
           </div>
         )}
-        {(p.display?.hideEmpty === false || p.events.length) && (
+        {(p.display?.hideEmpty === false || p.events.length > 0) && (
           <div className="prose-block">
             <small>CHRONOLOGY</small>
             <h3>{hidden ? "事件记录" : "经历时间线"}</h3>
@@ -219,7 +224,7 @@ function Archive({ p, hidden }: { p: Profile; hidden: boolean }) {
                   <div key={e.id}>
                     <i />
                     <h4>{e.title}</h4>
-                    <p>{e.text}</p>
+                    <ReadingText text={e.text} />
                   </div>
                 ))
               ) : (
@@ -228,18 +233,7 @@ function Archive({ p, hidden }: { p: Profile; hidden: boolean }) {
             </div>
           </div>
         )}
-        {p.relationships.length > 0 && (
-          <div className="prose-block">
-            <small>CONNECTIONS</small>
-            <h3>人际关系</h3>
-            {p.relationships.map((e) => (
-              <div key={e.id} className="relationship">
-                <h4>{e.title}</h4>
-                <p>{e.text}</p>
-              </div>
-            ))}
-          </div>
-        )}
+        <Relationships items={p.relationships} characters={characters} currentId={currentId} onOpen={onOpenCharacter}/>
         <div className="folio-bottom">
           <span>PERSONAL HISTORY</span>
           <span>02</span>
@@ -564,11 +558,13 @@ function Status({ p, hidden }: { p: Profile; hidden: boolean }) {
   );
 }
 export function BookPages({
+  characters = [], currentId = "", onOpenCharacter, onToggleSecret,
   page,
   profile,
   hidden,
   onPreview,
 }: {
+  characters?: Character[]; currentId?: string; onOpenCharacter?: (c: Character) => void; onToggleSecret?: () => void;
   page: Page;
   profile: Profile;
   hidden: boolean;
@@ -576,7 +572,7 @@ export function BookPages({
 }) {
   switch (page) {
     case "archive":
-      return <Archive p={profile} hidden={hidden} />;
+      return <Archive p={profile} hidden={hidden} characters={characters} currentId={currentId} onOpenCharacter={onOpenCharacter} onPreview={onPreview} onToggleSecret={onToggleSecret}/>;
     case "skills":
       return <Skills p={profile} hidden={hidden} />;
     case "collection":

@@ -29,6 +29,9 @@ export interface Entry {
   title: string;
   text: string;
 }
+export interface Relationship extends Entry {
+  targetCharacterId?: string;
+}
 export interface Attribute {
   id: string;
   name: string;
@@ -50,6 +53,8 @@ export function isProminentAbility(skill: Skill): boolean {
 }
 export type CatalogKind = "skill" | "spell" | "specialty" | "item";
 export interface CatalogEntry extends Entry {
+  tags?: string[];
+  favorite?: boolean;
   kind: CatalogKind;
   rank: string;
   common: boolean;
@@ -75,7 +80,7 @@ export interface Profile {
   appearance: string;
   background: string;
   events: Entry[];
-  relationships: Entry[];
+  relationships: Relationship[];
   customFields: Entry[];
   attributes: Attribute[];
   skills: Skill[];
@@ -310,6 +315,8 @@ function validatePartialProfile(v: unknown, partial = false): void {
         );
         if (k === "skills")
           check(typeof entry.rank === "string", "技能等级无效");
+        if (k === "relationships")
+          check(entry.targetCharacterId === undefined || typeof entry.targetCharacterId === "string", "关联角色编号无效");
         if (k === "skills") {
           check(entry.kind === undefined || ["skill", "spell", "specialty"].includes(String(entry.kind)), "能力类别无效");
           check(entry.common === undefined || typeof entry.common === "boolean", "通用标记无效");
@@ -373,6 +380,8 @@ export function validateLibrary(value: unknown): asserts value is Library {
         ["skill", "spell", "specialty", "item"].includes(String(item.kind)) &&
         ["title", "text", "rank"].every((key) => typeof item[key] === "string") && typeof item.common === "boolean", "资料库条目无效");
       catalogIds.add(item.id);
+      check(item.tags === undefined || (Array.isArray(item.tags) && item.tags.length <= 50 && item.tags.every((tag: unknown) => typeof tag === "string" && tag.length <= 100)), "条目标签无效");
+      check(item.favorite === undefined || typeof item.favorite === "boolean", "条目收藏标记无效");
     }
   }
   const ids = new Set<string>();

@@ -1,3 +1,4 @@
+import { RelationshipEditor } from "./Relationships";
 import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import {
   Check,
@@ -194,6 +195,7 @@ const textFields = [
   { key: "text" as const, label: "内容", type: "textarea" as const },
 ];
 export interface EditorProps {
+  characters?: Character[];
   catalog?: CatalogEntry[];
   onCatalog?: (entries: CatalogEntry[]) => void;
   character: Character;
@@ -489,14 +491,7 @@ export function Editor(props: EditorProps) {
                     onChange={(events) => patch({ events })}
                     onUpload={props.onUpload}
                   />
-                  <ListEditor
-                    title="人际关系"
-                    items={p.relationships}
-                    fields={textFields}
-                    add={entry}
-                    onChange={(relationships) => patch({ relationships })}
-                    onUpload={props.onUpload}
-                  />
+                  <RelationshipEditor items={p.relationships} characters={props.characters ?? []} currentId={props.character.id} onChange={(relationships) => patch({ relationships })} />
                   <section className="edit-section" aria-label="档案主题模板">
                     <h3>快捷添加主题</h3>
                     <p>仅添加空白条目，已有同名主题不会重复创建。</p>
@@ -843,6 +838,12 @@ export function Editor(props: EditorProps) {
                       <option value="emblem">点击角色徽记</option>
                     </select>
                   </label>
+                  <section className="edit-section" aria-label="秘密身份照片">
+                    <h3>秘密身份照片</h3>
+                    <p className="editor-help">切换身份时，详细档案与身份卡同步使用这张照片。未单独设置时沿用公开照片；移除后秘密身份不显示照片。</p>
+                    <ImageInput value={v.secret.overrides.portrait ?? v.profile.portrait} onChange={(portrait) => props.onSecret({ overrides: { ...v.secret.overrides, portrait } })} onUpload={props.onUpload}/>
+                    {v.secret.overrides.portrait !== undefined && <button className="text-button" onClick={() => props.onInherit(['portrait'])}>照片恢复沿用公开档案</button>}
+                  </section>
                   <section className="edit-section">
                     <h3>隐藏档案样式</h3>
                     <div className="theme-options">

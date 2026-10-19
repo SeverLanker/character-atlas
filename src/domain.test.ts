@@ -1,4 +1,5 @@
-import { test } from "node:test";
+// @ts-nocheck -- 原 tests/domain.test.mjs 为无类型脚本，迁移时保持原断言不变。
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import {
   createCharacter,
@@ -6,8 +7,8 @@ import {
   effectiveProfile,
   assetRefs,
   validateLibrary,
-} from "../src/model.ts";
-import { seedLibrary } from "../src/seed.ts";
+} from "./model.ts";
+import { seedLibrary } from "./seed.ts";
 
 test("演示资料与新建角色都符合资料库结构", () => {
   validateLibrary(seedLibrary());

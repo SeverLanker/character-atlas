@@ -20,7 +20,7 @@ export function CatalogPanel({ entries, onChange, profile, onPatch }: {
     .sort((a, b) => sort === 'name' ? a.title.localeCompare(b.title, 'zh-CN') : sort === 'favorite' ? Number(!!b.favorite) - Number(!!a.favorite) : 0);
   const source = !profile ? [] : kind === "item" ? profile.items : profile.skills.filter((item) => (item.kind ?? "skill") === kind);
   const alreadyAdded = (item: CatalogEntry) => !!profile && (item.kind === 'item' ? profile.items : profile.skills.filter(row => (row.kind ?? 'skill') === item.kind)).some(row => row.title.trim().toLocaleLowerCase() === item.title.trim().toLocaleLowerCase());
-  function useEntry(item: CatalogEntry) {
+  function applyEntry(item: CatalogEntry) {
     if (!profile || !onPatch || alreadyAdded(item)) return;
     if (item.kind === "item") onPatch({ items: [...profile.items, { id: uid(), title: item.title, text: item.text, image: "" }] });
     else onPatch({ skills: [...profile.skills, { id: uid(), title: item.title, text: item.text, rank: item.rank, kind: item.kind, common: item.common }] });
@@ -62,7 +62,7 @@ export function CatalogPanel({ entries, onChange, profile, onPatch }: {
       <h4>{item.title} <small>{item.rank}</small></h4>
       <div className="catalog-tags">{(item.tags ?? []).map((t, i) => <span key={i}>{t}</span>)}{item.common && <span>通用</span>}</div>
       {item.text.length > 200 ? <details><summary>查看说明 · {item.text.length} 字</summary><p className="catalog-description">{item.text}</p></details> : <p className="catalog-description">{item.text}</p>}
-      <div className="coc-edit-actions">{profile && onPatch && <button disabled={alreadyAdded(item)} className="button small" onClick={() => useEntry(item)}>{alreadyAdded(item) ? '已有同名条目' : '添加到当前版本'}</button>}
+      <div className="coc-edit-actions">{profile && onPatch && <button disabled={alreadyAdded(item)} className="button small" onClick={() => applyEntry(item)}>{alreadyAdded(item) ? '已有同名条目' : '添加到当前版本'}</button>}
         <button className="text-button" aria-label={`${item.favorite ? '取消收藏' : '收藏'}模板 ${item.title}`} aria-pressed={!!item.favorite} onClick={() => onChange(entries.map(row => row.id === item.id ? { ...row, favorite: !row.favorite } : row))}>{item.favorite ? '★ 已收藏' : '☆ 收藏'}</button>
         <button className="button small" onClick={() => setDraft({ ...item })}>编辑模板</button>
         <button className="button small" onClick={() => { setDraft({ ...item, id: uid(), title: item.title + ' · 副本', tags: [...(item.tags ?? [])] }); setMessage('复制为新模板，保存后生效。'); }}>复制模板</button>

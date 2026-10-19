@@ -101,7 +101,7 @@ src/App.tsx               书架、应用状态与操作流程
 src/components/BookPages.tsx 画册各栏目与身体图
 src/components/Editor.tsx   内容、版本与秘密身份编辑
 src-tauri/src/lib.rs      SQLite、图片、本地路径和备份命令
-tests/domain.test.mjs     无第三方依赖的核心模型测试
+src/domain.test.ts        核心模型测试（Vitest）
 src/backup.test.ts        ZIP 校验测试
 ```
 

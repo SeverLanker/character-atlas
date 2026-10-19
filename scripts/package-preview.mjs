@@ -22,12 +22,14 @@ const js = result.outputFiles
   .find((file) => file.path.endsWith(".js"))
   .text.replaceAll("/art/characters.png", asset)
   .replaceAll("</script", "<\\/script");
+const bodyAsset = "data:image/png;base64," + (await readFile(join(root, "public/art/body-proportions.png"))).toString("base64");
+const finalJs = js.replaceAll("/art/body-proportions.png", bodyAsset);
 const css = result.outputFiles.find((file) => file.path.endsWith(".css")).text;
 const html =
   '<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>叙册 · 本地预览</title><style>' +
   css +
   '</style></head><body><div id="root"></div><script>' +
-  js +
+  finalJs +
   "</script></body></html>";
 await mkdir(join(root, "deliverables"), { recursive: true });
 const path = join(root, "deliverables/叙册-本地预览.html");

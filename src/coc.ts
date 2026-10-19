@@ -10,6 +10,8 @@ export const characteristicLabels = {
 } as const;
 export type Characteristic = keyof typeof characteristicLabels;
 export interface CocSkill {
+  selected?: boolean;
+  common?: boolean;
   id: string;
   key: string;
   name: string;
@@ -18,6 +20,10 @@ export interface CocSkill {
   value: number | null;
   featured: boolean;
   notes: string;
+}
+export function isSelectedSkill(skill: CocSkill): boolean {
+  const defaultSpecialization = ({ brawl: "斗殴", handgun: "手枪", rifle: "步枪 / 霰弹枪" } as Record<string, string>)[skill.key] ?? "";
+  return skill.selected ?? (skill.value !== null || skill.base !== null || skill.featured || !!skill.notes || skill.specialization !== defaultSpecialization || !skillCatalog.some((item) => item.key === skill.key));
 }
 export interface CocSheet {
   characteristics: Record<Characteristic, number>;
@@ -212,8 +218,8 @@ export function derivedValues(sheet: CocSheet, age = "") {
   };
 }
 export function validateCoc(value: unknown, partial = false): void {
-  const fail = () => {
-    throw new Error("备份格式错误：CoC7 数值无效");
+  const fail = (path = "coc") => {
+    throw new Error("备份格式错误：CoC7 数值无效 / " + path);
   };
   if (!value || typeof value !== "object" || Array.isArray(value))
     return fail();
@@ -230,15 +236,15 @@ export function validateCoc(value: unknown, partial = false): void {
   })) {
     if (partial && c[group] === undefined) continue;
     if (!c[group] || typeof c[group] !== "object" || Array.isArray(c[group]))
-      return fail();
+      return fail(`coc.${group} 缺失或不是对象`);
     const values = c[group] as Record<string, unknown>;
     for (const key of keys) {
       const n = values[key];
       if (partial && n === undefined) continue;
       if (group === "overrides" && n === null) continue;
       if (group === "overrides" && key === "db") {
-        if (typeof n !== "string" || n.length > 80) fail();
-      } else if (!num(n, key === "build")) fail();
+        if (typeof n !== "string" || n.length > 80) fail(`coc.${group}.${key} 应为字符串或 null`);
+      } else if (!num(n, key === "build")) fail(`coc.${group}.${key} ${n === undefined ? "缺失" : "应为合法整数"}`);
     }
   }
   if (!partial || c.skills !== undefined) {
@@ -253,6 +259,8 @@ export function validateCoc(value: unknown, partial = false): void {
         ) ||
         ids.has(s.id) ||
         typeof s.featured !== "boolean" ||
+        (s.selected !== undefined && typeof s.selected !== "boolean") ||
+        (s.common !== undefined && typeof s.common !== "boolean") ||
         (s.base !== null && !num(s.base)) ||
         (s.value !== null && !num(s.value))
       )

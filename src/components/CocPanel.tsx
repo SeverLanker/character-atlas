@@ -6,6 +6,7 @@ import {
   skillBase,
   skillValue,
   skillCatalog,
+  isSelectedSkill,
   thresholds,
   type CocPatch,
   type CocSheet,
@@ -104,43 +105,37 @@ export function CocAttributes({ profile }: { profile: Profile }) {
   );
 }
 export function CocSkills({ profile }: { profile: Profile }) {
-  const [query, setQuery] = useState(""),
-    [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("recommended"),
+    [limit, setLimit] = useState(8);
   const c = profile.coc ?? blankCoc();
   const skills = c.skills.filter(
     (s) =>
-      `${s.name} ${s.specialization}`.includes(query.trim()) &&
+      isSelectedSkill(s) &&
       (filter === "all" ||
         (filter === "featured"
           ? s.featured
-          : s.value !== null || s.base !== null)),
+          : s.featured || (!s.common && skillValue(s, c) >= 50 && skillValue(s, c) > skillBase(s, c)))),
   );
   return (
     <div className="coc-skills">
-      <input
-        type="search"
-        aria-label="搜索技能"
-        placeholder="搜索技能或专长…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
+      <p className="coc-help">默认展示重点技能，或数值至少 50 且高于基础值的非通用技能。可切换全部查看。</p>
       <div className="coc-filters">
         {[
-          ["all", "全部"],
-          ["changed", "已修改 / 投入"],
+          ["recommended", "精选技能"],
+          ["all", "全部已选"],
           ["featured", "重点"],
         ].map(([key, text]) => (
           <button
             key={key}
             aria-pressed={filter === key}
-            onClick={() => setFilter(key)}
+            onClick={() => { setFilter(key); setLimit(8); }}
           >
             {text}
           </button>
         ))}
       </div>
       <div className="coc-skill-rows">
-        {skills.map((s) => (
+        {skills.slice(0, limit).map((s) => (
           <div className="coc-skill-row" key={s.id}>
             <div>
               <span>
@@ -163,6 +158,7 @@ export function CocSkills({ profile }: { profile: Profile }) {
           </div>
         ))}
         {!skills.length && <p className="coc-help">没有符合条件的技能。</p>}
+        {skills.length > limit && <button className="button small" onClick={() => setLimit(limit + 8)}>再显示 8 项（剩余 {skills.length - limit} 项）</button>}
       </div>
     </div>
   );
@@ -237,6 +233,12 @@ export function CocEditor({
   const sheet = profile.coc ?? blankCoc(),
     d = derivedValues(sheet, profile.basics.age);
   const [query, setQuery] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [candidate, setCandidate] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const candidates = query.trim() ? blankCoc().skills.filter((s) =>
+    `${s.name} ${s.specialization}`.includes(query.trim()) && !sheet.skills.some((existing) => existing.key === s.key && isSelectedSkill(existing))
+  ).slice(0, 8) : [];
   const editSkill = (id: string, patch: Partial<CocSkill>) =>
     onPatch({
       skills: sheet.skills.map((s) => (s.id === id ? { ...s, ...patch } : s)),
@@ -302,24 +304,41 @@ export function CocEditor({
       <h3>数值技能</h3>
       <p className="editor-help">
         数值留空时跟随基础值。闪避跟随 DEX，母语跟随
-        EDU；“基础覆盖”留空使用规则默认。通过“添加专长”复制一个技能并单独命名。
+        EDU；“基础覆盖”留空使用规则默认。搜索后选取并添加，已选技能点击标题展开编辑。
       </p>
-      <input
+      <button type="button" className="button small" onClick={() => { setAdding(!adding); setQuery(""); setCandidate(""); }}>{adding ? "取消添加技能" : "添加技能或专长"}</button>
+      {adding && <input
         type="search"
         aria-label="编辑器搜索技能"
         value={query}
-        placeholder="筛选要编辑的技能…"
-        onChange={(e) => setQuery(e.target.value)}
-      />
+        placeholder="搜索技能后选取并添加…"
+        onChange={(e) => { setQuery(e.target.value); setCandidate(""); }}
+      />}
+      {adding && query.trim() && <div className="skill-picker">
+        <label>选取技能<select aria-label="选取技能" value={candidate} onChange={(e) => setCandidate(e.target.value)}>
+          <option value="">请选择搜索结果</option>
+          {candidates.map((s) => <option key={s.key} value={s.key}>{s.name}{s.specialization ? ` · ${s.specialization}` : ""}</option>)}
+        </select></label>
+        <button type="button" className="button small" disabled={!candidate} onClick={() => {
+          const template = candidates.find((s) => s.key === candidate);
+          if (!template) return;
+          const previous = sheet.skills.find((s) => s.key === candidate);
+          const added = { ...(previous ?? template), selected: true };
+          onPatch({ skills: previous ? sheet.skills.map((s) => s.id === previous.id ? added : s) : [...sheet.skills, added] });
+          setExpanded(added.id); setCandidate(""); setQuery(""); setAdding(false);
+        }}>添加选中技能</button>
+        {!candidates.length && <p className="editor-help">没有可添加的匹配技能，可更换关键词或添加自定义技能。</p>}
+      </div>}
       <div className="coc-edit-skills">
         {sheet.skills
-          .filter((s) => `${s.name} ${s.specialization}`.includes(query.trim()))
+          .filter(isSelectedSkill)
           .map((s) => (
-            <fieldset key={s.id}>
-              <legend>
+            <details key={s.id} open={expanded === s.id}>
+              <summary onClick={(e) => { e.preventDefault(); setExpanded(expanded === s.id ? null : s.id); }}>
                 {s.name}
                 {s.specialization && ` · ${s.specialization}`}
-              </legend>
+                <span> · {skillValue(s, sheet)}</span>
+              </summary>
               <div className="coc-editor-grid">
                 <label>
                   技能名称
@@ -358,6 +377,7 @@ export function CocEditor({
                 />
               </label>
               <div className="coc-edit-actions">
+                <label><input type="checkbox" checked={s.common ?? false} onChange={(e) => editSkill(s.id, { common: e.target.checked })} /> 通用技能（默认收起）</label>
                 <label>
                   <input
                     type="checkbox"
@@ -380,6 +400,7 @@ export function CocEditor({
                           specialization: "新专长",
                           value: null,
                           featured: false,
+                          selected: true,
                         },
                       ],
                     })
@@ -387,8 +408,7 @@ export function CocEditor({
                 >
                   添加专长
                 </button>
-                {!skillCatalog.some((v) => v.key === s.key) ||
-                sheet.skills.filter((v) => v.key === s.key).length > 1 ? (
+                {(
                   <button
                     type="button"
                     onClick={() =>
@@ -399,21 +419,24 @@ export function CocEditor({
                   >
                     移除此项
                   </button>
-                ) : null}
+                )}
               </div>
-            </fieldset>
+            </details>
           ))}
       </div>
       <button
         type="button"
         className="secondary-button"
         onClick={() => {
-          setQuery("自定义技能");
+          setQuery("");
+          const id = crypto.randomUUID();
+          setExpanded(id);
           onPatch({
             skills: [
               ...sheet.skills,
               {
-                id: crypto.randomUUID(),
+                id,
+                selected: true,
                 key: "custom",
                 name: "自定义技能",
                 specialization: "",

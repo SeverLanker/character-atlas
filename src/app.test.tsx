@@ -58,7 +58,7 @@ describe("本地实际存储与编辑流程", () => {
       target: { value: "新角色" },
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "创建并编辑" }));
-    const editor = await screen.findByRole("dialog", { name: "编辑角色档案" });
+    const editor = await screen.findByRole("region", { name: "编辑角色档案" });
     fireEvent.change(
       within(editor).getByRole("combobox", { name: "正在编辑" }),
       { target: { value: "archive" } },

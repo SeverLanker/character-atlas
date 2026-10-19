@@ -57,6 +57,7 @@ import {
   type Profile,
   type Secret,
   type Version,
+  assetRefs,
 } from "./model";
 import { seedLibrary } from "./seed";
 import {
@@ -71,15 +72,26 @@ import {
   restoreBackup,
   saveLibrary,
   relocateLibrary,
+  readAsset,
+  recordBackupExport,
+  prepareBackupRecovery,
+  preserveOriginal,
+  readRawLibrary,
+  appendLibraryImport,
 } from "./storage";
 import { mergeCoc, blankCoc, type CocPatch } from "./coc";
 import { useLibraryHistory } from "./useLibraryHistory";
 import { BookPages, IdentityCard } from "./components/BookPages";
 import { Editor } from "./components/Editor";
+import { CatalogPanel } from "./components/CatalogPanel";
+import { RecoveryPanel } from "./components/RecoveryPanel";
+import { ImportPanel } from "./components/ImportPanel";
+import { LibrarySearch } from "./components/LibrarySearch";
+import type { SearchHit } from "./search";
 import { Portrait } from "./components/Portrait";
 let saveChain: Promise<void> = Promise.resolve();
-function queueSave(library: Library) {
-  const job = saveChain.catch(() => {}).then(() => saveLibrary(library));
+function queueSave(library: Library, forceSnapshot = false) {
+  const job = saveChain.catch(() => {}).then(() => saveLibrary(library, forceSnapshot));
   saveChain = job;
   return job;
 }
@@ -95,11 +107,13 @@ function Modal({
   children,
   onClose,
   className = "",
+  bare = false,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   className?: string;
+  bare?: boolean;
 }) {
   const content = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -111,7 +125,10 @@ function Modal({
           'button:not(:disabled),input,select,textarea,[tabindex="0"]',
         ) ?? [],
       );
-    if (!root?.contains(document.activeElement)) focusable()[0]?.focus();
+    if (!root?.contains(document.activeElement)) {
+      if (bare) root?.focus();
+      else focusable()[0]?.focus();
+    }
     function key(e: KeyboardEvent) {
       if (e.key === "Tab") {
         const nodes = focusable();
@@ -120,7 +137,7 @@ function Modal({
         if (e.shiftKey && document.activeElement === first) {
           e.preventDefault();
           last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
+        } else if (!e.shiftKey && (document.activeElement === last || document.activeElement === root)) {
           e.preventDefault();
           first?.focus();
         }
@@ -131,10 +148,10 @@ function Modal({
       root?.removeEventListener("keydown", key);
       previous?.focus();
     };
-  }, []);
+  }, [bare]);
   return (
     <div
-      className="modal-backdrop"
+      className={"modal-backdrop" + (bare ? " identity-overlay" : "")}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -145,8 +162,9 @@ function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        tabIndex={-1}
       >
-        <header>
+        {bare ? <button className="identity-dismiss" aria-label="关闭窗口" onClick={onClose}><X size={18} /></button> : <header>
           <div>
             <small>CHARACTER ATLAS</small>
             <h2>{title}</h2>
@@ -158,7 +176,7 @@ function Modal({
           >
             <X size={20} />
           </button>
-        </header>
+        </header>}
         {children}
       </div>
     </div>
@@ -172,6 +190,7 @@ export default function App() {
     [versionId, setVersionId] = useState(""),
     [page, setPage] = useState<Page>("archive"),
     [hidden, setHidden] = useState(false),
+    [catalogOpen, setCatalogOpen] = useState(false),
     [shelf, setShelf] = useState(true),
     [editing, setEditing] = useState(false);
   const [filter, setFilter] = useState("全部角色"),
@@ -186,6 +205,8 @@ export default function App() {
       null,
     );
   const [copyName, setCopyName] = useState("");
+  const [backupRevision, setBackupRevision] = useState(0);
+  const [searchHit, setSearchHit] = useState<SearchHit | null>(null);
   const [newName, setNewName] = useState(""),
     [newCollection, setNewCollection] = useState(""),
     [busy, setBusy] = useState(false),
@@ -261,13 +282,13 @@ export default function App() {
     };
   }, [notify]);
   useEffect(() => {
-    if (!(modal || editing || confirm || preview)) return;
+    if (!(modal || confirm || preview)) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previous;
     };
-  }, [modal, editing, confirm, preview]);
+  }, [modal, confirm, preview]);
   const c = library?.characters.find((c) => c.id === activeId),
     v = c?.versions.find((v) => v.id === versionId) ?? c?.versions[0],
     p = v ? effectiveProfile(v, hidden) : undefined;
@@ -333,6 +354,7 @@ export default function App() {
     const active = library.characters.find((item) => item.id === activeId);
     if (!active) {
       setShelf(true);
+            setCatalogOpen(false);
       setEditing(false);
       setModal(null);
       setHidden(false);
@@ -345,11 +367,13 @@ export default function App() {
       setHidden(false);
   }, [library, activeId, versionId]);
   function enter(character: Character) {
+    setSearchHit(null);
     setActiveId(character.id);
     setVersionId(defaultVersion(character).id);
     setPage("archive");
     setHidden(false);
     setShelf(false);
+    setCatalogOpen(false);
     setEditing(false);
   }
   function updateCharacter(patch: Partial<Character>, checkpoint = false) {
@@ -479,10 +503,13 @@ export default function App() {
     try {
       await saveChain.catch(() => {});
       const bytes = await exportBackup(library);
-      await downloadBytes(
+      const dispatched = await downloadBytes(
         bytes,
         "叙册备份-" + new Date().toISOString().slice(0, 10) + ".zip",
       );
+      if (!dispatched) return;
+      await recordBackupExport();
+      setBackupRevision((value) => value + 1);
       notify("完整备份已准备好");
     } catch (error) {
       notify("备份失败：" + String(error));
@@ -505,22 +532,46 @@ export default function App() {
       setBusy(false);
     }
   }
+  async function applyRecoveredLibrary(candidate: Library) {
+    for (const ref of assetRefs(candidate)) await readAsset(ref);
+    await queueSave(candidate, true);
+    setLibrary(candidate, true);
+    setLoadError(""); setActiveId(""); setShelf(true); setCatalogOpen(false);
+    setEditing(false); setHidden(false); setModal(null);
+    notify("资料已恢复，原件已保留");
+  }
   async function pickRestore(file: File) {
     try {
       if (file.size > 256 * 1024 * 1024) throw new Error("备份文件超过 256 MB");
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const data = parseBackup(bytes);
+      let importBytes = bytes;
+      let rawOriginal: unknown = null;
+      let changes: string[] = [];
+      let data;
+      try { data = parseBackup(bytes); }
+      catch (originalError) {
+        try {
+          const proposal = prepareBackupRecovery(bytes);
+          data = proposal; importBytes = proposal.repairedBytes;
+          rawOriginal = proposal.raw; changes = proposal.changes;
+        } catch { throw originalError; }
+      }
       setConfirm({
-        title: "恢复资料库备份？",
-        message: `备份包含 ${data.library.characters.length} 个角色。恢复后将替换当前资料库，建议先导出当前资料。`,
-        label: "恢复并替换",
+        title: changes.length ? "预览修复并恢复备份？" : "恢复资料库备份？",
+        message: `备份包含 ${data.library.characters.length} 个可加载角色。恢复后将替换当前资料库。${changes.length ? "以下改动需要你确认，修复前原件会保留：\n" + changes.join("\n") : "建议先导出当前资料。"}`,
+        label: changes.length ? "保留原件并修复导入" : "恢复并替换",
         danger: true,
         action: async () => {
           await saveChain;
-          const result = await restoreBackup(bytes);
+          if (rawOriginal !== null) {
+            await preserveOriginal(rawOriginal);
+            await preserveOriginal(await readRawLibrary());
+          }
+          const result = await restoreBackup(importBytes);
           setLibrary(result, true);
           setActiveId("");
           setShelf(true);
+            setCatalogOpen(false);
           setEditing(false);
           setHidden(false);
           setModal(null);
@@ -582,6 +633,7 @@ export default function App() {
         <h1>资料库暂时无法读取</h1>
         <p>原有资料没有被覆盖。请重试，或检查桌面资料库文件。</p>
         <code>{loadError}</code>
+        <RecoveryPanel failed onApply={applyRecoveredLibrary} />
         <button
           className="button primary"
           onClick={() => window.location.reload()}
@@ -626,6 +678,7 @@ export default function App() {
           className="brand"
           onClick={() => {
             setShelf(true);
+            setCatalogOpen(false);
             setHidden(false);
             setEditing(false);
           }}
@@ -643,10 +696,11 @@ export default function App() {
         <div className="sidebar-section-label">我的创作空间</div>
         <button
           className={
-            "sidebar-link " + (shelf && filter === "全部角色" ? "active" : "")
+            "sidebar-link " + (!catalogOpen && shelf && filter === "全部角色" ? "active" : "")
           }
           onClick={() => {
             setShelf(true);
+            setCatalogOpen(false);
             setFilter("全部角色");
             setEditing(false);
           }}
@@ -657,10 +711,11 @@ export default function App() {
         </button>
         <button
           className={
-            "sidebar-link " + (shelf && filter === "特别收藏" ? "active" : "")
+            "sidebar-link " + (!catalogOpen && shelf && filter === "特别收藏" ? "active" : "")
           }
           onClick={() => {
             setShelf(true);
+            setCatalogOpen(false);
             setFilter("特别收藏");
             setEditing(false);
           }}
@@ -668,6 +723,9 @@ export default function App() {
           <Star size={18} />
           <span>特别收藏</span>
         </button>
+        <button className={"sidebar-link " + (catalogOpen ? "active" : "")} onClick={() => {
+          setShelf(true); setCatalogOpen(true); setEditing(false); setHidden(false);
+        }}><LibraryBig size={18} /><span>条目库管理</span><small>{library.catalog?.length ?? 0}</small></button>
         <div className="sidebar-section-label series-label">
           故事与世界<span>{groups.length}</span>
         </div>
@@ -676,10 +734,11 @@ export default function App() {
             key={group}
             className={
               "sidebar-link series-link " +
-              (shelf && filter === group ? "active" : "")
+              (!catalogOpen && shelf && filter === group ? "active" : "")
             }
             onClick={() => {
               setShelf(true);
+            setCatalogOpen(false);
               setFilter(group);
               setEditing(false);
             }}
@@ -740,7 +799,7 @@ export default function App() {
           <div className="breadcrumb">
             <span>私人设定集</span>
             <ChevronRight size={13} />
-            <strong>{shelf ? "角色书架" : c?.name}</strong>
+            <strong>{catalogOpen ? "条目库管理" : shelf ? "角色书架" : c?.name}</strong>
             {!shelf && (
               <>
                 <ChevronRight size={13} />
@@ -784,7 +843,18 @@ export default function App() {
           </div>
         </header>
         <main className={shelf ? "shelf-main" : "dossier-main"}>
-          {shelf ? (
+          {catalogOpen ? (
+            <section className="catalog-management">
+              <div className="shelf-heading">
+                <div><span className="eyebrow">SHARED COLLECTION</span><h1>条目库管理</h1><p>整理可复用的技能、法术、专长与物品设定。</p></div>
+                <div className="coc-edit-actions">
+                  <button className="button small" disabled={!canUndo} onClick={undo}>撤销</button>
+                  <button className="button small" disabled={!canRedo} onClick={redo}>重做</button>
+                </div>
+              </div>
+              <CatalogPanel entries={library.catalog ?? []} onChange={(catalog) => setLibrary((lib) => lib ? { ...lib, catalog } : lib, true)} />
+            </section>
+          ) : shelf ? (
             <>
               <div className="shelf-heading">
                 <div>
@@ -905,6 +975,13 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              <details className="global-search-panel">
+                <summary>跨角色内容检索</summary>
+                <LibrarySearch library={library} onOpen={(hit) => {
+                  setActiveId(hit.characterId); setVersionId(hit.versionId); setPage(hit.page);
+                  setHidden(hit.hidden); setShelf(false); setCatalogOpen(false); setEditing(false); setSearchHit(hit);
+                }} />
+              </details>
               <div
                 className={
                   "character-grid " +
@@ -988,6 +1065,7 @@ export default function App() {
                   className="back-button"
                   onClick={() => {
                     setShelf(true);
+            setCatalogOpen(false);
                     setHidden(false);
                   }}
                 >
@@ -1081,6 +1159,10 @@ export default function App() {
                   <p>{v.note || v.name}</p>
                 </div>
               </div>
+              {searchHit && searchHit.versionId === v.id && searchHit.page === page && searchHit.hidden === hidden && <div className="search-landing" role="note">
+                <strong>搜索命中 · {searchHit.field}</strong><p>{searchHit.snippet}</p>
+                <button className="text-button" onClick={() => setSearchHit(null)}>收起命中提示</button>
+              </div>}
               <div
                 className={
                   "book-shell " +
@@ -1121,6 +1203,87 @@ export default function App() {
                     <b>RESTRICTED ACCESS</b>
                   </div>
                 )}
+{editing && c && v && p && (
+        <Editor
+          character={c}
+          catalog={library?.catalog ?? []}
+          onCatalog={(catalog) => setLibrary((lib) => lib ? { ...lib, catalog } : lib, true)}
+          version={v}
+          profile={p}
+          hidden={hidden}
+          page={page}
+          onPage={setPage}
+          onClose={() => setEditing(false)}
+          onPatch={patchProfile}
+          onInherit={inherit}
+          onBasicInherit={basicInherit}
+          onSecret={patchSecret}
+          onCharacter={updateCharacter}
+          onVersion={(patch) => updateVersion((ver) => ({ ...ver, ...patch }))}
+          onSelectVersion={selectVersion}
+          onDuplicate={duplicate}
+          onDeleteVersion={() =>
+            setConfirm({
+              title: "删除这个剧情版本？",
+              message: `“${v.name}”及其中的秘密档案将被删除，其他版本不受影响。`,
+              label: "删除版本",
+              danger: true,
+              action: () => {
+                const remaining = c.versions.filter((ver) => ver.id !== v.id);
+                if (!remaining.length) return;
+                updateCharacter(
+                  {
+                    versions: remaining,
+                    defaultVersionId:
+                      c.defaultVersionId === v.id
+                        ? remaining[0].id
+                        : c.defaultVersionId,
+                  },
+                  true,
+                );
+                setVersionId(remaining[0].id);
+                setHidden(false);
+                notify("已删除剧情版本");
+              },
+            })
+          }
+          onDeleteCharacter={() =>
+            setConfirm({
+              title: "删除这个角色？",
+              message: `“${c.name}”的全部剧情版本和秘密档案都会被移除。请确认已有需要的备份。`,
+              label: "删除角色",
+              danger: true,
+              action: () => {
+                setLibrary(
+                  (lib) =>
+                    lib
+                      ? {
+                          ...lib,
+                          characters: lib.characters.filter(
+                            (item) => item.id !== c.id,
+                          ),
+                        }
+                      : lib,
+                  true,
+                );
+                setShelf(true);
+            setCatalogOpen(false);
+                setEditing(false);
+                setHidden(false);
+                notify("角色已从资料库移除");
+              },
+            })
+          }
+          onUpload={putImage}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onSetDefault={() => updateCharacter({ defaultVersionId: v.id }, true)}
+          onSetHidden={setHidden}
+        />
+      )}
+                {!editing && (<>
                 <div
                   className="book-spread"
                   key={v.id + "-" + page + "-" + hidden}
@@ -1137,6 +1300,7 @@ export default function App() {
                     </div>
                   )}
                 </div>
+                </>)}
                 <div className="book-edge" />
               </div>
               <div className="book-navigation">
@@ -1216,9 +1380,11 @@ export default function App() {
         <Modal
           title="身份卡"
           className="identity-card-modal"
+          bare
           onClose={() => setModal(null)}
         >
           <div
+            data-side={hidden ? "secret" : "public"}
             className={
               "identity-surface " +
               (hidden ? "theme-" + v.secret.theme : "theme-ivory")
@@ -1244,20 +1410,6 @@ export default function App() {
               }
             />
           </div>
-          <p className="identity-modal-caption">
-            {c.name} · {v.name} · {hidden ? v.secret.label : "表层档案"}
-          </p>
-          {v.secret.enabled && (
-            <p className="identity-modal-hint">
-              点击
-              {
-                { portrait: "照片", name: "姓名", emblem: "徽记" }[
-                  v.secret.trigger
-                ]
-              }
-              ，切换整份档案。
-            </p>
-          )}
         </Modal>
       )}
       {modal === "copyVersion" && v && (
@@ -1288,83 +1440,6 @@ export default function App() {
             </button>
           </form>
         </Modal>
-      )}
-      {editing && c && v && p && (
-        <Editor
-          character={c}
-          version={v}
-          profile={p}
-          hidden={hidden}
-          page={page}
-          onPage={setPage}
-          onClose={() => setEditing(false)}
-          onPatch={patchProfile}
-          onInherit={inherit}
-          onBasicInherit={basicInherit}
-          onSecret={patchSecret}
-          onCharacter={updateCharacter}
-          onVersion={(patch) => updateVersion((ver) => ({ ...ver, ...patch }))}
-          onSelectVersion={selectVersion}
-          onDuplicate={duplicate}
-          onDeleteVersion={() =>
-            setConfirm({
-              title: "删除这个剧情版本？",
-              message: `“${v.name}”及其中的秘密档案将被删除，其他版本不受影响。`,
-              label: "删除版本",
-              danger: true,
-              action: () => {
-                const remaining = c.versions.filter((ver) => ver.id !== v.id);
-                if (!remaining.length) return;
-                updateCharacter(
-                  {
-                    versions: remaining,
-                    defaultVersionId:
-                      c.defaultVersionId === v.id
-                        ? remaining[0].id
-                        : c.defaultVersionId,
-                  },
-                  true,
-                );
-                setVersionId(remaining[0].id);
-                setHidden(false);
-                notify("已删除剧情版本");
-              },
-            })
-          }
-          onDeleteCharacter={() =>
-            setConfirm({
-              title: "删除这个角色？",
-              message: `“${c.name}”的全部剧情版本和秘密档案都会被移除。请确认已有需要的备份。`,
-              label: "删除角色",
-              danger: true,
-              action: () => {
-                setLibrary(
-                  (lib) =>
-                    lib
-                      ? {
-                          ...lib,
-                          characters: lib.characters.filter(
-                            (item) => item.id !== c.id,
-                          ),
-                        }
-                      : lib,
-                  true,
-                );
-                setShelf(true);
-                setEditing(false);
-                setHidden(false);
-                notify("角色已从资料库移除");
-              },
-            })
-          }
-          onUpload={putImage}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-          onSetDefault={() => updateCharacter({ defaultVersionId: v.id }, true)}
-          onSetHidden={setHidden}
-        />
       )}
       {modal === "new" && (
         <Modal title="翻开一个新的故事" onClose={() => setModal(null)}>
@@ -1534,6 +1609,12 @@ export default function App() {
             <Info size={14} />
             备份包含秘密档案，请妥善保管。
           </p>
+          <RecoveryPanel key={backupRevision} onApply={applyRecoveredLibrary} />
+          <ImportPanel current={library} onImport={async (base, payload, choices) => {
+            await saveChain;
+            const result = await appendLibraryImport(base, payload, choices);
+            setLibrary(result, true); setActiveId(""); setShelf(true); setCatalogOpen(false); setEditing(false); setHidden(false);
+          }} />
           {busy && (
             <div className="operation-busy">
               <LoaderCircle size={16} className="spin" />

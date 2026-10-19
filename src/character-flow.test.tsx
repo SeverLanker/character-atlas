@@ -53,7 +53,7 @@ it("默认身份卡使用表层资料，阈值点击展开，身体数值编辑�
   fireEvent.click(value);
   expect(value.getAttribute("aria-expanded")).toBe("false");
   fireEvent.click(screen.getByRole("button", { name: "编辑档案" }));
-  let editor = screen.getByRole("dialog", { name: "编辑角色档案" });
+  let editor = screen.getByRole("region", { name: "编辑角色档案" });
   fireEvent.change(within(editor).getByLabelText("当前 HP"), {
     target: { value: "3" },
   });
@@ -78,7 +78,7 @@ it("默认身份卡使用表层资料，阈值点击展开，身体数值编辑�
     ).toBe(3),
   );
   fireEvent.click(screen.getByRole("button", { name: "编辑档案" }));
-  editor = screen.getByRole("dialog", { name: "编辑角色档案" });
+  editor = screen.getByRole("region", { name: "编辑角色档案" });
   fireEvent.change(within(editor).getByRole("combobox", { name: "正在编辑" }), {
     target: { value: "skills" },
   });
@@ -106,7 +106,7 @@ it("删除默认版本后选取有效默认版本，撤销恢复完整版本和�
     await screen.findByRole("button", { name: "打开版本角色的档案" }),
   );
   fireEvent.click(screen.getByRole("button", { name: "编辑档案" }));
-  const editor = screen.getByRole("dialog", { name: "编辑角色档案" });
+  const editor = screen.getByRole("region", { name: "编辑角色档案" });
   fireEvent.click(within(editor).getByRole("button", { name: "剧情版本" }));
   fireEvent.click(within(editor).getByRole("button", { name: "删除当前版本" }));
   const confirm = screen.getByRole("dialog", { name: "删除这个剧情版本？" });

@@ -61,7 +61,7 @@ describe("桌面窗口关闭与待保存资料", () => {
     await screen.findByRole("button", { name: "已在本地保存" });
     fireEvent.click(screen.getByRole("button", { name: "打开本地角色的档案" }));
     fireEvent.click(screen.getByRole("button", { name: "编辑档案" }));
-    const editor = screen.getByRole("dialog", { name: "编辑角色档案" });
+    const editor = screen.getByRole("region", { name: "编辑角色档案" });
     fireEvent.change(
       within(editor).getByRole("combobox", { name: "正在编辑" }),
       { target: { value: "archive" } },

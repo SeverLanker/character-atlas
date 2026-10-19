@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import {
   Check,
   Undo2,
@@ -26,10 +26,13 @@ import {
   type Profile,
   type Secret,
   type Version,
+  type CatalogEntry,
+  type Skill,
 } from "../model";
 import { CocEditor, CocStateEditor } from "./CocPanel";
 import { blankCoc } from "../coc";
 import { Portrait } from "./Portrait";
+import { CatalogPanel } from "./CatalogPanel";
 export function ImageInput({
   value,
   onChange,
@@ -89,8 +92,9 @@ export function ImageInput({
 type ListField<T> = {
   key: keyof T;
   label: string;
-  type?: "text" | "textarea" | "image" | "select";
+  type?: "text" | "textarea" | "image" | "select" | "checkbox";
   options?: { value: string; label: string }[];
+  suggestions?: string[];
 };
 function ListEditor<T extends { id: string }>({
   title,
@@ -107,6 +111,7 @@ function ListEditor<T extends { id: string }>({
   onChange: (v: T[]) => void;
   onUpload: (file: File) => Promise<string>;
 }) {
+  const listId = useId();
   return (
     <section className="edit-section">
       <div className="edit-section-title">
@@ -134,7 +139,7 @@ function ListEditor<T extends { id: string }>({
             </button>
           </div>
           {fields.map((field) => {
-            const set = (value: string) =>
+            const set = (value: string | boolean) =>
               onChange(
                 items.map((item) =>
                   item.id === row.id ? { ...item, [field.key]: value } : item,
@@ -144,7 +149,7 @@ function ListEditor<T extends { id: string }>({
             return (
               <label key={String(field.key)} className="field">
                 <span>{field.label}</span>
-                {field.type === "image" ? (
+                {field.type === "checkbox" ? <input type="checkbox" checked={Boolean(row[field.key])} onChange={(e) => set(e.target.checked)} /> : field.type === "image" ? (
                   <ImageInput
                     value={value}
                     onChange={set}
@@ -165,7 +170,12 @@ function ListEditor<T extends { id: string }>({
                     ))}
                   </select>
                 ) : (
-                  <input value={value} onChange={(e) => set(e.target.value)} />
+                  <>
+                    <input value={value} list={field.suggestions ? `${listId}-${i}-${String(field.key)}` : undefined} onChange={(e) => set(e.target.value)} />
+                    {field.suggestions && <datalist id={`${listId}-${i}-${String(field.key)}`}>
+                      {field.suggestions.map((suggestion) => <option key={suggestion} value={suggestion} />)}
+                    </datalist>}
+                  </>
                 )}
               </label>
             );
@@ -184,6 +194,8 @@ const textFields = [
   { key: "text" as const, label: "内容", type: "textarea" as const },
 ];
 export interface EditorProps {
+  catalog?: CatalogEntry[];
+  onCatalog?: (entries: CatalogEntry[]) => void;
   character: Character;
   version: Version;
   profile: Profile;
@@ -216,31 +228,8 @@ export function Editor(props: EditorProps) {
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const root = drawer.current;
-    const nodes = () =>
-      Array.from(
-        root?.querySelectorAll<HTMLElement>(
-          "button:not(:disabled),input,select,textarea",
-        ) ?? [],
-      );
-    nodes()[0]?.focus();
-    const key = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
-      const list = nodes(),
-        first = list[0],
-        last = list.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    };
-    root?.addEventListener("keydown", key);
-    return () => {
-      root?.removeEventListener("keydown", key);
-      previous?.focus();
-    };
+    root?.querySelector<HTMLElement>("button")?.focus();
+    return () => previous?.focus();
   }, []);
   const {
     character: c,
@@ -251,7 +240,7 @@ export function Editor(props: EditorProps) {
     onPatch: patch,
   } = props;
   const [tab, setTab] = useState<
-    "content" | "versions" | "secret" | "character"
+    "content" | "versions" | "secret" | "character" | "catalog"
   >("content");
   const [versionName, setVersionName] = useState("");
   const [section, setSection] = useState<Page>(page);
@@ -325,7 +314,8 @@ export function Editor(props: EditorProps) {
               )}
             </span>
             <input
-              value={p.basics[key]}
+              value={p.basics[key] ?? ""}
+              placeholder={key === "measurements" ? "胸围 / 腰围 / 臀围（cm）" : undefined}
               onChange={(e) => patch({ basics: { [key]: e.target.value } })}
             />
           </label>
@@ -335,16 +325,12 @@ export function Editor(props: EditorProps) {
   }
   return (
     <div
-      className="drawer-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) props.onClose();
-      }}
+      className="inline-editor-wrap"
     >
       <aside
         ref={drawer}
-        className="editor-drawer"
-        role="dialog"
-        aria-modal="true"
+        className="editor-drawer inline-editor"
+        role="region"
         aria-label="编辑角色档案"
       >
         <header className="drawer-header">
@@ -370,6 +356,7 @@ export function Editor(props: EditorProps) {
           {(
             [
               { id: "content", name: "资料" },
+              { id: "catalog", name: "条目库" },
               { id: "versions", name: "剧情版本" },
               { id: "secret", name: "秘密身份" },
               { id: "character", name: "角色" },
@@ -385,6 +372,7 @@ export function Editor(props: EditorProps) {
           ))}
         </nav>
         <div className="editor-scroll">
+          {tab === "catalog" && props.onCatalog && <CatalogPanel entries={props.catalog ?? []} onChange={props.onCatalog} profile={p} onPatch={patch} />}
           {tab === "content" && (
             <>
               <div className="editor-page-select">
@@ -492,6 +480,7 @@ export function Editor(props: EditorProps) {
                   {prose("appearance", "外貌特征")}
                   {prose("personality", "性格")}
                   {prose("background", "背景故事", 7)}
+                  <p className="editor-empty">经历标题可写“年份 · 事件名”；每个主题独立成条，长文可分段填写。</p>
                   <ListEditor
                     title="经历时间线"
                     items={p.events}
@@ -508,6 +497,18 @@ export function Editor(props: EditorProps) {
                     onChange={(relationships) => patch({ relationships })}
                     onUpload={props.onUpload}
                   />
+                  <section className="edit-section" aria-label="档案主题模板">
+                    <h3>快捷添加主题</h3>
+                    <p>仅添加空白条目，已有同名主题不会重复创建。</p>
+                    <div className="area-filter">
+                      {["行为模式", "需求周期", "对伴侣的要求", "禁忌", "恢复力", "感知阈值"].map((title) => (
+                        <button key={title} disabled={p.customFields.some((field) => field.title === title)}
+                          onClick={() => patch({ customFields: [...p.customFields, { ...entry(), title }] })}>
+                          添加{title}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                   <ListEditor
                     title="自定义字段"
                     items={p.customFields}
@@ -599,12 +600,15 @@ export function Editor(props: EditorProps) {
                       </div>
                     ))}
                   </section>
-                  <ListEditor
-                    title="叙事能力 / 原有技能"
+                  <ListEditor<Skill>
+                    title="技能、法术与专长"
                     items={p.skills}
                     fields={[
                       ...textFields,
                       { key: "rank", label: "评级 / 等级" },
+                      { key: "kind", label: "能力类别", type: "select", options: [{ value: "skill", label: "技能" }, { value: "spell", label: "法术" }, { value: "specialty", label: "专长" }] },
+                      { key: "common", label: "通用能力（阅读默认收起）", type: "checkbox" },
+                      { key: "featured", label: "重点能力（始终显示）", type: "checkbox" },
                     ]}
                     add={() => ({ ...entry(), rank: "" })}
                     onChange={(skills) => patch({ skills })}
@@ -646,6 +650,7 @@ export function Editor(props: EditorProps) {
                     onPatch={(coc) => patch({ coc })}
                   />
                   {prose("statusNote", "状态记录备注", 3)}
+                  <p className="editor-empty">标题建议“系统名 · 状态或功能名”。正文可按参数、功能状态、历史变化分段填写；部位支持自由输入，例如皮肤、感官、恢复力。</p>
                   <ListEditor
                     title="身体状态"
                     items={p.conditions}
@@ -654,8 +659,7 @@ export function Editor(props: EditorProps) {
                       {
                         key: "area",
                         label: "身体部位",
-                        type: "select",
-                        options: [
+                        suggestions: [
                           "全身",
                           "头部",
                           "躯干",
@@ -663,7 +667,15 @@ export function Editor(props: EditorProps) {
                           "右臂",
                           "左腿",
                           "右腿",
-                        ].map((v) => ({ value: v, label: v })),
+                          "皮肤",
+                          "感官",
+                          "神经系统",
+                          "呼吸系统",
+                          "循环系统",
+                          "消化系统",
+                          "免疫系统",
+                          "恢复力",
+                        ],
                       },
                       {
                         key: "severity",

@@ -20,6 +20,8 @@ export interface Basics {
   blood: string;
   birthday: string;
   birthplace: string;
+  residence?: string;
+  measurements?: string;
   code: string;
 }
 export interface Entry {
@@ -34,6 +36,23 @@ export interface Attribute {
 }
 export interface Skill extends Entry {
   rank: string;
+  kind?: "skill" | "spell" | "specialty";
+  common?: boolean;
+  featured?: boolean;
+}
+export function isProminentAbility(skill: Skill): boolean {
+  if (skill.featured) return true;
+  if (skill.common) return false;
+  const rank = skill.rank.trim();
+  if (/^(入门|初学|初级|基础|普通|低级|新手)(?:级|阶段)?$/.test(rank)) return false;
+  const level = rank.match(/^(?:lv\.?\s*|等级\s*)?(\d+)(?:级)?$/i);
+  return !level || Number(level[1]) > 2;
+}
+export type CatalogKind = "skill" | "spell" | "specialty" | "item";
+export interface CatalogEntry extends Entry {
+  kind: CatalogKind;
+  rank: string;
+  common: boolean;
 }
 export interface Item extends Entry {
   image: string;
@@ -100,6 +119,7 @@ export interface Character {
   updatedAt: string;
 }
 export interface Library {
+  catalog?: CatalogEntry[];
   schemaVersion: 1 | 2;
   characters: Character[];
 }
@@ -110,7 +130,7 @@ export const basicLabels: Record<keyof Basics, string> = {
   alias: "别名",
   age: "年龄",
   gender: "性别",
-  species: "种族",
+  species: "族裔",
   occupation: "身份 / 职业",
   affiliation: "所属",
   height: "身高",
@@ -118,6 +138,8 @@ export const basicLabels: Record<keyof Basics, string> = {
   blood: "血型",
   birthday: "生日",
   birthplace: "出生地",
+  residence: "居住地",
+  measurements: "三围",
   code: "身份编号",
 };
 export const pageMeta: { id: Page; name: string; en: string }[] = [
@@ -151,6 +173,8 @@ export function blankProfile(name = "未命名角色"): Profile {
       blood: "",
       birthday: "",
       birthplace: "",
+      residence: "",
+      measurements: "",
       code: "OC-" + Math.floor(100 + Math.random() * 900),
     },
     portrait: "",
@@ -245,7 +269,7 @@ function validatePartialProfile(v: unknown, partial = false): void {
   if (!partial || v.basics !== undefined) {
     check(isObject(v.basics), "身份信息缺失");
     for (const key of Object.keys(basicLabels))
-      if (!partial || v.basics[key] !== undefined)
+      if ((!partial || v.basics[key] !== undefined) && !(["residence", "measurements"].includes(key) && v.basics[key] === undefined))
         check(typeof v.basics[key] === "string", "身份字段无效");
   }
   for (const k of strings)
@@ -286,6 +310,11 @@ function validatePartialProfile(v: unknown, partial = false): void {
         );
         if (k === "skills")
           check(typeof entry.rank === "string", "技能等级无效");
+        if (k === "skills") {
+          check(entry.kind === undefined || ["skill", "spell", "specialty"].includes(String(entry.kind)), "能力类别无效");
+          check(entry.common === undefined || typeof entry.common === "boolean", "通用标记无效");
+          check(entry.featured === undefined || typeof entry.featured === "boolean", "重点标记无效");
+        }
         if (k === "items")
           check(typeof entry.image === "string", "物品图片无效");
         if (k === "conditions")
@@ -336,6 +365,16 @@ export function validateLibrary(value: unknown): asserts value is Library {
     "不是叙册资料库",
   );
   check(value.characters.length <= 10000, "角色数量过多");
+  if (value.catalog !== undefined) {
+    check(Array.isArray(value.catalog) && value.catalog.length <= 10000, "资料库条目无效");
+    const catalogIds = new Set<string>();
+    for (const item of value.catalog) {
+      check(isObject(item) && typeof item.id === "string" && !catalogIds.has(item.id) &&
+        ["skill", "spell", "specialty", "item"].includes(String(item.kind)) &&
+        ["title", "text", "rank"].every((key) => typeof item[key] === "string") && typeof item.common === "boolean", "资料库条目无效");
+      catalogIds.add(item.id);
+    }
+  }
   const ids = new Set<string>();
   for (const c of value.characters) {
     check(
@@ -371,7 +410,9 @@ export function validateLibrary(value: unknown): asserts value is Library {
       vids.add(v.id);
       for (const k of ["name", "date", "note", "createdAt", "updatedAt"])
         check(typeof v[k] === "string", "版本信息无效");
-      validatePartialProfile(v.profile);
+      const context = `角色「${c.name}」/ 版本「${v.name}」/ `;
+      try { validatePartialProfile(v.profile); }
+      catch (error) { throw new Error(context + "表层 / " + (error instanceof Error ? error.message : String(error))); }
       check(
         isObject(v.secret) &&
           typeof v.secret.enabled === "boolean" &&
@@ -380,7 +421,8 @@ export function validateLibrary(value: unknown): asserts value is Library {
           ["prison", "noir", "clinical"].includes(String(v.secret.theme)),
         "秘密身份配置无效",
       );
-      validatePartialProfile(v.secret.overrides, true);
+      try { validatePartialProfile(v.secret.overrides, true); }
+      catch (error) { throw new Error(context + "秘密档案 / " + (error instanceof Error ? error.message : String(error))); }
     }
   }
 }
@@ -408,6 +450,8 @@ export function migrateLibrary(value: unknown): Library {
   for (const character of result.characters) {
     character.defaultVersionId ??= character.versions[0].id;
     for (const version of character.versions) {
+      version.profile.basics.residence ??= "";
+      version.profile.basics.measurements ??= "";
       if (!version.profile.coc) {
         const coc = blankCoc();
         for (const a of version.profile.attributes) {
@@ -446,6 +490,6 @@ export function visibleBasic(profile: Profile, key: keyof Basics) {
   return (
     !profile.display?.hiddenBasics.includes(key) &&
     (profile.display?.hideEmpty === false ||
-      Boolean(profile.basics[key].trim()))
+      Boolean(profile.basics[key]?.trim()))
   );
 }

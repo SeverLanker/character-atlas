@@ -4594,3 +4594,155 @@ small {
   width: 30px;
   height: 30px;
 }
+.inline-editor-wrap {
+  width: 100%;
+}
+.inline-editor.editor-drawer {
+  width: 100%;
+  height: auto;
+  max-width: none;
+  box-shadow: none;
+  animation: none;
+  background: var(--paper, #f9faf5);
+}
+.inline-editor .editor-scroll {
+  overflow: visible;
+  max-height: none;
+  padding: 28px clamp(18px, 4vw, 56px);
+}
+.inline-editor .drawer-footer {
+  position: sticky;
+  bottom: 0;
+  background: #f9faf5;
+  z-index: 5;
+}
+.inline-editor .field-grid,
+.inline-editor .coc-editor-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.coc-edit-skills details {
+  border: 1px solid #53695c30;
+  padding: 14px;
+  border-radius: 8px;
+  margin: 10px 0;
+}
+.coc-edit-skills summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.skill-picker { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 16px 0; }
+.skill-picker label { display: grid; gap: 8px; flex: 1; min-width: 180px; }
+.skill-picker select { padding: 10px; max-width: 100%; }
+.catalog-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.catalog-panel .coc-edit-actions { flex-wrap: wrap; }
+.editor-tabs { flex-wrap: wrap; }
+
+/* The identity overlay contains only the card; no surrounding window. */
+.modal.identity-card-modal {
+  position: relative;
+  width: min(630px, calc(100vw - 36px));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  outline: none;
+  animation: identity-arrive 340ms cubic-bezier(.2,.8,.2,1) both;
+}
+.identity-card-modal .identity-surface {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  animation: identity-front 380ms ease-out both;
+}
+.identity-card-modal .identity-surface[data-side="secret"] {
+  animation-name: identity-reveal;
+}
+.identity-card-modal .id-card {
+  margin: 0;
+  box-shadow: 0 24px 70px #10190f55, 0 4px 12px #10190f26;
+}
+.identity-overlay { animation: identity-dim 220ms ease-out both; }
+.identity-dismiss {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  z-index: 2;
+}
+.identity-dismiss:focus-visible {
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  clip-path: none;
+  display: grid;
+  place-items: center;
+  background: #f8faf3;
+  border: 1px solid #53695c;
+  border-radius: 50%;
+}
+@keyframes identity-arrive {
+  from { opacity: 0; transform: translateY(22px) scale(.95) rotate(-1.2deg); }
+  to { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+}
+@keyframes identity-front {
+  from { opacity: .65; transform: perspective(1000px) rotateY(-7deg); }
+  to { opacity: 1; transform: perspective(1000px) rotateY(0); }
+}
+@keyframes identity-reveal {
+  from { opacity: .65; transform: perspective(1000px) rotateY(7deg); }
+  to { opacity: 1; transform: perspective(1000px) rotateY(0); }
+}
+@keyframes identity-dim { from { background-color: transparent; } }
+@media (prefers-reduced-motion: reduce) {
+  .identity-overlay, .modal.identity-card-modal, .identity-card-modal .identity-surface { animation: none; }
+}
+.catalog-management { max-width: 1120px; margin: 0 auto; }
+.catalog-management > .catalog-panel {
+  margin-top: 24px;
+  padding: clamp(20px, 4vw, 42px);
+  background: #f9faf5;
+  border: 1px solid #53695c25;
+  border-radius: 10px;
+}
+.catalog-management .catalog-panel > h3 { font-size: 20px; margin-bottom: 12px; }
+.recovery-panel {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #53695c35;
+  text-align: left;
+  min-width: 0;
+}
+.recovery-panel h2 { font-size: 18px; margin-bottom: 12px; }
+.recovery-panel details { margin: 14px 0; }
+.recovery-panel summary { cursor: pointer; }
+.recovery-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; margin: 12px 0; }
+.recovery-proposal { border: 1px solid #9b895a; padding: 16px; margin: 16px 0; border-radius: 6px; }
+.recovery-proposal p, .recovery-panel [role="status"] { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0; }
+.backup-overdue { color: #a05e31; font-weight: 600; }
+.load-screen .recovery-panel { width: min(720px, 90vw); }
+.load-screen code { max-width: 90vw; overflow-wrap: anywhere; white-space: pre-wrap; }
+.global-search-panel { margin: 20px 0; padding: 18px; background: #f9faf5; border: 1px solid #53695c25; border-radius: 8px; }
+.global-search-panel > summary { cursor: pointer; font-weight: 600; }
+.library-search { padding-top: 18px; }
+.library-search h2, .import-panel h2 { font-size: 18px; margin-bottom: 16px; }
+.search-group { border-top: 1px solid #53695c25; margin-top: 18px; padding-top: 14px; }
+.search-group h3 { font-size: 16px; }
+.search-group h3 small { font-size: 12px; color: var(--muted); }
+.search-result { display: grid; gap: 8px; text-align: left; width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #53695c25; border-radius: 6px; background: transparent; overflow-wrap: anywhere; }
+.search-result:hover { background: #53695c0c; }
+.search-result small { color: var(--muted); }
+.search-result mark { background: #dcd6ac; color: #383d37; }
+.search-landing { padding: 16px 20px; margin-bottom: 20px; border-left: 3px solid #8b946a; background: #e8eadc; overflow-wrap: anywhere; }
+.search-landing p { margin: 8px 0; }
+.import-panel { margin: 22px 0; padding-top: 18px; border-top: 1px solid #53695c25; }
+.import-preview { padding: 14px; border: 1px solid #53695c35; border-radius: 6px; }
+.import-character-list { max-height: 320px; overflow-y: auto; }
+.import-panel [role="status"] { overflow-wrap: anywhere; white-space: pre-wrap; }

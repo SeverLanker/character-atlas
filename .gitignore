@@ -5,3 +5,5 @@ src-tauri/target/
 *.zip
 .DS_Store
 *.tsbuildinfo
+
+/deliverables/releases/

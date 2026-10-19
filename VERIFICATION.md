@@ -1,27 +1,24 @@
 # 验证记录
 
-验证日期：2026-10-19。当前版本：0.2.0。
+验证日期：2026-10-20。当前版本：0.4.0（含未发布的工程维护改动，见 CHANGELOG）。
 
-## 已通过
+## 已通过（本次重跑）
 
-- TypeScript 全量检查与 Vite 生产构建；独立 HTML 从同一前端源码通过 esbuild 打包。
-- 核心模型测试 6 项：角色结构、完整版本独立复制、秘密继承及清空、关闭秘密后保留内容、图片引用收集、非法备份拒绝。
-- CoC7 与迁移测试 6 项：困难 / 极难向下取整与超过 100 的属性；伤害加值 / 体格全部分段边界；移动率相等边界、年龄和覆盖；动态技能基础、上限与当前值分离；旧资料无损迁移和重复迁移；秘密数值继承及版本快照独立。
-- 撤销模型测试 1 项：连续输入合并，结构操作单独撤销，重做与新分支。
-- ZIP 校验测试 5 项：合法备份、缺失图片、缺少资料库、越界 / 无关路径、非法字段。
-- 实际 IndexedDB / 模拟 DOM 流程测试 5 项：图片字节及秘密资料备份恢复；新建编辑复制后重读；身份卡浮层切换整份档案并保持章节、切换版本回表层；默认表层身份卡、阈值点击、共享 HP 与撤销重做自动保存；删除默认版本后恢复有效默认版本、撤销恢复版本及默认设置。
-- 模拟桌面关闭流程测试 2 项：等待保存队列并写入最新资料后关闭；失败时保留窗口。
-- Windows 原生存储测试 4 项：图片路径限制；原子替换并保留其他临时文件；SQLite 读写与快照；schema 1 / 2 兼容及非法版本拒绝。测试编译为 Windows x64 程序，在 Wine 10 运行。
-- 合计 29 项通过，其中 6 项 Node 测试、19 项 Vitest 测试、4 项 Windows 原生测试。
-- Windows x64 发布程序及 NSIS 安装包通过 Linux 交叉编译，目标 `x86_64-pc-windows-msvc`。
-- 版本号 0.2.0 已同步到应用、Tauri、Cargo 和依赖锁文件；资料目录 identifier 保持 `studio.characteratlas.desktop`，升级沿用原本机资料。
+- `npx tsc -b`：TypeScript 全量检查通过。
+- `npm run lint`：ESLint 0 错误。
+- `npm test`（Vitest）：20 个测试文件、72 项全部通过；Node 20.19 与 Node 22 各跑一遍均通过。
+  - 含原 `tests/domain.test.mjs` 的 6 项核心模型测试（已迁移为 `src/domain.test.ts`，断言不变）。
+  - 新增 `src/autosave.test.tsx` 3 项：防抖只写最后一份、flush 立即写入、卸载时不丢待写内容。
+  - 其余为 CoC、撤销、ZIP 校验、恢复、追加导入、关系跳转、检索、版本对比、身份卡切换、桌面关闭等流程测试。
+- `npx vite build`：生产构建通过。
+- Windows 原生存储测试（`cargo test --lib`，4 项）由 GitHub Actions `windows.yml` 执行；本次本地沙箱 rustc 1.85 低于依赖要求（1.87），未在本地运行。
 
 ## 交付文件
 
-- `deliverables/CharacterAtlas-0.2.0-Windows-x64-setup.exe`：Windows 64 位安装包。
+- Windows 64 位安装包：由 `windows.yml` 构建产物下载（`CharacterAtlas-0.4.0-Windows-x64-setup.exe`），不再提交进仓库。
 - `deliverables/叙册-本地预览.html`：独立浏览器离线预览，包含脚本、样式与演示图片。
 - `deliverables/character-atlas-source.zip`：最终源码、测试、依赖锁文件、Windows 构建脚本和说明。
-- `deliverables/使用说明.md`：0.2.0 操作说明。
+- `QUICKSTART.zh-CN.md`：0.4.0 操作说明。
 - `deliverables/SHA256SUMS.txt`：交付文件 SHA-256 校验值。
 
 ## 验证边界
@@ -31,4 +28,4 @@
 - 安装包未代码签名。
 - 交叉编译产生 Microsoft CRT 调试符号缺失的 LNK4099 警告，发布程序、安装包与原生测试均成功生成。
 - Windows 需要 WebView2，缺失时安装程序会下载运行时；应用日常使用无需联网。
-- 撤销历史仅保存在本次应用内存中，最多 40 步。升级后的 schema 2 备份需要新版读取，旧版不支持。
+- 撤销历史仅保存在本次应用内存中，最多 40 步。schema 2 备份需要 0.2.0 或更新版本读取。

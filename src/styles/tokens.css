@@ -1,0 +1,41 @@
+/*
+ * 应用级设计 token（默认主题「林间档案」）。
+ *
+ * 这里只定义应用外观；角色内容层的「秘密身份三主题」（.theme-prison / .theme-noir / .theme-clinical）
+ * 继续用 --book-* 变量，在 .book-shell / .identity-surface 上局部覆盖，与应用主题叠加。
+ *
+ * 两类变量：
+ * - 核心 token：在 :root 上有值，所有主题都必须给出。
+ * - 细分 token（--c-*）：默认主题不定义，样式里写成 var(--c-x, 原色值)，
+ *   这样默认主题与改造前逐像素一致；其他主题按需给值即可统一一整组细碎色值。
+ */
+:root {
+  /* 背景 / 纸张 / 墨色 / 强调 / 边框 */
+  --bg: #efede6;
+  --bg-glow: #e1e6d8;
+  --paper: #fffdf7;
+  --ink: #293b35;
+  --muted: #68756a;
+  --line: #dcded3;
+  --accent: #284f43;
+  --green: var(--accent);
+  /* 阴影 / 圆角 */
+  --shadow-surface: 0 12px 36px #253d3010;
+  --surface-shadow: var(--shadow-surface);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  /* 字体：只用系统字体栈，不加载网络字体 */
+  --font-sans: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  --font-serif: AtlasSerif, "Noto Serif SC", "Songti SC", SimSun, serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, "Courier New", monospace;
+  --font-number: Georgia, serif;
+  --serif: var(--font-serif);
+  /* 间距 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+}

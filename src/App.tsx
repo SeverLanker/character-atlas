@@ -81,6 +81,7 @@ import { VersionCompare } from "./components/VersionCompare";
 import { Portrait } from "./components/Portrait";
 import { Modal, type Confirm } from "./views/Modal";
 import { ShelfView } from "./views/ShelfView";
+import { ExportMarkdownModal, type MarkdownScope } from "./views/ExportMarkdownModal";
 import { RelationshipGraphView } from "./views/RelationshipGraphView";
 import { LibrarySettingsModal } from "./views/LibrarySettingsModal";
 import { useAppKeyboard } from "./hooks/useAppKeyboard";
@@ -109,6 +110,7 @@ export default function App() {
       null,
     );
   const [copyName, setCopyName] = useState("");
+  const [markdownScope, setMarkdownScope] = useState<MarkdownScope | null>(null);
   const [backupRevision, setBackupRevision] = useState(0);
   const [comparing, setComparing] = useState(false);
   const [relationTrail, setRelationTrail] = useState<{ characterId: string; versionId: string; page: Page; hidden: boolean }[]>([]);
@@ -773,6 +775,7 @@ export default function App() {
                     <ContactRound size={15} />
                     身份卡
                   </button>
+                  <button className="button small" onClick={() => setMarkdownScope({ kind: "character", character: c, versionId: v.id })}>导出 Markdown</button>
                   <button className="button small" aria-expanded={comparing} onClick={() => setComparing(!comparing)}>版本对比</button>
                   <label className="version-picker">
                     <Clock3 size={14} />
@@ -1183,12 +1186,22 @@ export default function App() {
           notify={notify} onClose={() => setModal(null)}
           onRetrySave={() => setLibrary({ ...library })}
           moveLibrary={moveLibrary} runExport={runExport} pickRestore={pickRestore}
+          onExportMarkdown={() => { setModal(null); setMarkdownScope({ kind: "library" }); }}
           applyRecoveredLibrary={applyRecoveredLibrary}
           onImport={async (base, payload, choices) => {
             await flush();
             const result = await appendLibraryImport(base, payload, choices);
             setLibrary(result, true); setActiveId(""); setShelf(true); closePanels(); setEditing(false); setHidden(false);
           }}
+        />
+      )}
+      {markdownScope && (
+        <ExportMarkdownModal
+          library={library}
+          scope={markdownScope.kind === "character" ? { ...markdownScope, character: library.characters.find((x) => x.id === markdownScope.character.id) ?? markdownScope.character } : markdownScope}
+          beforeExport={() => flush().catch(() => {})}
+          onClose={() => setMarkdownScope(null)}
+          notify={notify}
         />
       )}
       {preview && (

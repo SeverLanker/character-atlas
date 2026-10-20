@@ -160,6 +160,30 @@ fn write_backup(path: String, data: String) -> AppResult<()> {
     }
     atomic_write(&path, &STANDARD.decode(data).map_err(err)?)
 }
+const MAX_MARKDOWN_BYTES: usize = 32 * 1024 * 1024;
+const MAX_EXPORT_ZIP_BYTES: usize = 512 * 1024 * 1024;
+fn check_export(path: &Path, size: usize) -> AppResult<()> {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase());
+    let limit = match ext.as_deref() {
+        Some("md") => MAX_MARKDOWN_BYTES,
+        Some("zip") => MAX_EXPORT_ZIP_BYTES,
+        _ => return Err("导出文件必须使用 .md 或 .zip 扩展名".into()),
+    };
+    if size > limit {
+        return Err(format!("导出文件超过 {} MB 上限", limit / 1024 / 1024));
+    }
+    Ok(())
+}
+#[tauri::command]
+fn write_export(path: String, data: String) -> AppResult<()> {
+    let path = PathBuf::from(path);
+    let bytes = STANDARD.decode(data).map_err(err)?;
+    check_export(&path, bytes.len())?;
+    atomic_write(&path, &bytes)
+}
 #[tauri::command]
 fn library_location(state: State<LibraryState>) -> AppResult<String> {
     let root = state.root.lock().map_err(err)?;
@@ -264,6 +288,7 @@ pub fn run() {
             write_asset,
             read_asset,
             write_backup,
+            write_export,
             library_location,
             open_library_folder,
             relocate_library
@@ -309,6 +334,15 @@ mod tests {
         assert_eq!(fs::read(&unrelated).unwrap(), b"existing user file");
         assert_eq!(fs::read_dir(&root).unwrap().count(), 2);
         fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn export_only_allows_markdown_and_zip_within_limits() {
+        assert!(check_export(Path::new("a.md"), 10).is_ok());
+        assert!(check_export(Path::new("a.ZIP"), 10).is_ok());
+        assert!(check_export(Path::new("a.exe"), 10).is_err());
+        assert!(check_export(Path::new("noext"), 10).is_err());
+        assert!(check_export(Path::new("a.md"), MAX_MARKDOWN_BYTES + 1).is_err());
+        assert!(check_export(Path::new("a.zip"), MAX_EXPORT_ZIP_BYTES + 1).is_err());
     }
     #[test]
     fn supports_old_and_new_library_schemas() {

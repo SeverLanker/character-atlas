@@ -1,0 +1,107 @@
+/* 採风宣纸：暖白米纸纹理、水墨侧栏、朱红印章强调、宋体标题。纹理是内联 SVG，不加载外部资源。 */
+:root[data-theme="xuan"] {
+  --bg: #f1eadb;
+  --bg-glow: #e8dcc4;
+  --paper: #fbf7ee;
+  --ink: #2b2622;
+  --muted: #6c6257;
+  --line: #e0d5c1;
+  --accent: #a3392a;
+  --shadow-surface: 0 10px 30px #5a3e2012;
+  --radius-md: 6px;
+  --font-serif: "Songti SC", "STSong", "Noto Serif SC", "Noto Serif CJK SC", "Source Han Serif SC", SimSun, serif;
+
+  --c-button-bg: #fffaf1;
+  --c-button-line: #d9ccb4;
+  --c-toggle-ink: #a69a88;
+  --c-toggle-active-ink: #a3392a;
+  --c-toggle-active-bg: #f1e3d6;
+  --c-tag-line: #a3392a88;
+  --c-tag-ink: #a3392a;
+  --c-tag-bg: #fbf1ea;
+  --c-portrait-bg: #ece3d2;
+  --c-modal-bg: #faf5ea;
+  --c-control-hover: #f3e9d8;
+  --c-accent-contrast: #fff8ee;
+  --c-accent-hover: #8a2d20;
+  --c-accent-alt: #a3392a;
+  --c-accent-shadow: #a3392a26;
+  --c-accent-shadow-strong: #a3392a3d;
+  --c-eyebrow: #9a4a3a;
+  --c-heading: #231f1b;
+  --c-text-soft: #665c51;
+  --c-rule: #ddd1bb;
+  --c-header-bg: #f7f1e5eb;
+  --c-header-line: #e2d6c0;
+  --c-sunken: #f1e9d9;
+  --c-sunken-tint: #eadfca77;
+  --c-drawer-bg: #f8f3e8;
+  --c-drawer-ink: #2b2622;
+  --c-control-bg: #fffaf1;
+  --c-control-line: #d9ccb4;
+  --c-field-bg: #fffcf5;
+  --c-focus: #a3392a;
+  --c-focus-ring: #a3392a1f;
+  --c-chip-bg: #f1dcd2;
+  --c-chip-ink: #8a2d20;
+  --c-card-line: #e0d4bd;
+  --c-card-line-hover: #b9a27f;
+  --c-card-shadow-hover: 0 18px 40px #5a3e2022;
+  --c-card-bg: linear-gradient(160deg, #fffcf4, #f6efe1);
+  --c-idcard-bg: #f6f0e3;
+  --c-idcard-line: #e0d4bd;
+  --c-modal-shadow: 0 28px 90px #3a2a1a33;
+
+  --c-sidebar-bg: radial-gradient(ellipse at 20% 105%, #00000055, transparent 55%), radial-gradient(ellipse at 110% 0%, #ffffff12, transparent 50%), linear-gradient(180deg, #34312d, #24221f);
+  --c-sidebar-border: #1d1b19;
+  --c-sidebar-ink: #e6dfd2;
+  --c-sidebar-muted: #b3aa9c;
+  --c-sidebar-title: #fbf3e2;
+  --c-sidebar-gold: #d7826f;
+  --c-sidebar-line: #ffffff1c;
+  --c-sidebar-tint: #ffffff08;
+  --c-sidebar-hover: #ffffff0f;
+  --c-sidebar-active-bg: #f5eedf;
+  --c-sidebar-active-line: #fbf5e9;
+  --c-sidebar-active-ink: #2b2622;
+  --c-sidebar-active-muted: #7a6f62;
+  --c-sidebar-active-shadow: #00000030;
+
+  --c-banner-bg: radial-gradient(ellipse at 80% 115%, #2b262233, transparent 55%), radial-gradient(ellipse at 95% 10%, #2b26221c, transparent 40%), linear-gradient(115deg, #f7f0e1, #ece2cd);
+  --c-banner-line: #dccfb5;
+  --c-banner-shadow: 0 14px 35px #5a3e2018;
+  --c-banner-ink: #26211d;
+  --c-banner-muted: #5f564b;
+  --c-banner-accent: #a3392a;
+  --c-banner-ring: #2b262214;
+  --c-book-front: #fbf6ea;
+  --c-book-front-ink: #a3392a;
+  --c-book-front-line: #d9ccb1;
+  --c-book-back: #4a4540;
+  --c-book-back-line: #6a645c;
+  --c-book-back-ink: #e8e0d2;
+
+  --c-book-paper: #fcf8ef;
+  --c-book-ink: #2e2924;
+  --c-book-muted: #6e6458;
+  --c-book-line: #e3d8c4;
+  --c-book-border: #d8cbb2;
+  --c-book-shadow: 0 4px 0 -1px #efe6d4, 0 8px 0 -3px #d7c9ad, 0 18px 42px #5a3e2014;
+  --c-id-paper: #fcf8ef;
+  --c-id-ink: #2e2924;
+  --c-id-muted: #6e6458;
+  --c-id-line: #e0d4bd;
+  --c-id-accent: #a3392a;
+}
+[data-theme="xuan"] body {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .36 0 0 0 0 .25 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23f)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 90% 0%, var(--bg-glow) 0%, transparent 48%), var(--bg);
+}
+[data-theme="xuan"] .shelf-heading h1,
+[data-theme="xuan"] .dossier-title-row h1,
+[data-theme="xuan"] .shelf-banner h2,
+[data-theme="xuan"] .brand b { font-family: var(--font-serif); }
+/* 朱红印章：书架横幅的小标题做成钤印样式。 */
+[data-theme="xuan"] .shelf-banner .eyebrow { display: inline-block; padding: 3px 7px; border: 1.5px solid currentColor; border-radius: 3px; letter-spacing: 3px; }
+[data-theme="xuan"] .book-shell.theme-ivory { --book-accent: #a3392a; }

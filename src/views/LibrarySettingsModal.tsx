@@ -8,6 +8,8 @@ import type { ImportChoices } from "../merge";
 import { RecoveryPanel } from "../components/RecoveryPanel";
 import { ImportPanel } from "../components/ImportPanel";
 import { Modal } from "./Modal";
+import { ThemePicker } from "../components/ThemePicker";
+import type { ThemePref } from "../theme";
 
 export interface LibrarySettingsModalProps {
   library: Library;
@@ -22,6 +24,8 @@ export interface LibrarySettingsModalProps {
   moveLibrary: () => void;
   runExport: () => void;
   onExportMarkdown?: () => void;
+  themePref?: ThemePref;
+  onThemeChange?: (next: ThemePref) => void;
   pickRestore: (file: File) => Promise<void>;
   applyRecoveredLibrary: (candidate: Library) => Promise<void>;
   onImport: (base: Library, payload: LibraryImport, choices: ImportChoices) => Promise<void>;
@@ -30,7 +34,7 @@ export interface LibrarySettingsModalProps {
 /** 「本地资料库」设置弹窗：位置、统计、备份导出 / 恢复、修复与追加导入。 */
 export function LibrarySettingsModal({
   library, busy, location, saveState, saveError, backupRevision, notify, onClose, onRetrySave,
-  moveLibrary, runExport, onExportMarkdown, pickRestore, applyRecoveredLibrary, onImport,
+  moveLibrary, runExport, onExportMarkdown, themePref, onThemeChange, pickRestore, applyRecoveredLibrary, onImport,
 }: LibrarySettingsModalProps) {
   const restoreInput = useRef<HTMLInputElement>(null);
   return (
@@ -151,6 +155,7 @@ export function LibrarySettingsModal({
             <Info size={14} />
             备份包含秘密档案，请妥善保管。
           </p>
+          {themePref && onThemeChange && <ThemePicker value={themePref} onChange={onThemeChange} />}
           <RecoveryPanel key={backupRevision} onApply={applyRecoveredLibrary} />
           <ImportPanel current={library} onImport={onImport} />
           {busy && (

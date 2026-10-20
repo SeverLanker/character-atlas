@@ -1,0 +1,22 @@
+/* 关系图 */
+.relationship-graph { display: grid; gap: 12px; }
+.relationship-graph.empty { place-items: center; text-align: center; padding: 60px 20px; opacity: .8; }
+.graph-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.graph-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.graph-zoom { display: inline-flex; gap: 4px; }
+.graph-matches { display: flex; flex-wrap: wrap; gap: 6px; }
+.graph-empty-note, .graph-help { font-size: 12px; opacity: .75; margin: 0; }
+.graph-canvas { width: 100%; max-height: 72vh; aspect-ratio: 1; background: var(--paper, #f6f1e7); border: 1px solid var(--c-graph-line, rgba(83,105,92,.2)); border-radius: 14px; touch-action: none; cursor: grab; user-select: none; }
+.graph-canvas:active { cursor: grabbing; }
+.graph-edge line { stroke: var(--c-graph-edge, rgba(60, 80, 70, .45)); stroke-width: 2; transition: opacity .2s, stroke .2s; }
+.graph-edge.mutual line { stroke-width: 3.5; }
+.graph-edge text { font-size: 15px; fill: var(--c-graph-ink, #3b4a42); paint-order: stroke; stroke: var(--paper, #f6f1e7); stroke-width: 5px; transition: opacity .2s; }
+.graph-edge.lit line { stroke: var(--character-accent, #53695c); }
+.graph-edge.dim { opacity: .12; }
+.graph-node { cursor: pointer; transition: opacity .2s; outline: none; }
+.graph-node.dim { opacity: .25; }
+.graph-node-ring { fill: var(--c-graph-node, #fffdf8); stroke: var(--node-accent, #53695c); stroke-width: 3; }
+.graph-node.active .graph-node-ring, .graph-node:focus-visible .graph-node-ring { stroke-width: 6; stroke: var(--character-accent, #53695c); }
+.graph-node text { font-size: 16px; font-weight: 600; fill: var(--c-graph-ink-strong, #24312b); paint-order: stroke; stroke: var(--paper, #f6f1e7); stroke-width: 5px; }
+.graph-portrait { width: 100%; height: 100%; border-radius: 50%; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .graph-edge line, .graph-edge text, .graph-node { transition: none; } }

@@ -1,0 +1,57 @@
+/* Floating identity card: etched paper, foil seal and a single reveal sweep. */
+.id-card-glint, .id-security { display: none; }
+.identity-overlay { backdrop-filter: blur(10px) saturate(.7); background: #111c25b8; }
+.identity-card-modal { perspective: 1200px; }
+.identity-card-modal .identity-surface { --card-rx: 0deg; --card-ry: 0deg; --light-x: 50%; --light-y: 40%; }
+.identity-card-modal .id-card {
+  isolation: isolate;
+  border-radius: 17px;
+  border: 1px solid color-mix(in srgb, var(--book-accent) 50%, var(--book-paper));
+  padding: 27px 28px 25px;
+  background: radial-gradient(ellipse at var(--light-x) var(--light-y), color-mix(in srgb, var(--book-paper) 75%, white) 0%, transparent 65%), var(--book-paper);
+  box-shadow: 0 36px 85px #060c1866, 0 10px 24px #060c1840, inset 0 1px 0 #ffffffa0, inset 0 -2px 0 #18282116;
+  transform: perspective(1200px) rotateX(var(--card-rx)) rotateY(var(--card-ry));
+  transition: transform 180ms ease-out, box-shadow 240ms ease;
+}
+.identity-card-modal .id-card::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .36;
+  background: repeating-radial-gradient(ellipse at 115% 110%, transparent 0 9px, color-mix(in srgb, var(--book-accent) 40%, transparent) 10px 10.5px, transparent 11px 15px), linear-gradient(125deg, transparent 40%, #95cbdb27 50%, #dfbba72b 60%, transparent 75%);
+}
+.identity-card-modal .id-card::after {
+  inset: 8px; width: auto; height: auto; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--book-accent) 26%, transparent);
+}
+.identity-card-modal .id-top { position: relative; border-bottom-style: double; border-bottom-width: 3px; padding-bottom: 14px; }
+.identity-card-modal .id-top > svg { width: 19px; height: 19px; }
+.identity-card-modal .id-top > span:first-of-type { font-size: 8px; letter-spacing: 2px; line-height: 1.7; }
+.identity-card-modal .id-top > span:last-child { padding: 4px 9px; border: 1px solid var(--book-line); border-radius: 4px; white-space: nowrap; }
+.identity-card-modal .id-main { padding-top: 23px; align-items: center; gap: 24px; }
+.identity-card-modal .id-photo { width: 123px; min-width: 123px; height: 162px; padding: 4px; border-radius: 5px; background: var(--book-paper); box-shadow: 0 3px 10px #13262324; }
+.identity-card-modal .id-photo > .builtin-art, .identity-card-modal .id-photo img { border-radius: 2px; }
+.identity-card-modal .id-name { font-size: 31px; letter-spacing: 4px; text-shadow: 0 1px #ffffff30; }
+.identity-card-modal .id-number { letter-spacing: 2.5px; }
+.identity-card-modal .id-emblem { opacity: .85; padding: 13px; border-radius: 50%; border: 1px solid var(--book-line); background: radial-gradient(circle at 30% 25%, #ffffff65, #91c5c12b 38%, #c2addf40 62%, transparent); box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--book-paper) 70%, transparent); }
+.identity-card-modal .id-emblem svg { width: 39px; height: 39px; }
+.identity-card-modal .id-security { display: flex; align-items: center; gap: 9px; margin-top: 16px; color: var(--book-muted); font-size: 6px; letter-spacing: 1.5px; }
+.id-chip { width: 25px; height: 19px; flex-shrink: 0; border: 1px solid #9e9065; border-radius: 4px; background: linear-gradient(90deg, transparent 35%, #9e906580 36% 40%, transparent 41% 63%, #9e906580 64% 68%, transparent 69%), linear-gradient(transparent 43%, #9e906580 44% 51%, transparent 52%), linear-gradient(130deg, #f3e9b8, #b8a373 48%, #eee2ab); }
+.identity-card-modal .id-card-glint { display: block; position: absolute; inset: -50%; pointer-events: none; z-index: 2; background: linear-gradient(110deg, transparent 39%, #ffffff00 42%, #ffffff75 49%, #b9f9ff50 50%, #ffffff00 57%, transparent 60%); transform: translateX(-70%); animation: card-foil-pass 1300ms 180ms ease-in-out both; }
+.identity-card-modal [data-side="secret"] .id-card-glint { animation-name: card-secret-pass; }
+.identity-card-modal [data-side="secret"] .id-photo { animation: card-photo-reveal 450ms ease-out; }
+.identity-card-modal .id-card:focus-within { box-shadow: 0 36px 85px #060c1866, 0 0 0 2px color-mix(in srgb, var(--book-accent) 55%, transparent); }
+@keyframes card-foil-pass { from { transform: translateX(-70%); } to { transform: translateX(70%); } }
+@keyframes card-secret-pass { from { transform: translateX(70%); } to { transform: translateX(-70%); } }
+@keyframes card-photo-reveal { from { opacity: .3; filter: brightness(1.5); } to { opacity: 1; filter: none; } }
+@media (max-width: 600px) {
+  .identity-card-modal .id-card { padding: 21px 19px; }
+  .identity-card-modal .id-main { gap: 15px; }
+  .identity-card-modal .id-photo { width: 91px; min-width: 91px; height: 122px; }
+  .identity-card-modal .id-name { font-size: 24px; letter-spacing: 2px; }
+  .identity-card-modal .id-emblem { position: absolute; right: 0; bottom: 0; padding: 6px; }
+  .identity-card-modal .id-emblem svg { width: 24px; height: 24px; }
+  .identity-card-modal .id-security { font-size: 5px; letter-spacing: .6px; padding-right: 38px; }
+  .identity-card-modal .id-top > span:first-of-type { font-size: 6px; letter-spacing: 1px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .identity-card-modal .id-card, .identity-card-modal [data-side="secret"] .id-photo { transform: none; transition: none; animation: none; }
+  .identity-card-modal .id-card-glint { display: none; animation: none; }
+}

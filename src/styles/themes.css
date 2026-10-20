@@ -1,0 +1,15 @@
+/* 设置里的「外观主题」选择器（所有主题共用，颜色走 token）。 */
+.app-theme-picker { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.app-theme-picker h3 { margin: 0 0 12px; font-size: 14px; color: var(--ink); }
+.app-theme-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.app-theme-option { display: flex; align-items: center; gap: 12px; padding: 10px 12px; text-align: left; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.app-theme-option:hover { border-color: var(--muted); }
+.app-theme-option.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+.app-theme-option strong { display: block; font-size: 13px; }
+.app-theme-option small { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+.app-theme-swatch { display: grid; grid-template-columns: repeat(2, 14px); grid-template-rows: repeat(2, 14px); flex: none; border-radius: 4px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); }
+.app-theme-swatch i { display: block; }
+.app-theme-follow { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--ink); }
+.app-theme-note { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.7; }
+@media (max-width: 560px) { .app-theme-options { grid-template-columns: minmax(0, 1fr); } }
+

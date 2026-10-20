@@ -2,6 +2,8 @@
 
 ## 未发布
 
+- 新增应用级外观主题：默认「林间档案」（与改造前逐像素一致）、「夜读」（深色，文字对比度达 WCAG AA）、「採风宣纸」（米纸、朱红印章、宋体标题）、「档案局」（牛皮纸、打字机等宽，适合 CoC）。在 设置 → 外观主题 中切换，可选跟随系统深浅色；偏好只存在本机，不进角色资料和备份。角色的秘密身份三主题照常叠加。
+- 样式整理：抽出设计 token（src/styles/tokens.css），按模块拆出身份卡 / 阅读辅助 / 浮动卡片 / 人体图 / 关系图样式文件。
 - 新增 Markdown 导出：档案页「导出 Markdown」导出单角色 .md；设置中「导出整库 Markdown」导出 ZIP（每角色一个 .md + index.md + assets/ 图片，相对链接或 Obsidian wikilink）。默认仅公开层，勾选「包含秘密身份」才以独立章节输出（不是加密）。桌面端新增 write_export 命令，仅允许 .md/.zip 且限制大小。
 - 工程：从 `App.tsx` 拆出 `src/views`（Modal、ShelfView、LibrarySettingsModal）与 `src/hooks`（useAutosave、useAppKeyboard），功能不变。
 - 自动保存改为 400 ms 防抖；关闭窗口、恢复、导入、迁址与导出前会立即写入尚未保存的编辑。

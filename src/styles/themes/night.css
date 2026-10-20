@@ -1,0 +1,108 @@
+/* 夜读：深色低对比。正文 / 次要文字对纸面均 ≥ 4.5:1（WCAG AA）。 */
+/* 只作用于屏幕：打印时回到默认浅色纸面，避免深色底浪费墨水。 */
+@media not print {
+  :root[data-theme="night"] {
+    color-scheme: dark;
+    --bg: #171b1a;
+    --bg-glow: #1f2a26;
+    --paper: #222826;
+    --ink: #dcd7c9;
+    --muted: #a5ab9d;
+    --line: #3a433f;
+    --accent: #c9ad74;
+    --shadow-surface: 0 12px 30px #00000040;
+
+    --c-button-bg: #262d2a;
+    --c-button-line: #424b46;
+    --c-toggle-ink: #8f978a;
+    --c-toggle-active-ink: #e6dcc0;
+    --c-toggle-active-bg: #353e3a;
+    --c-tag-line: #4a534e;
+    --c-tag-ink: #c9bf9f;
+    --c-tag-bg: #2a312e;
+    --c-portrait-bg: #2a312e;
+    --c-spine-highlight: #ffffff0a;
+    --c-modal-bg: #1f2523;
+    --c-control-hover: #2e3632;
+    --c-graph-line: #3a433f;
+    --c-graph-edge: rgba(201, 173, 116, .45);
+    --c-graph-ink: #cfcabb;
+    --c-graph-ink-strong: #ebe5d5;
+    --c-graph-node: #2a312e;
+    --c-body-fill: rgba(201, 190, 160, .14);
+    --c-body-stroke: rgba(220, 210, 180, .5);
+    --c-accent-contrast: #1b1d1a;
+    --c-accent-hover: #d8bd86;
+    --c-accent-alt: #c9ad74;
+    --c-accent-shadow: #00000040;
+    --c-accent-shadow-strong: #00000060;
+    --c-eyebrow: #b7a57c;
+    --c-heading: #ece5d3;
+    --c-text-soft: #a9afa1;
+    --c-rule: #36403b;
+    --c-header-bg: #1a1f1deb;
+    --c-header-line: #2f3733;
+    --c-sunken: #1c2220;
+    --c-sunken-tint: #ffffff06;
+    --c-drawer-bg: #1d2321;
+    --c-drawer-ink: #dcd7c9;
+    --c-control-bg: #262d2a;
+    --c-control-line: #424b46;
+    --c-field-bg: #1b201f;
+    --c-focus: #c9ad74;
+    --c-focus-ring: #c9ad7433;
+    --c-chip-bg: #2f3833;
+    --c-chip-ink: #d9cfae;
+    --c-card-line: #353e3a;
+    --c-card-line-hover: #6c7a68;
+    --c-card-shadow-hover: 0 18px 40px #00000055;
+    --c-card-bg: linear-gradient(150deg, #252c29, #202624);
+    --c-idcard-bg: #1c2220;
+    --c-idcard-line: #3a433f;
+    --c-modal-shadow: 0 28px 90px #00000080;
+
+    --c-sidebar-bg: linear-gradient(180deg, #121615, #101413);
+    --c-sidebar-border: #262d2a;
+    --c-sidebar-ink: #cfd3c7;
+    --c-sidebar-muted: #9ba293;
+    --c-sidebar-title: #efe3c2;
+    --c-sidebar-gold: #c9ad74;
+    --c-sidebar-line: #ffffff1a;
+    --c-sidebar-tint: #ffffff08;
+    --c-sidebar-hover: #ffffff0d;
+    --c-sidebar-active-bg: #2a322e;
+    --c-sidebar-active-line: #3c4640;
+    --c-sidebar-active-ink: #f1e6c6;
+    --c-sidebar-active-muted: #b4b9a9;
+    --c-sidebar-active-shadow: #00000040;
+
+    --c-banner-bg: radial-gradient(ellipse at 85% 20%, #c9ad7422, transparent 55%), linear-gradient(115deg, #1b2622, #26332e);
+    --c-banner-line: #2f3d37;
+    --c-banner-shadow: 0 14px 35px #00000050;
+    --c-banner-ink: #f0e8d4;
+    --c-banner-muted: #b9c2b2;
+    --c-banner-accent: #d4b97f;
+    --c-banner-ring: #c9ad7418;
+    --c-book-front: #3a3a30;
+    --c-book-front-ink: #e2d3a6;
+    --c-book-front-line: #5a5640;
+    --c-book-back: #3b4a3f;
+    --c-book-back-line: #56665a;
+    --c-book-back-ink: #cfd6c4;
+
+    --c-book-paper: #212725;
+    --c-book-ink: #dcd7c9;
+    --c-book-muted: #a3a99b;
+    --c-book-line: #38413d;
+    --c-book-border: #343d39;
+    --c-book-shadow: 0 4px 0 -1px #2a312e, 0 8px 0 -3px #39423e, 0 18px 42px #00000050;
+    --c-id-paper: #212725;
+    --c-id-ink: #dcd7c9;
+    --c-id-muted: #a7ad9f;
+    --c-id-line: #3a433f;
+    --c-id-accent: #b9a475;
+  }
+  [data-theme="night"] .icon-button { color: var(--c-text-soft); }
+  [data-theme="night"] .book-shell.theme-ivory { --book-accent: #c9ad74; }
+  [data-theme="night"] .portrait img, [data-theme="night"] .id-photo img { filter: brightness(0.92); }
+}

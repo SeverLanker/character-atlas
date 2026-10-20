@@ -86,7 +86,9 @@ import { RelationshipGraphView } from "./views/RelationshipGraphView";
 import { LibrarySettingsModal } from "./views/LibrarySettingsModal";
 import { useAppKeyboard } from "./hooks/useAppKeyboard";
 import { queueSave, useAutosave } from "./hooks/useAutosave";
+import { useAppTheme } from "./hooks/useAppTheme";
 export default function App() {
+  const [themePref, setThemePref] = useAppTheme();
   const { library, setLibrary, undo, redo, canUndo, canRedo } =
     useLibraryHistory();
   const [loadError, setLoadError] = useState("");
@@ -1187,6 +1189,7 @@ export default function App() {
           onRetrySave={() => setLibrary({ ...library })}
           moveLibrary={moveLibrary} runExport={runExport} pickRestore={pickRestore}
           onExportMarkdown={() => { setModal(null); setMarkdownScope({ kind: "library" }); }}
+          themePref={themePref} onThemeChange={setThemePref}
           applyRecoveredLibrary={applyRecoveredLibrary}
           onImport={async (base, payload, choices) => {
             await flush();

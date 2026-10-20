@@ -1,0 +1,124 @@
+/* 档案局 / 调查员：牛皮纸、马尼拉文件夹、打字机等宽字体、红色公章。适合 CoC。 */
+:root[data-theme="bureau"] {
+  --bg: #d6c49c;
+  --bg-glow: #e2d3ae;
+  --paper: #f5eedb;
+  --ink: #2c2822;
+  --muted: #64594a;
+  --line: #cdbd96;
+  --accent: #7a2e1f;
+  --shadow-surface: 0 6px 14px #4a3a1a26;
+  --radius-md: 3px;
+  --radius-lg: 3px;
+  --font-number: var(--font-mono);
+
+  --c-button-bg: #f8f2e2;
+  --c-button-line: #bfae86;
+  --c-toggle-ink: #8f7f63;
+  --c-toggle-active-ink: #f5eedb;
+  --c-toggle-active-bg: #2c2822;
+  --c-tag-line: #7a2e1f;
+  --c-tag-ink: #7a2e1f;
+  --c-tag-bg: #f5eedb;
+  --c-portrait-bg: #e6dabd;
+  --c-modal-bg: #f3ebd5;
+  --c-control-hover: #ebe0c4;
+  --c-accent-contrast: #fbf4e2;
+  --c-accent-hover: #63241a;
+  --c-accent-alt: #7a2e1f;
+  --c-accent-shadow: #4a1a1033;
+  --c-accent-shadow-strong: #4a1a104d;
+  --c-eyebrow: #7a2e1f;
+  --c-heading: #241f19;
+  --c-text-soft: #54493c;
+  --c-rule: #bfae86;
+  --c-header-bg: #e8dcbcee;
+  --c-header-line: #c2b087;
+  --c-sunken: #eadfc3;
+  --c-sunken-tint: #f5eedb66;
+  --c-drawer-bg: #f2e9d2;
+  --c-drawer-ink: #2c2822;
+  --c-control-bg: #f8f2e2;
+  --c-control-line: #bfae86;
+  --c-field-bg: #fbf7ec;
+  --c-focus: #7a2e1f;
+  --c-focus-ring: #7a2e1f22;
+  --c-chip-bg: #2c2822;
+  --c-chip-ink: #f5eedb;
+  --c-card-line: #c4b38b;
+  --c-card-line-hover: #8f7c55;
+  --c-card-shadow-hover: 0 10px 22px #4a3a1a33;
+  --c-card-bg: linear-gradient(180deg, #f6efdc, #efe5cc);
+  --c-idcard-bg: #fbf7ec;
+  --c-idcard-line: #c9b98f;
+  --c-modal-shadow: 0 24px 70px #2a200f55;
+
+  --c-sidebar-bg: repeating-linear-gradient(90deg, #ffffff05 0 2px, transparent 2px 5px), linear-gradient(180deg, #3f3628, #2f281d);
+  --c-sidebar-border: #241e15;
+  --c-sidebar-ink: #ebe0c6;
+  --c-sidebar-muted: #bfb197;
+  --c-sidebar-title: #f7ecd2;
+  --c-sidebar-gold: #d8a25f;
+  --c-sidebar-line: #ffffff1f;
+  --c-sidebar-tint: #ffffff0a;
+  --c-sidebar-hover: #ffffff10;
+  --c-sidebar-active-bg: #efe4c8;
+  --c-sidebar-active-line: #f7eed6;
+  --c-sidebar-active-ink: #2c2822;
+  --c-sidebar-active-muted: #6d604b;
+  --c-sidebar-active-shadow: #00000040;
+
+  --c-banner-bg: repeating-linear-gradient(0deg, #00000008 0 1px, transparent 1px 26px), linear-gradient(115deg, #c9a96e, #b8955a);
+  --c-banner-line: #9b7c45;
+  --c-banner-shadow: 0 10px 24px #4a3a1a40;
+  --c-banner-ink: #221c13;
+  --c-banner-muted: #33291b;
+  --c-banner-accent: #6e2418;
+  --c-banner-ring: #4a3a1a26;
+  --c-book-front: #f3ead2;
+  --c-book-front-ink: #7a2e1f;
+  --c-book-front-line: #b9a578;
+  --c-book-back: #8a3b2b;
+  --c-book-back-line: #a8574a;
+  --c-book-back-ink: #f6e5d0;
+
+  --c-book-paper: #f6efdc;
+  --c-book-ink: #2c2822;
+  --c-book-muted: #62574a;
+  --c-book-line: #d4c49e;
+  --c-book-border: #b9a678;
+  --c-book-shadow: 0 4px 0 -1px #e7dbbd, 0 8px 0 -3px #b9a678, 0 14px 30px #4a3a1a30;
+  --c-id-paper: #f6efdc;
+  --c-id-ink: #2c2822;
+  --c-id-muted: #62574a;
+  --c-id-line: #c9b98f;
+  --c-id-accent: #7a2e1f;
+}
+[data-theme="bureau"] body {
+  background: repeating-linear-gradient(45deg, #0000000a 0 1px, transparent 1px 7px), radial-gradient(ellipse at 90% 0%, var(--bg-glow) 0%, transparent 48%), var(--bg);
+}
+[data-theme="bureau"] .icon-button,
+[data-theme="bureau"] .character-card,
+[data-theme="bureau"] .character-open .id-card,
+[data-theme="bureau"] .search-input,
+[data-theme="bureau"] .sort-control,
+[data-theme="bureau"] .shelf-banner { border-radius: 3px; }
+/* 打字机：标签、编号、面包屑、页签、CoC 数值用等宽字体；中文正文仍用系统黑体保证可读。 */
+[data-theme="bureau"] .eyebrow,
+[data-theme="bureau"] .breadcrumb,
+[data-theme="bureau"] .id-number,
+[data-theme="bureau"] .id-fields,
+[data-theme="bureau"] .id-top,
+[data-theme="bureau"] .folio-top,
+[data-theme="bureau"] .folio-bottom,
+[data-theme="bureau"] .book-tabs button,
+[data-theme="bureau"] .section-heading small,
+[data-theme="bureau"] .prose-block > small,
+[data-theme="bureau"] .shelf-count h2,
+[data-theme="bureau"] .coc-attributes,
+[data-theme="bureau"] .coc-skill-row,
+[data-theme="bureau"] .shelf-metrics { font-family: var(--font-mono); }
+/* 文件夹页签：书架卡片顶部多一条牛皮纸边。 */
+[data-theme="bureau"] .character-card { border-top: 6px solid #b89a63; }
+[data-theme="bureau"] .book-shell.theme-ivory { --book-accent: #7a2e1f; }
+[data-theme="bureau"] .dossier-title-row h1 > span { border-width: 1.5px; transform: rotate(-3deg); }

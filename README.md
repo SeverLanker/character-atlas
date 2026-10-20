@@ -98,7 +98,8 @@ Windows 默认资料库：
 src/model.ts              类型、版本复制、继承与资料验证
 src/storage.ts            IndexedDB / Tauri 存储与完整备份
 src/App.tsx               应用状态与操作流程
-src/views/                Modal、ShelfView 书架、LibrarySettingsModal 资料库设置
+src/views/                Modal、ShelfView 书架、LibrarySettingsModal 资料库设置、RelationshipGraphView 关系图
+src/graph.ts              关系图数据、筛选与确定性布局
 src/hooks/                useAutosave 防抖保存队列、useAppKeyboard 快捷键
 src/components/BookPages.tsx 画册各栏目与身体图
 src/components/Editor.tsx   内容、版本与秘密身份编辑

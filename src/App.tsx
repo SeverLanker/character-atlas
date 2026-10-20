@@ -23,6 +23,7 @@ import {
   HardDrive,
   Info,
   LibraryBig,
+  Network,
   LoaderCircle,
   LockKeyhole,
   PencilLine,
@@ -80,6 +81,7 @@ import { VersionCompare } from "./components/VersionCompare";
 import { Portrait } from "./components/Portrait";
 import { Modal, type Confirm } from "./views/Modal";
 import { ShelfView } from "./views/ShelfView";
+import { RelationshipGraphView } from "./views/RelationshipGraphView";
 import { LibrarySettingsModal } from "./views/LibrarySettingsModal";
 import { useAppKeyboard } from "./hooks/useAppKeyboard";
 import { queueSave, useAutosave } from "./hooks/useAutosave";
@@ -92,6 +94,7 @@ export default function App() {
     [page, setPage] = useState<Page>("archive"),
     [hidden, setHidden] = useState(false),
     [catalogOpen, setCatalogOpen] = useState(false),
+    [graphOpen, setGraphOpen] = useState(false),
     [shelf, setShelf] = useState(true),
     [editing, setEditing] = useState(false);
   const [filter, setFilter] = useState("全部角色"),
@@ -118,6 +121,10 @@ export default function App() {
   const latest = useRef<Library | null>(null),
     toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   latest.current = library;
+  function closePanels() {
+    setCatalogOpen(false);
+    setGraphOpen(false);
+  }
   const notify = useCallback((text: string) => {
     setToast(text);
     clearTimeout(toastTimer.current);
@@ -188,7 +195,7 @@ export default function App() {
     const active = library.characters.find((item) => item.id === activeId);
     if (!active) {
       setShelf(true);
-            setCatalogOpen(false);
+            closePanels();
       setEditing(false);
       setModal(null);
       setHidden(false);
@@ -208,7 +215,7 @@ export default function App() {
     setPage("archive");
     setHidden(false);
     setShelf(false);
-    setCatalogOpen(false);
+    closePanels();
     setEditing(false);
   }
   function updateCharacter(patch: Partial<Character>, checkpoint = false) {
@@ -385,7 +392,7 @@ export default function App() {
     await flush();
     await queueSave(candidate, true);
     setLibrary(candidate, true);
-    setLoadError(""); setActiveId(""); setShelf(true); setCatalogOpen(false);
+    setLoadError(""); setActiveId(""); setShelf(true); closePanels();
     setEditing(false); setHidden(false); setModal(null);
     notify("资料已恢复，原件已保留");
   }
@@ -420,7 +427,7 @@ export default function App() {
           setLibrary(result, true);
           setActiveId("");
           setShelf(true);
-            setCatalogOpen(false);
+            closePanels();
           setEditing(false);
           setHidden(false);
           setModal(null);
@@ -527,7 +534,7 @@ export default function App() {
           className="brand"
           onClick={() => {
             setShelf(true);
-            setCatalogOpen(false);
+            closePanels();
             setHidden(false);
             setEditing(false);
           }}
@@ -545,11 +552,11 @@ export default function App() {
         <div className="sidebar-section-label">我的创作空间</div>
         <button
           className={
-            "sidebar-link " + (!catalogOpen && shelf && filter === "全部角色" ? "active" : "")
+            "sidebar-link " + (!catalogOpen && !graphOpen && shelf && filter === "全部角色" ? "active" : "")
           }
           onClick={() => {
             setShelf(true);
-            setCatalogOpen(false);
+            closePanels();
             setFilter("全部角色");
             setEditing(false);
           }}
@@ -560,11 +567,11 @@ export default function App() {
         </button>
         <button
           className={
-            "sidebar-link " + (!catalogOpen && shelf && filter === "特别收藏" ? "active" : "")
+            "sidebar-link " + (!catalogOpen && !graphOpen && shelf && filter === "特别收藏" ? "active" : "")
           }
           onClick={() => {
             setShelf(true);
-            setCatalogOpen(false);
+            closePanels();
             setFilter("特别收藏");
             setEditing(false);
           }}
@@ -573,8 +580,11 @@ export default function App() {
           <span>特别收藏</span>
         </button>
         <button className={"sidebar-link " + (catalogOpen ? "active" : "")} onClick={() => {
-          setShelf(true); setCatalogOpen(true); setEditing(false); setHidden(false);
+          setShelf(true); setGraphOpen(false); setCatalogOpen(true); setEditing(false); setHidden(false);
         }}><LibraryBig size={18} /><span>条目库管理</span><small>{library.catalog?.length ?? 0}</small></button>
+        <button className={"sidebar-link " + (graphOpen ? "active" : "")} onClick={() => {
+          setShelf(true); setCatalogOpen(false); setGraphOpen(true); setEditing(false); setHidden(false);
+        }}><Network size={18} /><span>关系图</span></button>
         <div className="sidebar-section-label series-label">
           故事与世界<span>{groups.length}</span>
         </div>
@@ -583,11 +593,11 @@ export default function App() {
             key={group}
             className={
               "sidebar-link series-link " +
-              (!catalogOpen && shelf && filter === group ? "active" : "")
+              (!catalogOpen && !graphOpen && shelf && filter === group ? "active" : "")
             }
             onClick={() => {
               setShelf(true);
-            setCatalogOpen(false);
+            closePanels();
               setFilter(group);
               setEditing(false);
             }}
@@ -648,7 +658,7 @@ export default function App() {
           <div className="breadcrumb">
             <span>私人设定集</span>
             <ChevronRight size={13} />
-            <strong>{catalogOpen ? "条目库管理" : shelf ? "角色书架" : c?.name}</strong>
+            <strong>{catalogOpen ? "条目库管理" : graphOpen ? "关系图" : shelf ? "角色书架" : c?.name}</strong>
             {!shelf && (
               <>
                 <ChevronRight size={13} />
@@ -703,6 +713,13 @@ export default function App() {
               </div>
               <CatalogPanel entries={library.catalog ?? []} onChange={(catalog) => setLibrary((lib) => lib ? { ...lib, catalog } : lib, true)} />
             </section>
+          ) : graphOpen ? (
+            <section className="graph-page">
+              <div className="shelf-heading">
+                <div><span className="eyebrow">CONNECTIONS</span><h1>关系图</h1><p>角色之间的关联，来自各角色默认公开版本的人际关系。</p></div>
+              </div>
+              <RelationshipGraphView library={library} onOpen={enter} />
+            </section>
           ) : shelf ? (
             <ShelfView
               library={library} filter={filter} filtered={filtered}
@@ -710,10 +727,11 @@ export default function App() {
               layout={layout} setLayout={setLayout}
               canUndo={canUndo} canRedo={canRedo} undo={undo} redo={redo}
               onNewCharacter={() => setModal("new")}
+              onOpenGraph={() => { setCatalogOpen(false); setGraphOpen(true); }}
               enter={enter} toggleFavorite={toggleFavorite}
               onSearchHit={(hit) => {
                 setActiveId(hit.characterId); setVersionId(hit.versionId); setPage(hit.page);
-                setHidden(hit.hidden); setShelf(false); setCatalogOpen(false); setEditing(false); setSearchHit(hit);
+                setHidden(hit.hidden); setShelf(false); closePanels(); setEditing(false); setSearchHit(hit);
               }}
             />
           ) : c && v && p ? (
@@ -723,7 +741,7 @@ export default function App() {
                   className="back-button"
                   onClick={() => {
                     setShelf(true);
-            setCatalogOpen(false);
+            closePanels();
                     setHidden(false);
                   }}
                 >
@@ -929,7 +947,7 @@ export default function App() {
                   true,
                 );
                 setShelf(true);
-            setCatalogOpen(false);
+            closePanels();
                 setEditing(false);
                 setHidden(false);
                 notify("角色已从资料库移除");
@@ -1169,7 +1187,7 @@ export default function App() {
           onImport={async (base, payload, choices) => {
             await flush();
             const result = await appendLibraryImport(base, payload, choices);
-            setLibrary(result, true); setActiveId(""); setShelf(true); setCatalogOpen(false); setEditing(false); setHidden(false);
+            setLibrary(result, true); setActiveId(""); setShelf(true); closePanels(); setEditing(false); setHidden(false);
           }}
         />
       )}

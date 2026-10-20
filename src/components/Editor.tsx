@@ -1,3 +1,4 @@
+import type { HistoryAction } from "../useLibraryHistory";
 import { CatalogPicker } from "./LibraryPicker";
 import { BodyImport } from "./BodyImport";
 import { RelationshipEditor } from "./Relationships";
@@ -199,6 +200,7 @@ const textFields = [
   { key: "text" as const, label: "内容", type: "textarea" as const },
 ];
 export interface EditorProps {
+  historyAction?: HistoryAction;
   characters?: Character[];
   catalog?: CatalogEntry[];
   onCatalog?: (entries: CatalogEntry[]) => void;
@@ -379,7 +381,7 @@ export function Editor(props: EditorProps) {
           ))}
         </nav>
         <div className="editor-scroll">
-          {tab === "catalog" && props.onCatalog && <CatalogPanel entries={props.catalog ?? []} onChange={props.onCatalog} profile={p} onPatch={patch} />}
+          {tab === "catalog" && props.onCatalog && <CatalogPanel historyAction={props.historyAction} entries={props.catalog ?? []} onChange={props.onCatalog} profile={p} onPatch={patch} />}
           {tab === "content" && (
             <>
               <div className="editor-page-select">

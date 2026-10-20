@@ -21,3 +21,9 @@
 .catalog-import-row { padding: 12px; margin: 8px 0; border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; }
 .catalog-import-row p { font-size: 13px; }
 .catalog-import-row input[type="checkbox"] { width: 18px; height: 18px; margin-right: 8px; }
+
+.catalog-import-warning { color: var(--muted); }
+.catalog-import-attention { border-left: 4px solid #bd8b35; background: rgba(189,139,53,.09); }
+.catalog-import-attention .catalog-import-warning { color: var(--ink); }
+.catalog-header-notes { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+.library-picker-modal .picker-search select { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; }

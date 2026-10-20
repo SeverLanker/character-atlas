@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { normalizeCatalogName } from "../catalog-key";
+import { useState, type ReactNode } from "react";
 import { Modal } from "../views/Modal";
 import { uid, type CatalogEntry, type CatalogKind, type Overrides, type Profile } from "../model";
 
@@ -11,9 +12,10 @@ export interface PickerEntry {
   disabled?: boolean;
 }
 
-export function LibraryPicker({ title, entries, categories, onAdd, onCustom, onClose }: {
+export function LibraryPicker({ title, entries, categories, filters, onAdd, onCustom, onClose }: {
   title: string; entries: PickerEntry[];
   categories?: { id: string; label: string }[];
+  filters?: ReactNode;
   onAdd: (id: string) => void; onCustom: (category: string) => void; onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -26,6 +28,7 @@ export function LibraryPicker({ title, entries, categories, onAdd, onCustom, onC
   return <Modal title={title} className="library-picker-modal" onClose={onClose}>
     <p className="editor-help">从库中选取一项，确认后添加到当前档案；添加后可独立编辑。</p>
     {categories && <nav className="coc-filters" aria-label="选择条目类别">{categories.map(item => <button type="button" key={item.id} aria-pressed={category === item.id} onClick={() => { setCategory(item.id); setSelected(""); setQuery(""); setLimit(8); }}>{item.label}</button>)}</nav>}
+    {filters}
     <label className="picker-search">搜索库中条目<input type="search" placeholder="输入名称、说明或标签…" value={query} onChange={e => { setQuery(e.target.value); setSelected(""); setLimit(8); }}/></label>
     <p className="picker-count" role="status">找到 {rows.length} 项 · 已添加的条目不可重复选取</p>
     <div className="picker-results" aria-label="库中条目">
@@ -45,7 +48,9 @@ export function CatalogPicker({ mode, catalog, profile, onPatch, onClose }: {
   mode: "skills" | "items"; catalog: CatalogEntry[]; profile: Profile;
   onPatch: (patch: Overrides) => void; onClose: () => void;
 }) {
-  const entries = catalog.filter(row => mode === "items" ? row.kind === "item" : row.kind !== "item");
+  const [world, setWorld] = useState("all");
+  const worlds = [...new Map(catalog.filter(row => row.world?.trim()).map(row => [normalizeCatalogName(row.world!), row.world!])).entries()];
+  const entries = catalog.filter(row => (mode === "items" ? row.kind === "item" : row.kind !== "item") && (world === "all" || `world:${normalizeCatalogName(row.world ?? "")}` === world));
   function add(item?: CatalogEntry, category = mode === "items" ? "item" : "skill") {
     const kind = (item?.kind ?? category) as CatalogKind;
     const copy = { id: uid(), title: item?.title ?? "", text: item?.text ?? "" };
@@ -53,8 +58,8 @@ export function CatalogPicker({ mode, catalog, profile, onPatch, onClose }: {
     else onPatch({ skills: [...profile.skills, { ...copy, kind, rank: item?.rank ?? "", common: item?.common ?? false }] });
     onClose();
   }
-  return <LibraryPicker title={mode === "items" ? "从物品库添加" : "从技能、法术与专长库添加"}
+  return <LibraryPicker filters={<label className="picker-search">世界／作品 <select aria-label="选取条目世界" value={world} onChange={e => setWorld(e.target.value)}><option value="all">全部世界</option><option value="world:">全库通用</option>{worlds.map(([key, name]) => <option key={key} value={`world:${key}`}>{name}</option>)}</select></label>} title={mode === "items" ? "从物品库添加" : "从技能、法术与专长库添加"}
     categories={mode === "skills" ? ["skill", "spell", "specialty"].map(id => ({ id, label: labels[id as CatalogKind] })) : undefined}
-    entries={entries.map(row => ({ id: row.id, title: row.title, description: row.text, category: row.kind, meta: [row.rank, ...(row.tags ?? [])].filter(Boolean).join(" · "), disabled: (row.kind === "item" ? profile.items : profile.skills.filter(item => (item.kind ?? "skill") === row.kind)).some(item => item.title.trim().toLocaleLowerCase() === row.title.trim().toLocaleLowerCase()) }))}
+    entries={entries.map(row => ({ id: row.id, title: row.title, description: row.text, category: row.kind, meta: [row.world, row.rank, ...(row.tags ?? [])].filter(Boolean).join(" · "), disabled: (row.kind === "item" ? profile.items : profile.skills.filter(item => (item.kind ?? "skill") === row.kind)).some(item => normalizeCatalogName(item.title) === normalizeCatalogName(row.title)) }))}
     onAdd={id => { const item = entries.find(row => row.id === id); if (item) add(item); }} onCustom={category => add(undefined, category || "item")} onClose={onClose}/>;
 }

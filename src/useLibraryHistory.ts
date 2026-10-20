@@ -1,7 +1,9 @@
 import { useCallback, useReducer } from "react";
 import type { Library } from "./model";
 type Update = Library | null | ((current: Library | null) => Library | null);
+export type HistoryAction = "set" | "undo" | "redo";
 interface State {
+  lastAction?: HistoryAction;
   current: Library | null;
   past: Library[];
   future: Library[];
@@ -17,6 +19,7 @@ export function historyReducer(state: State, action: Action): State {
     const previous = state.past.at(-1);
     if (!previous || !state.current) return state;
     return {
+      lastAction: "undo",
       current: previous,
       past: state.past.slice(0, -1),
       future: [state.current, ...state.future],
@@ -28,6 +31,7 @@ export function historyReducer(state: State, action: Action): State {
     const next = state.future[0];
     if (!next || !state.current) return state;
     return {
+      lastAction: "redo",
       current: next,
       past: [...state.past, state.current].slice(-40),
       future: state.future.slice(1),
@@ -43,6 +47,7 @@ export function historyReducer(state: State, action: Action): State {
   const grouped =
     !action.checkpoint && state.group && action.time - state.time < 800;
   return {
+    lastAction: "set",
     current,
     past:
       state.current && !grouped
@@ -70,6 +75,7 @@ export function useLibraryHistory() {
     redo = useCallback(() => dispatch({ type: "redo" }), []);
   return {
     library: state.current,
+    lastAction: state.lastAction,
     setLibrary: set,
     undo,
     redo,

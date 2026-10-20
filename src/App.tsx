@@ -112,7 +112,7 @@ function filterCharacters(library: Library | null, filter: string, search: strin
 }
 export default function App() {
   const [themePref, setThemePref] = useAppTheme();
-  const { library, setLibrary, undo, redo, canUndo, canRedo } =
+  const { library, setLibrary, undo, redo, canUndo, canRedo, lastAction } =
     useLibraryHistory();
   const [loadError, setLoadError] = useState("");
   const [activeId, setActiveId] = useState(""),
@@ -778,7 +778,7 @@ export default function App() {
                   <button className="button small" disabled={!canRedo} onClick={redo}>重做</button>
                 </div>
               </div>
-              <CatalogPanel entries={library.catalog ?? []} onChange={(catalog) => setLibrary((lib) => lib ? { ...lib, catalog } : lib, true)} />
+              <CatalogPanel historyAction={lastAction} entries={library.catalog ?? []} onChange={(catalog) => setLibrary((lib) => lib ? { ...lib, catalog } : lib, true)} />
             </section>
           ) : graphOpen ? (
             <section className="graph-page">
@@ -967,6 +967,7 @@ export default function App() {
         <Editor
           characters={library.characters}
           character={c}
+          historyAction={lastAction}
           catalog={library?.catalog ?? []}
           onCatalog={(catalog) => setLibrary((lib) => lib ? { ...lib, catalog } : lib, true)}
           version={v}

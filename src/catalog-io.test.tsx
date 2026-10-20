@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { applyCatalogImport, exportCatalog, parseCatalog } from "./catalog-io";
 import { CatalogTransfer } from "./components/CatalogTransfer";
 import { validateLibrary, type CatalogEntry } from "./model";
 
-afterEach(cleanup);
+const downloadExportMock = vi.hoisted(() => vi.fn());
+vi.mock("./storage", () => ({ downloadExport: downloadExportMock }));
+afterEach(() => { cleanup(); downloadExportMock.mockReset(); });
 const existing: CatalogEntry[] = [{ id: "old", title: "修复", kind: "skill", rank: "熟练", text: "原内容", common: true, favorite: true, tags: ["旧书"], createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-02T00:00:00Z" }];
 const csv = '名称,类别,等级,标签,说明\r\n修复,技能,失传,"文献、书,手艺","第一行\n第二行，含逗号,和""引号"""\r\n怀表,物品,神器,纪念,停走\r\n,技能,,,缺名\r\n错误类别,武器,,,错误';
 
@@ -21,7 +23,7 @@ it("同类同名默认跳过，覆盖保留 id、创建时间与收藏，坏条�
   const rows = parseCatalog(csv, "csv", existing);
   const skipped = applyCatalogImport(existing, rows, new Set());
   expect(skipped).toHaveLength(2); expect(skipped[0].text).toBe("原内容");
-  const merged = applyCatalogImport(existing, rows, new Set([2]), "2026-10-20T00:00:00Z");
+  const merged = applyCatalogImport(existing, rows, new Set([1]), "2026-10-20T00:00:00Z");
   expect(merged[0]).toMatchObject({ id: "old", rank: "失传", common: true, favorite: true, createdAt: existing[0].createdAt, updatedAt: "2026-10-20T00:00:00Z" });
   expect(() => validateLibrary({ schemaVersion: 2, characters: [], catalog: merged })).not.toThrow();
 });
@@ -102,4 +104,37 @@ it("预览后资料变化必须重新解析，取消不写入", () => {
 it("显式 null 不是合法字符串或标签数组，不能悄悄转为空值", () => {
  const rows = parseCatalog(JSON.stringify([{名称:"A",类别:"技能",等级:null},{名称:"B",类别:"技能",说明:null},{名称:"C",类别:"技能",标签:null}]),"json",[]);
  expect(rows.every(row => row.status === "error")).toBe(true);
+});
+
+
+it("CSV 与 Tab 标签兼容全部分隔符，仅在两侧无空白时拆分", () => {
+ for (const format of ["csv", "tsv"] as const) {
+   const separator = format === "csv" ? "," : "\t";
+   const header = ["名称","类别","等级","标签","说明"].join(separator);
+   const tags = " 歌/京極派|镇魂；古籍;修复、文献，历史,传承 ";
+   const row = ["唱法","技能","失传",`"${tags}"`,"说明"].join(separator);
+   expect(parseCatalog(header + "\n" + row, format, [])[0].entry?.tags).toEqual(["歌","京極派","镇魂","古籍","修复","文献","历史","传承"]);
+ }
+ const rows = parseCatalog('名称,类别,等级,标签,说明\nA,技能,,歌 / 京極派,说明',"csv",[]);
+ expect(rows[0].entry?.tags).toEqual(["歌 / 京極派"]);
+ expect(parseCatalog(JSON.stringify([{名称:"A",类别:"技能",标签:["歌/京極派"]}]),"json",[])[0].entry?.tags).toEqual(["歌/京極派"]);
+});
+
+it("CSV 和 Tab 预览均从第一条数据编号，换行说明不占条目号", () => {
+ expect(parseCatalog(csv,"csv",[]).map(row => row.line)).toEqual([1,2,3,4]);
+ expect(parseCatalog('名称\t类别\t等级\t标签\t说明\nA\t技能\t\t\t说明',"tsv",[])[0].line).toBe(1);
+});
+
+it("导出提示包含条数和范围，默认导出全部，切类别后只导出该类别", async () => {
+ downloadExportMock.mockResolvedValue(true);
+ const rows: CatalogEntry[] = [...existing, {...existing[0],id:"item",title:"怀表",kind:"item"}];
+ render(<CatalogTransfer entries={rows} kind="skill" onChange={vi.fn()}/>);
+ expect((screen.getByLabelText("条目导出范围") as HTMLSelectElement).value).toBe("all");
+ fireEvent.click(screen.getByRole("button",{name:"导出 JSON"}));
+ await waitFor(() => expect(screen.getByText("已导出 2 条（全部条目，JSON）。")).toBeTruthy());
+ expect(JSON.parse(new TextDecoder().decode(downloadExportMock.mock.calls[0][0])).entries).toHaveLength(2);
+ fireEvent.change(screen.getByLabelText("条目导出范围"),{target:{value:"kind"}});
+ fireEvent.click(screen.getByRole("button",{name:"导出 CSV"}));
+ await waitFor(() => expect(screen.getByText("已导出 1 条（当前类别：技能，CSV）。")).toBeTruthy());
+ expect(parseCatalog(new TextDecoder().decode(downloadExportMock.mock.calls[1][0]),"csv",[])).toHaveLength(1);
 });

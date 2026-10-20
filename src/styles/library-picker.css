@@ -12,3 +12,12 @@
 .picker-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .picker-actions .text-button { margin-right: auto; }
 @media (max-width: 520px) { .picker-results { grid-template-columns: 1fr; max-height: 220px; } .picker-actions .text-button { flex-basis: 100%; text-align: left; } }
+
+.catalog-transfer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.catalog-import-modal { width: min(800px, 100%); scrollbar-width: thin; scrollbar-color: var(--muted) transparent; }
+.catalog-import-modal .field { display: grid; gap: 8px; margin: 16px 0; }
+.catalog-import-modal textarea, .catalog-import-modal select { width: 100%; padding: 10px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.catalog-import-preview { margin-top: 18px; }
+.catalog-import-row { padding: 12px; margin: 8px 0; border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; }
+.catalog-import-row p { font-size: 13px; }
+.catalog-import-row input[type="checkbox"] { width: 18px; height: 18px; margin-right: 8px; }

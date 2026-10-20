@@ -335,9 +335,9 @@ export async function downloadBytes(bytes: Uint8Array, name: string): Promise<bo
   return true;
 }
 /** 导出文件（Markdown / ZIP）。桌面由 Rust 侧弹对话框、校验路径、限制扩展名与体积；网页触发下载。 */
-export async function downloadExport(bytes: Uint8Array, name: string, kind: "md" | "zip"): Promise<boolean> {
+export async function downloadExport(bytes: Uint8Array, name: string, kind: "md" | "zip" | "json" | "csv"): Promise<boolean> {
   if (desktop) return invoke<boolean>("save_export", { suggestedName: name, kind, data: toBase64(bytes) });
-  browserDownload(bytes, name, kind === "md" ? "text/markdown;charset=utf-8" : "application/zip");
+  browserDownload(bytes, name, ({ md: "text/markdown;charset=utf-8", zip: "application/zip", json: "application/json;charset=utf-8", csv: "text/csv;charset=utf-8" })[kind]);
   return true;
 }
 function browserDownload(bytes: Uint8Array, name: string, type: string) {

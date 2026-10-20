@@ -54,6 +54,8 @@ export function isProminentAbility(skill: Skill): boolean {
 }
 export type CatalogKind = "skill" | "spell" | "specialty" | "item";
 export interface CatalogEntry extends Entry {
+  createdAt?: string;
+  updatedAt?: string;
   tags?: string[];
   favorite?: boolean;
   kind: CatalogKind;
@@ -389,6 +391,7 @@ export function validateLibrary(value: unknown): asserts value is Library {
         ["skill", "spell", "specialty", "item"].includes(String(item.kind)) &&
         ["title", "text", "rank"].every((key) => typeof item[key] === "string") && typeof item.common === "boolean", "资料库条目无效");
       catalogIds.add(item.id);
+      for (const key of ["createdAt", "updatedAt"]) check(item[key] === undefined || (typeof item[key] === "string" && Number.isFinite(Date.parse(item[key]))), "条目时间戳无效");
       check(item.tags === undefined || (Array.isArray(item.tags) && item.tags.length <= 50 && item.tags.every((tag: unknown) => typeof tag === "string" && tag.length <= 100)), "条目标签无效");
       check(item.favorite === undefined || typeof item.favorite === "boolean", "条目收藏标记无效");
     }

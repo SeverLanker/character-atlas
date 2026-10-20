@@ -211,6 +211,8 @@ async fn save_export(
     let kind = match kind.as_str() {
         "md" => WriteKind::ExportMarkdown,
         "zip" => WriteKind::ExportZip,
+        "json" => WriteKind::ExportJson,
+        "csv" => WriteKind::ExportCsv,
         _ => return Err("不支持的导出类型".into()),
     };
     save_with_dialog(&app, &state, kind, &suggested_name, &data)

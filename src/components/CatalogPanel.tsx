@@ -1,3 +1,4 @@
+import { CatalogTransfer } from "./CatalogTransfer";
 import { useState } from "react";
 import { uid, type CatalogEntry, type CatalogKind, type Overrides, type Profile } from "../model";
 
@@ -29,6 +30,7 @@ export function CatalogPanel({ entries, onChange, profile, onPatch }: {
   return <section aria-label="共享条目库" className="catalog-panel">
     <h3>技能、法术、专长与物品库</h3>
     <p className="editor-help">全库角色共用，随完整备份保存。添加到角色时复制为独立条目，后续修改互不影响。数值技能使用属性页的规则技能选取器；这里保存可复用的文字设定。</p>
+    <CatalogTransfer entries={entries} kind={kind} onChange={onChange}/>
     <nav className="coc-filters" aria-label="条目类别">{Object.entries(labels).map(([key, label]) => <button key={key} aria-pressed={kind === key} onClick={() => { setKind(key as CatalogKind); setQuery(""); setTag(''); setLimit(8); setDraft(null); setMessage(''); }}>{label}</button>)}</nav>
     <label className="field"><span>搜索{labels[kind]}库</span><input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setLimit(8); }} /></label>
     <div className="catalog-filters">
@@ -44,7 +46,7 @@ export function CatalogPanel({ entries, onChange, profile, onPatch }: {
       if (entries.some(item => item.id !== draft.id && item.kind === draft.kind && item.title.trim().toLocaleLowerCase() === draft.title.trim().toLocaleLowerCase())) {
         setMessage('同类中已有同名模板，请修改名称或编辑原模板。'); return;
       }
-      const saved = { ...draft, title: draft.title.trim(), tags: [...new Set((draft.tags ?? []).map(t => t.trim()).filter(Boolean))] };
+      const saved = { ...draft, createdAt: draft.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString(), title: draft.title.trim(), tags: [...new Set((draft.tags ?? []).map(t => t.trim()).filter(Boolean))] };
       onChange(entries.some((item) => item.id === saved.id) ? entries.map((item) => item.id === saved.id ? saved : item) : [...entries, saved]);
       if (saved.kind !== kind) { setKind(saved.kind); setTag(''); setQuery(''); }
       setDraft(null); setMessage("模板已保存。");

@@ -36,6 +36,13 @@ describe("桌面端写文件只传内容和建议文件名", () => {
     ]);
     expect(JSON.stringify(invoke.mock.calls)).not.toContain("path");
   });
+  it("条目 JSON 和 CSV 使用原生保存通道", async () => {
+    invoke.mockResolvedValue(true);
+    await storage.downloadExport(strToU8("{}"), "条目.json", "json");
+    await storage.downloadExport(strToU8("名称,类别"), "条目.csv", "csv");
+    expect(invoke.mock.calls.map(c => c[1].kind)).toEqual(["json", "csv"]);
+    expect(JSON.stringify(invoke.mock.calls)).not.toContain("path");
+  });
   it("Rust 侧的中文报错原样抛给界面", async () => {
     invoke.mockRejectedValueOnce("备份文件约 600.0 MB，超过 512 MB 上限，未写入。");
     await expect(storage.downloadBytes(new Uint8Array([1]), "a.zip")).rejects.toBe("备份文件约 600.0 MB，超过 512 MB 上限，未写入。");

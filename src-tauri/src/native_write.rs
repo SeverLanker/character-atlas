@@ -18,6 +18,8 @@ pub enum WriteKind {
     ExportMarkdown,
     /// Markdown 整库导出：只允许 .zip
     ExportZip,
+    ExportJson,
+    ExportCsv,
 }
 
 const MB: usize = 1024 * 1024;
@@ -31,12 +33,14 @@ impl WriteKind {
         match self {
             WriteKind::Backup | WriteKind::ExportZip => "zip",
             WriteKind::ExportMarkdown => "md",
+            WriteKind::ExportJson => "json",
+            WriteKind::ExportCsv => "csv",
         }
     }
     pub fn max_bytes(self) -> usize {
         match self {
             WriteKind::Backup => MAX_BACKUP_BYTES,
-            WriteKind::ExportMarkdown => MAX_EXPORT_MARKDOWN_BYTES,
+            WriteKind::ExportMarkdown | WriteKind::ExportJson | WriteKind::ExportCsv => MAX_EXPORT_MARKDOWN_BYTES,
             WriteKind::ExportZip => MAX_EXPORT_ZIP_BYTES,
         }
     }
@@ -45,6 +49,8 @@ impl WriteKind {
             WriteKind::Backup => "备份文件",
             WriteKind::ExportMarkdown => "Markdown 文件",
             WriteKind::ExportZip => "Markdown 压缩包",
+            WriteKind::ExportJson => "条目库 JSON",
+            WriteKind::ExportCsv => "条目库 CSV",
         }
     }
     pub fn filter_name(self) -> &'static str {
@@ -52,6 +58,8 @@ impl WriteKind {
             WriteKind::Backup => "叙册备份",
             WriteKind::ExportMarkdown => "Markdown",
             WriteKind::ExportZip => "Markdown 压缩包",
+            WriteKind::ExportJson => "条目库 JSON",
+            WriteKind::ExportCsv => "条目库 CSV",
         }
     }
 }
@@ -198,6 +206,8 @@ mod tests {
         assert!(validate_target(&dir.join("A.ZIP"), WriteKind::Backup, &[]).is_ok());
         assert!(validate_target(&dir.join("角色.Md"), WriteKind::ExportMarkdown, &[]).is_ok());
         assert!(validate_target(&dir.join("lib.zip"), WriteKind::ExportZip, &[]).is_ok());
+        assert!(validate_target(&dir.join("条目.JSON"), WriteKind::ExportJson, &[]).is_ok());
+        assert!(validate_target(&dir.join("条目.csv"), WriteKind::ExportCsv, &[]).is_ok());
         // 已存在的普通文件允许覆盖
         fs::write(dir.join("old.zip"), b"x").unwrap();
         assert!(validate_target(&dir.join("old.zip"), WriteKind::Backup, &[]).is_ok());
@@ -211,6 +221,8 @@ mod tests {
             ("a.md", WriteKind::Backup),
             ("a.zip", WriteKind::ExportMarkdown),
             ("a.exe", WriteKind::ExportZip),
+            ("a.csv", WriteKind::ExportJson),
+            ("a.json", WriteKind::ExportCsv),
             ("a.zip.exe", WriteKind::Backup),
             ("noext", WriteKind::Backup),
             (".zip", WriteKind::Backup),

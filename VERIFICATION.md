@@ -1,24 +1,22 @@
 # 验证记录
 
-验证日期：2026-10-20。当前版本：0.4.0（含未发布的工程维护改动，见 CHANGELOG）。
+验证日期：2026-10-20。当前版本：0.5.0。
 
 ## 已通过（本次重跑）
 
 - `npx tsc -b`：TypeScript 全量检查通过。
 - `npm run lint`：ESLint 0 错误。
-- `npm test`（Vitest）：20 个测试文件、72 项全部通过；Node 20.19 与 Node 22 各跑一遍均通过。
-  - 含原 `tests/domain.test.mjs` 的 6 项核心模型测试（已迁移为 `src/domain.test.ts`，断言不变）。
-  - 新增 `src/autosave.test.tsx` 3 项：防抖只写最后一份、flush 立即写入、卸载时不丢待写内容。
-  - 其余为 CoC、撤销、ZIP 校验、恢复、追加导入、关系跳转、检索、版本对比、身份卡切换、桌面关闭等流程测试。
+- `npm test`（Vitest）：28 个测试文件、140 项全部通过；Node 20.19 与 Node 22 各跑一遍均通过。
+  - 覆盖核心模型、CoC、撤销、自动保存、ZIP 校验与解压限制、恢复、追加导入、关系跳转与关系图、人体图、Markdown 导出、应用主题、原生写入调用方式、书架多选与批量操作、检索、版本对比、身份卡切换、桌面关闭等。
 - `npx vite build`：生产构建通过。
-- Windows 原生存储测试（`cargo test --lib`，4 项）由 GitHub Actions `windows.yml` 执行；本次本地沙箱 rustc 1.85 低于依赖要求（1.87），未在本地运行。
+- 原生存储与写入加固测试（`cargo test --lib`，15 项）：本地 Linux（rustc stable 1.99）通过，并由 GitHub Actions `windows.yml` 在 Windows 上执行。
 
 ## 交付文件
 
-- Windows 64 位安装包：由 `windows.yml` 构建产物下载（`CharacterAtlas-0.4.0-Windows-x64-setup.exe`），不再提交进仓库。
+- Windows 64 位安装包：由 `windows.yml` 构建产物下载（`CharacterAtlas-0.5.0-Windows-x64-setup.exe`），不再提交进仓库。
 - `deliverables/叙册-本地预览.html`：独立浏览器离线预览，包含脚本、样式与演示图片。
 - `deliverables/character-atlas-source.zip`：最终源码、测试、依赖锁文件、Windows 构建脚本和说明。
-- `QUICKSTART.zh-CN.md`：0.4.0 操作说明。
+- `QUICKSTART.zh-CN.md`：0.5.0 操作说明。
 - `deliverables/SHA256SUMS.txt`：交付文件 SHA-256 校验值。
 
 ## 验证边界

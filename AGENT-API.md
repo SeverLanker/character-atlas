@@ -1,6 +1,6 @@
 # Atlas Agent 接口 v1
 
-此接口属于 0.5.3 之后的开发功能；之前交付的 0.5.3 EXE 不含本接口，需要后续重新打包。当前仓库的开发预览已可使用。
+此接口从 0.5.4 起提供，Windows 安装版与开发预览均可使用。此前的 0.5.3 EXE 不含本接口。
 
 接口在叙册运行期间可用；应用是唯一的资料读写者。HTTP 请求进入当前应用，复用 `parseCatalog`、`applyCatalogImport`、`validateLibrary` 和界面的撤销历史，不直接绕过界面校验去改 SQLite。
 

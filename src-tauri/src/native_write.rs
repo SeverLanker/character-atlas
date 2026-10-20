@@ -186,14 +186,15 @@ mod tests {
             SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
         ));
         fs::create_dir_all(&path).unwrap();
-        fs::canonicalize(path).unwrap()
+        // 不做 canonicalize：Windows 上会变成 \\?\ 设备路径，而对话框返回的是普通盘符路径。
+        path
     }
 
     #[test]
     fn accepts_normal_paths_with_case_insensitive_extensions() {
         let dir = temp_dir();
         let ok = validate_target(&dir.join("备份.zip"), WriteKind::Backup, &[]).unwrap();
-        assert_eq!(ok, dir.join("备份.zip"));
+        assert_eq!(ok, fs::canonicalize(&dir).unwrap().join("备份.zip"));
         assert!(validate_target(&dir.join("A.ZIP"), WriteKind::Backup, &[]).is_ok());
         assert!(validate_target(&dir.join("角色.Md"), WriteKind::ExportMarkdown, &[]).is_ok());
         assert!(validate_target(&dir.join("lib.zip"), WriteKind::ExportZip, &[]).is_ok());

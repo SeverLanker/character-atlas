@@ -19,6 +19,11 @@ try {
   assert.equal((await fetch(`${connection.url}/stats`)).status, 401);
   assert.equal((await call("GET", "/stats", undefined, { Origin: "https://example.invalid" })).status, 401);
   report.checks.push("missing-token and browser-origin rejected");
+  if (process.argv[4]) {
+    const privateFile = await fetch(new URL("/.agent/connection.json", process.argv[4]));
+    assert.notEqual(privateFile.status, 200, "私有连接文件不应被 Vite 静态服务公开");
+    report.checks.push("private connection file not served by UI host");
+  }
   const csv = `名称,类别,等级,标签,说明,世界\n${prefix},专长,专家,甲/乙/丙,临时接口验证,${world}\n,技能,,,,${world}`;
   const preview = await json("POST", "/catalog/import?dry_run=1", { format: "csv", text: csv });
   assert.equal(preview.will_add, 1); assert.equal(preview.errors.length, 1);
@@ -29,7 +34,13 @@ try {
   const imported = await json("GET", `/catalog/export?format=json&scope=${encodeURIComponent(`world:${world}`)}`);
   assert.equal(imported.entries.length, 1); id = imported.entries[0].id;
   assert.deepEqual(imported.entries[0].tags, ["甲", "乙", "丙"]);
-  assert.deepEqual(await json("POST", "/catalog/import", body), first);
+  assert.deepEqual(await json("POST", "/catalog/import", { request_id: body.request_id, text: body.text, format: body.format }), first);
+  const originalCopy = await json("GET", `/catalog/${id}`);
+  await json("POST", "/undo", { request_id: `${prefix}:undo-import` });
+  assert.equal((await json("GET", "/stats")).catalog, before.catalog);
+  await json("POST", "/redo", { request_id: `${prefix}:redo-import` });
+  assert.deepEqual(await json("GET", `/catalog/${id}`), originalCopy);
+  report.checks.push("HTTP undo/redo restores exact id and timestamps");
   assert.equal((await json("GET", "/stats")).catalog, before.catalog + 1);
   assert.equal((await call("POST", "/catalog/import", { ...body, text: "名称,类别,等级,标签,说明" })).status, 409);
   report.checks.push("import, durable replay and request-id conflict");

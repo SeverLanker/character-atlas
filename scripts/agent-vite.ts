@@ -15,10 +15,21 @@ function canonical(value: unknown): unknown {
 export function atlasAgent(): Plugin {
   return { name: "atlas-loopback-agent", apply: "serve", async configureServer(vite) {
     if (vite.config.mode === "test" || process.env.ATLAS_AGENT_DISABLED === "1") return;
+    if (!["127.0.0.1", "localhost"].includes(String(vite.config.server.host))) throw new Error("启用 Agent 的开发预览必须仅监听 127.0.0.1 / localhost");
     const token = randomBytes(32).toString("hex");
     let active: WebSocketClient | undefined;
     const pending = new Map<string, { client: WebSocketClient; resolve: (reply: AgentReply) => void }>();
-    vite.ws.on("atlas:agent-ready", (_data, client) => { if (!active || active.socket.readyState !== 1) active = client; });
+    const observed = new WeakSet<WebSocketClient>();
+    vite.ws.on("atlas:agent-ready", (_data, client) => {
+      active = client;
+      if (!observed.has(client)) {
+        observed.add(client);
+        client.socket.once("close", () => {
+          if (active === client) active = undefined;
+          for (const item of pending.values()) if (item.client === client) item.resolve({ status: 503, body: JSON.stringify({ error: "应用连接已断开，请用相同 request_id 重试" }), content_type: "application/json" });
+        });
+      }
+    });
     vite.ws.on("atlas:agent-not-ready", (_data, client) => { if (active === client) active = undefined; });
     vite.ws.on("atlas:agent-reply", (value: { id: string; reply: AgentReply }, client) => {
       const item = pending.get(value.id);
@@ -35,6 +46,7 @@ export function atlasAgent(): Plugin {
       try {
         const chunks: Buffer[] = []; let size = 0;
         for await (const chunk of req) { size += chunk.length; if (size > 64 * 1024 * 1024) { answer(413, { error: "请求超过 64 MB" }); return; } chunks.push(chunk); }
+        req.setTimeout(0);
         const text = Buffer.concat(chunks).toString("utf8");
         let body: unknown;
         try { body = text ? JSON.parse(text) : undefined; } catch { answer(400, { error: "JSON 语法错误" }); return; }

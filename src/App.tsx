@@ -114,7 +114,7 @@ function filterCharacters(library: Library | null, filter: string, search: strin
 export default function App() {
   const [themePref, setThemePref] = useAppTheme();
   const history = useLibraryHistory();
-  const { library, setLibrary, undo, redo, canUndo, canRedo, lastAction } = history;
+  const { library, setLibrary, undo, redo, canUndo, canRedo, lastAction, getState: getHistoryState, lock: lockHistory } = history;
   const [loadError, setLoadError] = useState("");
   const [activeId, setActiveId] = useState(""),
     [versionId, setVersionId] = useState(""),
@@ -188,12 +188,17 @@ export default function App() {
     getCurrentWindow()
       .onCloseRequested(async (event) => {
         event.preventDefault();
+        let release: () => void;
+        try { release = lockHistory(); }
+        catch { notify("资料正在处理，请完成后再关闭窗口"); return; }
         try {
-          if (latest.current) await flush(true);
+          await flush(true);
+          const current = getHistoryState().current;
+          if (current) await queueSave(current, true);
           await getCurrentWindow().destroy();
         } catch (error) {
           notify("保存失败，窗口保持打开：" + String(error));
-        }
+        } finally { release(); }
       })
       .then((fn) => {
         if (disposed) fn();
@@ -203,7 +208,7 @@ export default function App() {
       disposed = true;
       cleanup?.();
     };
-  }, [notify]);
+  }, [notify, flush, getHistoryState, lockHistory]);
   useEffect(() => {
     if (!(modal || confirm || preview)) return;
     const previous = document.body.style.overflow;

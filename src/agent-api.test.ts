@@ -109,3 +109,23 @@ it("IndexedDB 中资料和回执原子保存，新的会话可读取原请求结
   expect((await restarted.call("POST", "/catalog/import", body)).body).toBe(reply.body);
   expect(restarted.receipts.size).toBe(0); expect(await loadLibrary()).toEqual(saved);
 });
+
+
+it("保存失败不发布新界面状态，错误明确且锁会释放", async () => {
+ const h = harness();
+ h.context.commit = async () => { throw new Error("磁盘写入失败"); };
+ const reply = await h.call("POST","/catalog/import",{format:"json",text,request_id:"failed-save"});
+ expect(reply.status).toBe(500);
+ expect(h.state().current?.catalog).toEqual([]);
+ expect(h.state().past).toHaveLength(0);
+ expect((await h.call("GET","/stats")).status).toBe(200);
+});
+
+
+it("错拼 dry_run 不会误写入，未知筛选参数不会静默导出全库", async () => {
+ const h = harness();
+ expect((await h.call("POST","/catalog/import?dryrun=1",{format:"json",text,request_id:"typo"})).status).toBe(422);
+ expect(h.disk().catalog).toEqual([]);
+ expect((await h.call("GET","/catalog/export?worldd=测试")).status).toBe(422);
+ expect((await h.call("GET","/catalog/export?favorite=yes")).status).toBe(422);
+});

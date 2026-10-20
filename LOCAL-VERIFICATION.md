@@ -194,3 +194,25 @@
 - 新增括号空白、跨世界／通用隔离、英文边界、六列 CSV 通用空世界测试；整批实际应用撤销／重做同时覆盖 3 条和 7 条，比较 id、时间戳及整库内容。
 - 179 项测试、lint 与生产构建通过，独立 HTML 预览已更新。未触及真实角色库，未重新打包 EXE。
 - 用户第二轮记录报告上一批五项已实测通过；来源追踪、标签管理等后续建议未在本次实施。
+
+
+### 0.5.3 Windows 安装包
+
+- 提交 `61483a10b3a8c940c92f029c8fba1ddc3785b659`，分支 `codex/release-0.5.3`。
+- Actions run 39442553119 成功：179 项前端测试、14 项原生存储测试、lint、类型检查和 Windows NSIS 安装包构建。
+- 已下载到 deliverables/releases/v0.5.3；安装包产品版本及文件版本均为 0.5.3，校验值见 SHA256SUMS.txt / build-record.json。
+- 未自动安装、运行或迁移用户资料，未合并 main 或发布 GitHub Release。
+- 用户报告的网页预览更新后条目归零原因仍未确认，发布说明已保留此项，不宣称本版修复。
+
+
+### Agent 接口与 CLI（开发版，未发布新 EXE）
+
+- HTTP 仅绑定 127.0.0.1，启动随机 token；原生连接文件位于本机应用数据目录，预览连接文件为 .agent/connection.json。拒绝无 token、Origin 跨站请求；Vite 禁止静态读取 .agent，源码包排除该目录。
+- 复用现有导入解析、catalog 校验和撤销 reducer。支持 dry_run、显式重名覆盖、JSON/CSV 筛选导出、单条 GET/PATCH/DELETE、undo/redo、stats。
+- 资料与 request_id 回执在 SQLite / IndexedDB 同一事务提交；重复成功请求只返原回执，不重复修改；同号不同内容返回 409。界面与 Agent 串行，接口期间异步界面修改排队，关闭窗口也受写锁保护。
+- 本地 lint、191 项测试、类型检查和生产构建通过，单文件 HTML 预览生成通过。新增 Agent 领域、持久回执、界面队列、失败不发布状态及原生 IPC 参数回归。
+- Windows Actions run 39450700767 在提交 0d6b519 上通过安装包构建及 16 项原生测试；该提交的 Rust 源码和 Cargo.toml 与最终本地版本一致。取回实际生成的 Cargo.lock，新增依赖已锁定。该次 Windows 前端测试为 186 项，后续新增用例与 JS 开发传输改进在本地 Windows 测试至 191 项通过。
+- 真实 HTTP 冒烟通过：401 拦截、私有连接文件不公开、dry_run 不落库、错误行隔离、JSON 请求字段换序后幂等、request_id 冲突、PATCH/GET/DELETE、过滤 CSV、undo/redo 精确恢复编号和时间戳。临时条目带随机专用世界和名称，结束按该 id 删除；前后全库 catalog 导出逐项相等，角色和版本计数未变。报告 deliverables/agent-smoke-report.json；测试会留下本会话撤销历史。
+- atlas.cmd stats 和文件导入 dry_run 命令实跑成功。接口规范见 AGENT-API.md，工具包为 deliverables/atlas-agent-cli-v1.zip。
+- 修正开发服务重连时的就绪竞争，以及离线 HTML 生成触发无关页面重载；并明确离线单文件 HTML 不启动 HTTP 服务。
+- 未安装或运行新原生 EXE，也未发布新 Release；此前交付的稳定 0.5.3 安装包保持不变，不含此开发接口。

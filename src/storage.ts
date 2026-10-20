@@ -287,6 +287,25 @@ export async function downloadBytes(
   setTimeout(() => URL.revokeObjectURL(url), 30000);
   return true;
 }
+/** 导出文件（Markdown / ZIP）。桌面经保存对话框写入，Rust 侧限制扩展名与体积；网页触发下载。 */
+export async function downloadExport(bytes: Uint8Array, name: string, kind: "md" | "zip"): Promise<boolean> {
+  if (desktop) {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const path = await save({
+      defaultPath: name,
+      filters: [kind === "md" ? { name: "Markdown", extensions: ["md"] } : { name: "Markdown 压缩包", extensions: ["zip"] }],
+    });
+    if (path) await invoke("write_export", { path, data: toBase64(bytes) });
+    return Boolean(path);
+  }
+  const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: kind === "md" ? "text/markdown;charset=utf-8" : "application/zip" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  return true;
+}
 export async function libraryLocation(): Promise<string> {
   return desktop ? invoke("library_location") : `当前浏览器 · ${window.location.origin} · IndexedDB`;
 }

@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import {
-  ArrowDownToLine, ArrowUpFromLine, ChevronRight, CircleAlert, FolderOpen, HardDrive, Info, LoaderCircle,
+  ArrowDownToLine, FileText, ArrowUpFromLine, ChevronRight, CircleAlert, FolderOpen, HardDrive, Info, LoaderCircle,
 } from "lucide-react";
 import type { Library } from "../model";
 import { desktop, openFolder, type LibraryImport } from "../storage";
@@ -21,6 +21,7 @@ export interface LibrarySettingsModalProps {
   onRetrySave: () => void;
   moveLibrary: () => void;
   runExport: () => void;
+  onExportMarkdown?: () => void;
   pickRestore: (file: File) => Promise<void>;
   applyRecoveredLibrary: (candidate: Library) => Promise<void>;
   onImport: (base: Library, payload: LibraryImport, choices: ImportChoices) => Promise<void>;
@@ -29,7 +30,7 @@ export interface LibrarySettingsModalProps {
 /** 「本地资料库」设置弹窗：位置、统计、备份导出 / 恢复、修复与追加导入。 */
 export function LibrarySettingsModal({
   library, busy, location, saveState, saveError, backupRevision, notify, onClose, onRetrySave,
-  moveLibrary, runExport, pickRestore, applyRecoveredLibrary, onImport,
+  moveLibrary, runExport, onExportMarkdown, pickRestore, applyRecoveredLibrary, onImport,
 }: LibrarySettingsModalProps) {
   const restoreInput = useRef<HTMLInputElement>(null);
   return (
@@ -123,6 +124,16 @@ export function LibrarySettingsModal({
               </span>
               <ChevronRight size={17} />
             </button>
+            {onExportMarkdown && (
+              <button className="backup-action" disabled={busy} onClick={onExportMarkdown}>
+                <FileText size={22} />
+                <span>
+                  <strong>导出整库 Markdown</strong>
+                  <small>每位角色一个 .md，附索引与图片（ZIP）</small>
+                </span>
+                <ChevronRight size={17} />
+              </button>
+            )}
             <button
               className="backup-action"
               disabled={busy}

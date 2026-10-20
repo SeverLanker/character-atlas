@@ -2,6 +2,7 @@
 
 ## 未发布
 
+- 新增 Markdown 导出：档案页「导出 Markdown」导出单角色 .md；设置中「导出整库 Markdown」导出 ZIP（每角色一个 .md + index.md + assets/ 图片，相对链接或 Obsidian wikilink）。默认仅公开层，勾选「包含秘密身份」才以独立章节输出（不是加密）。桌面端新增 write_export 命令，仅允许 .md/.zip 且限制大小。
 - 工程：从 `App.tsx` 拆出 `src/views`（Modal、ShelfView、LibrarySettingsModal）与 `src/hooks`（useAutosave、useAppKeyboard），功能不变。
 - 自动保存改为 400 ms 防抖；关闭窗口、恢复、导入、迁址与导出前会立即写入尚未保存的编辑。
 - 新增 ESLint（`npm run lint`）与 `engines`；domain 测试并入 Vitest，Node 20 / 22 均可运行 `npm test`；CI 增加 lint 与类型检查并在 PR 上运行。

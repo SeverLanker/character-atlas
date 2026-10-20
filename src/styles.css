@@ -4846,3 +4846,17 @@ small {
   .identity-card-modal .id-card, .identity-card-modal [data-side="secret"] .id-photo { transform: none; transition: none; animation: none; }
   .identity-card-modal .id-card-glint { display: none; animation: none; }
 }
+
+/* body-validator 人体图 */
+.body-diagram { display: grid; gap: 8px; }
+.body-diagram-tools { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; opacity: .85; }
+.body-diagram-tools button { border: 1px solid currentColor; background: transparent; color: inherit; padding: 2px 10px; border-radius: 999px; margin-left: 4px; cursor: pointer; }
+.body-diagram-tools button.active { background: var(--character-accent, #53695c); color: #fff; border-color: transparent; }
+.body-silhouette > * { fill: rgba(83, 105, 92, .14); stroke: rgba(83, 105, 92, .45); stroke-width: 4; }
+.body-diagram .body-region > rect { fill: transparent; stroke: transparent; fill-opacity: 1; stroke-opacity: 1; stroke-width: 4; stroke-dasharray: none; }
+.body-diagram .body-region:hover rect, .body-diagram .body-region:focus-visible rect { stroke: rgba(83, 105, 92, .7); fill: rgba(83, 105, 92, .08); }
+.body-diagram .body-region.has-condition.stable rect { fill: rgba(83, 105, 92, .18); }
+.body-diagram .body-region.has-condition.notice rect { fill: rgba(196, 140, 40, .28); stroke: rgba(196, 140, 40, .8); }
+.body-diagram .body-region.has-condition.danger rect { fill: rgba(170, 50, 40, .3); stroke: rgba(170, 50, 40, .85); }
+.body-diagram .body-region.selected > rect { stroke: var(--character-accent, #53695c); stroke-width: 8; }
+.body-diagram-note { font-size: 11px; opacity: .7; text-align: center; }

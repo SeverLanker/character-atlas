@@ -5,6 +5,7 @@ import {
   type CocSheet,
   type CocPatch,
 } from "./coc.ts";
+import { validateBody, type BodyProfile } from "./body.ts";
 export type Page = "archive" | "skills" | "collection" | "status";
 export type Theme = "prison" | "noir" | "clinical";
 export interface Basics {
@@ -90,6 +91,8 @@ export interface Profile {
   statusNote: string;
   coc?: CocSheet;
   display?: { hideEmpty: boolean; hiddenBasics: (keyof Basics)[] };
+  /** 可选 body-validator 体型数据与正 / 背面图（secret 中整体覆盖）。 */
+  body?: BodyProfile;
 }
 export type Overrides = Omit<Partial<Profile>, "basics" | "coc"> & {
   basics?: Partial<Basics>;
@@ -250,6 +253,8 @@ export function assetRefs(library: Library): string[] {
           p.portrait,
           ...(p.items ?? []).map((i) => i.image),
           ...(p.gallery ?? []).map((i) => i.image),
+          p.body?.front,
+          p.body?.back,
         ])
           if (ref && !ref.startsWith("builtin:")) refs.add(ref);
       }
@@ -334,6 +339,10 @@ function validatePartialProfile(v: unknown, partial = false): void {
     }
   }
   if (v.coc !== undefined) validateCoc(v.coc, partial);
+  if (v.body !== undefined) {
+    try { validateBody(v.body); }
+    catch (error) { check(false, error instanceof Error ? error.message : String(error)); }
+  }
   if (v.display !== undefined) {
     check(
       isObject(v.display) &&

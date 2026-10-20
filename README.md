@@ -126,3 +126,22 @@ HP 上限为 (CON + SIZ) / 10 向下取整，MP 上限为 POW / 5 向下取整�
 支持选择默认展示版本、快速复制为新阶段、隐藏空字段及手动隐藏基础身份字段。撤销 / 重做最多保存本次打开期间的 40 个编辑步骤，连续输入合并；重启后历史清空，资料本身保留。文本框中的 Ctrl+Z 保留系统文本撤销，阅读界面可用 Ctrl+Z / Ctrl+Y 撤销或重做档案编辑。
 
 读取 0.1.0 资料及 ZIP 时自动升级为 schema 2，保留旧属性、叙事能力、图片和已关闭的秘密档案。升级前导出一份 ZIP 可保留旧版可读副本；升级后备份需使用 0.2.0 或更新版本读取。
+
+## body-validator 人体图（可选）
+
+身体状态页可以显示 [body-validator](https://github.com/SeverLanker/body-validator) 角色的人体图，并在上面叠加可点击的部位热区。
+
+1. 在 body-validator 里保存角色，得到 `characters/<id>.json`（bodyval.character/1–3）。
+2. （可选）导出正面图。叙册本身**不运行 Godot**，请在 body-validator 仓库里执行：
+   ```bash
+   cd body-validator/godot
+   xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-driver opengl3 \
+     -s res://scripts/export_lineup.gd -- --chars <id> --view front --clay --guides none --width 800 \
+     --out <输出目录>/<id>_front.png
+   ```
+   在 Windows / macOS 桌面上可以去掉 `xvfb-run` 那一段。导出图带标尺和底色；建议先裁到只剩人物，画面比例约 2:3，人物从上到下占满约 94% 的高度，这样热区最准。背面图可以用 `--view side` 或其他导出方式自己准备。
+3. 叙册：编辑档案 →「身体状态」栏 →「体型与人体图（body-validator）」，选 JSON，可附正 / 背面 PNG，点「导入 body-validator 角色」。
+4. 阅读页的身体状态：有图就显示图，没有图就用内置剪影。热区会按体型、头身比和腿长调整位置。有记录的部位按状态级别着色，点部位会筛选对应的状态记录，再点一次取消。
+5. 在秘密档案里导入，会整体覆盖表层体型；点「沿用表层体型」可以恢复。
+
+图片保存在本地资料库，并包含在完整 ZIP 备份里。

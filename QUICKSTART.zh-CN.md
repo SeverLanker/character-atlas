@@ -105,3 +105,22 @@ ZIP 导入默认仍严格校验。遇到可修复问题时，先显示修复或�
 在「编辑档案 → 秘密身份 → 秘密身份照片」可直接上传另一张照片，切换身份后详细档案与身份卡同步换图。未设置时沿用公开照片；点击「移除」会明确隐藏秘密身份照片，点击「照片恢复沿用公开档案」则重新使用公开照片。
 
 弹出的身份卡支持鼠标轻微倾斜、镭射扫光及公开／秘密主题切换，仍可点击背景或按 Esc 关闭。系统设置减少动态效果时关闭动画。
+
+## body-validator 人体图（可选）
+
+身体状态页可以显示 [body-validator](https://github.com/SeverLanker/body-validator) 角色的人体图，并在上面叠加可点击的部位热区。
+
+1. 在 body-validator 里保存角色，得到 `characters/<id>.json`（bodyval.character/1–3）。
+2. （可选）导出正面图。叙册本身**不运行 Godot**，请在 body-validator 仓库里执行：
+   ```bash
+   cd body-validator/godot
+   xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-driver opengl3 \
+     -s res://scripts/export_lineup.gd -- --chars <id> --view front --clay --guides none --width 800 \
+     --out <输出目录>/<id>_front.png
+   ```
+   在 Windows / macOS 桌面上可以去掉 `xvfb-run` 那一段。导出图带标尺和底色；建议先裁到只剩人物，画面比例约 2:3，人物从上到下占满约 94% 的高度，这样热区最准。背面图可以用 `--view side` 或其他导出方式自己准备。
+3. 叙册：编辑档案 →「身体状态」栏 →「体型与人体图（body-validator）」，选 JSON，可附正 / 背面 PNG，点「导入 body-validator 角色」。
+4. 阅读页的身体状态：有图就显示图，没有图就用内置剪影。热区会按体型、头身比和腿长调整位置。有记录的部位按状态级别着色，点部位会筛选对应的状态记录，再点一次取消。
+5. 在秘密档案里导入，会整体覆盖表层体型；点「沿用表层体型」可以恢复。
+
+图片保存在本地资料库，并包含在完整 ZIP 备份里。

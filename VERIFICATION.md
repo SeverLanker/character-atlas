@@ -2,7 +2,16 @@
 
 验证日期：2026-10-20。当前版本：0.5.0。
 
-## 已通过（本次重跑）
+## 2026-10-20 接手复核（0.5.0 基线及未发布修复）
+
+- 基线：`main` 的 `2fb802308b6657ac9bffe3933ad968fd45e08c1b`；独立克隆并按 package-lock.json 执行 npm ci。
+- 本轮环境：Linux、Node 24.19.0、npm 11.9.0。原版 28 个测试文件 / 140 项全部通过，lint 和生产构建通过。
+- 核对更新日志中的书架批量操作、四套主题、Markdown、默认公开版本关系图、body-validator、原生保存对话框、ZIP 限制及防抖自动保存，均存在实现与对应测试。
+- 新增回归检查复现三类问题：旧保存任务覆盖新编辑的状态；带扩展名的 Windows 设备名未清洗；仅覆盖秘密照片时 Markdown 漏掉照片。修复后 28 个测试文件 / 144 项通过，lint、TypeScript 和生产构建通过。
+- Windows 发布前核实：[Actions run 39360289571](https://github.com/SeverLanker/character-atlas/actions/runs/39360289571) 对 0.5.0 发布分支提交 `9447895` 的安装包构建、原生测试和产物上传均成功。这是历史 CI 结果，本轮没有本机重跑 Rust 或进行真实 Windows 安装验收。
+- 修改放在 `fix/0.5.0-handoff` 分支，保持 schema 2、原资料目录和版本号 0.5.0；尚未发布新版安装包。接手说明见 [HANDOFF.md](HANDOFF.md)。
+
+## 0.5.0 发布前验证（原记录）
 
 - `npx tsc -b`：TypeScript 全量检查通过。
 - `npm run lint`：ESLint 0 错误。

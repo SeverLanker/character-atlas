@@ -44,13 +44,13 @@ export function useAutosave(library: Library | null) {
     const job = queueSave(value);
     job.then(
       () => {
-        if (mounted.current && serial.current === id) {
+        if (mounted.current && serial.current === id && latest.current === value && !dirty.current) {
           setSaveState("saved");
           setSaveError("");
         }
       },
       (error) => {
-        if (mounted.current && serial.current === id) {
+        if (mounted.current && serial.current === id && latest.current === value && !dirty.current) {
           setSaveState("error");
           setSaveError(String(error));
         }

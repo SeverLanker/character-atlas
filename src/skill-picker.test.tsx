@@ -14,12 +14,13 @@ it("搜索选取后才添加技能，基础值技能可显示，移除后不再�
   }
   const { container } = render(<Harness />);
   expect(container.querySelectorAll('.coc-edit-skills details')).toHaveLength(0);
-  expect(screen.queryByLabelText("编辑器搜索技能")).toBeNull();
+  expect(screen.queryByLabelText("搜索库中条目")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "添加技能或专长" }));
-  fireEvent.change(screen.getByLabelText("编辑器搜索技能"), { target: { value: "图书馆" } });
+  fireEvent.change(screen.getByLabelText("搜索库中条目"), { target: { value: "图书馆" } });
   expect(container.querySelectorAll('.coc-edit-skills details')).toHaveLength(0);
-  fireEvent.change(screen.getByLabelText("选取技能"), { target: { value: "library" } });
-  fireEvent.click(screen.getByRole("button", { name: "添加选中技能" }));
+  expect(screen.getByRole("dialog", { name: "从数值技能库添加" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /图书馆使用 基础/ }));
+  fireEvent.click(screen.getByRole("button", { name: "添加选中条目" }));
   expect(container.querySelectorAll('.coc-edit-skills details')).toHaveLength(1);
   expect(screen.queryByRole("button", { name: "图书馆使用 常规 20" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "全部已选" }));

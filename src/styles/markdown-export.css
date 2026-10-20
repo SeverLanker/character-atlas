@@ -1,0 +1,18 @@
+/* Native choice controls must not inherit full-width text-field styling. */
+.markdown-export-modal { width: 620px; }
+.markdown-export-modal > header > div { min-width: 0; }
+.markdown-export-modal header h2 { overflow-wrap: anywhere; line-height: 1.6; }
+.markdown-export-form .modal-description { font-size: 13px; color: var(--muted); line-height: 1.9; }
+.markdown-versions { min-width: 0; margin: 0 0 20px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-md, 8px); }
+.markdown-versions legend { padding: 0 7px; font-size: 13px; color: var(--muted); }
+.markdown-choice { display: flex; align-items: center; justify-content: flex-start; gap: 10px; min-height: 44px; padding: 10px 12px; font-size: 14px; line-height: 1.7; color: var(--ink); cursor: pointer; border: 1px solid transparent; border-radius: var(--radius-sm, 4px); }
+.markdown-choice input { appearance: auto; flex: 0 0 18px; width: 18px; height: 18px; padding: 0; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.markdown-choice > span { min-width: 0; flex: 1; }
+.markdown-versions .markdown-choice + .markdown-choice { margin-top: 5px; }
+.markdown-choice:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.markdown-choice:has(input:checked) { background: color-mix(in srgb, var(--accent) 8%, transparent); border-color: color-mix(in srgb, var(--accent) 25%, var(--line)); }
+.markdown-choice:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.markdown-secret-choice { margin-bottom: 20px; }
+.markdown-export-form .save-error { display: block; font-size: 13px; line-height: 1.8; }
+.markdown-export-form .modal-actions { flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+@media (max-width: 480px) { .markdown-export-modal { padding: 20px; } .markdown-choice { padding: 10px 8px; } }

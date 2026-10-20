@@ -1,3 +1,4 @@
+import { CatalogPicker } from "./LibraryPicker";
 import { BodyImport } from "./BodyImport";
 import { RelationshipEditor } from "./Relationships";
 import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
@@ -103,6 +104,7 @@ function ListEditor<T extends { id: string }>({
   items,
   fields,
   add,
+  onAdd,
   onChange,
   onUpload,
 }: {
@@ -110,6 +112,7 @@ function ListEditor<T extends { id: string }>({
   items: T[];
   fields: ListField<T>[];
   add: () => T;
+  onAdd?: () => void;
   onChange: (v: T[]) => void;
   onUpload: (file: File) => Promise<string>;
 }) {
@@ -120,7 +123,7 @@ function ListEditor<T extends { id: string }>({
         <h3>{title}</h3>
         <button
           className="text-button"
-          onClick={() => onChange([...items, add()])}
+          onClick={() => onAdd ? onAdd() : onChange([...items, add()])}
         >
           <Plus size={14} />
           添加
@@ -245,6 +248,7 @@ export function Editor(props: EditorProps) {
   const [tab, setTab] = useState<
     "content" | "versions" | "secret" | "character" | "catalog"
   >("content");
+  const [picker, setPicker] = useState<"skills" | "items" | null>(null);
   const [versionName, setVersionName] = useState("");
   const [section, setSection] = useState<Page>(page);
   const sectionKeys: Record<Page, (keyof Profile)[]> = {
@@ -599,6 +603,7 @@ export function Editor(props: EditorProps) {
                   <ListEditor<Skill>
                     title="技能、法术与专长"
                     items={p.skills}
+                    onAdd={() => setPicker("skills")}
                     fields={[
                       ...textFields,
                       { key: "rank", label: "评级 / 等级" },
@@ -617,6 +622,7 @@ export function Editor(props: EditorProps) {
                   <ListEditor
                     title="物品"
                     items={p.items}
+                    onAdd={() => setPicker("items")}
                     fields={[
                       { key: "image", label: "物品图片", type: "image" },
                       ...textFields,
@@ -996,6 +1002,7 @@ export function Editor(props: EditorProps) {
           </button>
         </footer>
       </aside>
+      {picker && <CatalogPicker mode={picker} catalog={props.catalog ?? []} profile={p} onPatch={patch} onClose={() => setPicker(null)} />}
     </div>
   );
 }

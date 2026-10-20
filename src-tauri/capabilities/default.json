@@ -1,12 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
-  "description": "本地资料库窗口与备份文件选择",
+  "description": "本地资料库窗口。保存 / 选择文件夹的系统对话框由 Rust 侧弹出，前端不再需要对话框权限。",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "core:window:allow-destroy",
-    "dialog:allow-save",
-    "dialog:allow-open"
+    "core:window:allow-destroy"
   ]
 }

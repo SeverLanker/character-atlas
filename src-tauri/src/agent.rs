@@ -13,6 +13,13 @@ struct Pending { sender: mpsc::Sender<Reply>, deadline: u128, root: PathBuf, req
 pub struct AgentState { ready: AtomicBool, pending: Mutex<HashMap<String, Pending>> }
 fn millis() -> u128 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() }
 fn random() -> AppResult<String> { let mut bytes = [0u8; 32]; getrandom::fill(&mut bytes).map_err(err)?; Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect()) }
+fn canonical(value: &Value) -> Value {
+    match value {
+        Value::Object(map) => { let mut keys: Vec<_> = map.keys().collect(); keys.sort(); Value::Object(keys.into_iter().map(|key| (key.clone(), canonical(&map[key]))).collect()) },
+        Value::Array(items) => Value::Array(items.iter().map(canonical).collect()),
+        _ => value.clone(),
+    }
+}
 fn failure(status: u16, message: &str) -> Reply { Reply { status, body: json!({"error":message}).to_string(), content_type: "application/json;charset=utf-8".into() } }
 fn answer(request: tiny_http::Request, reply: Reply) {
     let mut response = tiny_http::Response::from_string(reply.body).with_status_code(reply.status);
@@ -24,7 +31,7 @@ fn answer(request: tiny_http::Request, reply: Reply) {
 fn authorized(actual: &str, expected: &str) -> bool {
     actual.len() == expected.len() && actual.bytes().zip(expected.bytes()).fold(0u8, |n, (a,b)| n | (a ^ b)) == 0
 }
-fn header(request: &tiny_http::Request, key: &str) -> Option<String> { request.headers().iter().find(|h| h.field.equiv(key)).map(|h| h.value.as_str().to_string()) }
+fn header(request: &tiny_http::Request, key: &'static str) -> Option<String> { request.headers().iter().find(|h| h.field.equiv(key)).map(|h| h.value.as_str().to_string()) }
 fn ledger(connection: &rusqlite::Connection) -> AppResult<()> {
     connection.execute_batch("CREATE TABLE IF NOT EXISTS agent_requests (request_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, reply TEXT NOT NULL)").map_err(err)
 }
@@ -37,7 +44,8 @@ pub fn start(app: &AppHandle) -> AppResult<()> {
     let server = tiny_http::Server::from_listener(listener, None).map_err(err)?;
     let token = random()?;
     let data_dir = app.state::<LibraryState>().data_dir.clone();
-    let path = data_dir.join("agent.json"), temporary = data_dir.join("agent.json.tmp");
+    let path = data_dir.join("agent.json");
+    let temporary = data_dir.join("agent.json.tmp");
     let mut options = fs::OpenOptions::new(); options.write(true).create(true).truncate(true);
     #[cfg(unix)] { use std::os::unix::fs::OpenOptionsExt; options.mode(0o600); }
     {
@@ -69,7 +77,7 @@ pub fn start(app: &AppHandle) -> AppResult<()> {
             let request_id = request_header.or_else(|| body.get("request_id").and_then(Value::as_str).map(str::to_string));
             let id = match random() { Ok(id) => id, Err(_) => { answer(request, failure(500, "无法生成请求编号")); continue; } };
             let deadline = millis() + 30000;
-            let fingerprint = format!("{:x}", Sha256::digest([format!("{method}\n{url}\n").as_bytes(), bytes.as_slice()].concat()));
+            let fingerprint = format!("{:x}", Sha256::digest([format!("{method}\n{url}\n").as_bytes(), canonical(&body).to_string().as_bytes()].concat()));
             let root = match app.state::<LibraryState>().root.lock() { Ok(root) => root.clone(), Err(_) => { answer(request, failure(503, "资料库暂不可用")); continue; } };
             let (sender, receiver) = mpsc::channel();
             if let Ok(mut pending) = state.pending.lock() { pending.insert(id.clone(), Pending { sender, deadline, root, request_id: request_id.clone(), fingerprint: fingerprint.clone() }); }

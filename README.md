@@ -170,3 +170,5 @@ HP 上限为 (CON + SIZ) / 10 向下取整，MP 上限为 POW / 5 向下取整�
 
 
 条目库独立导入导出及批量填写格式见 [CATALOG-FORMAT.md](CATALOG-FORMAT.md)。
+
+本机 Agent HTTP 接口与 CLI 用法见 [AGENT-API.md](AGENT-API.md)。

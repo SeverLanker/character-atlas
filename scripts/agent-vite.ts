@@ -1,9 +1,15 @@
 import { createServer } from "node:http";
 import { createHash, randomBytes, timingSafeEqual, randomUUID } from "node:crypto";
-import { mkdir, writeFile, rename, rm } from "node:fs/promises";
+import { mkdir, writeFile, rename, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Plugin, WebSocketClient } from "vite";
 import type { AgentReply, AgentRequest } from "../src/agent-api";
+
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical((value as Record<string, unknown>)[key])]));
+  return value;
+}
 
 /** Development transport only. All library operations run in the active app tab. */
 export function atlasAgent(): Plugin {
@@ -34,7 +40,7 @@ export function atlasAgent(): Plugin {
         try { body = text ? JSON.parse(text) : undefined; } catch { answer(400, { error: "JSON 语法错误" }); return; }
         if (!active || active.socket.readyState !== 1) { answer(503, { error: "请打开本地预览应用；尚无就绪的应用连接" }); return; }
         const id = randomUUID(), deadline = Date.now() + 30000;
-        const fingerprint = createHash("sha256").update(`${req.method}\n${req.url}\n${text}`).digest("hex");
+        const fingerprint = createHash("sha256").update(`${req.method}\n${req.url}\n${JSON.stringify(canonical(body ?? {}))}`).digest("hex");
         const client = active;
         const reply = await new Promise<AgentReply>(resolve => {
           const timer = setTimeout(() => resolve({ status: 504, body: JSON.stringify({ error: "请求超时；写操作请使用相同 request_id 重试" }), content_type: "application/json" }), 30000);
@@ -50,9 +56,9 @@ export function atlasAgent(): Plugin {
     await new Promise<void>((resolve, reject) => { http.once("error", reject); http.listen(configured, "127.0.0.1", resolve); });
     const folder = join(vite.config.root, ".agent");
     await mkdir(folder, { recursive: true });
-    const path = join(folder, "connection.json"), temporary = `${path}.tmp`;
+    const path = join(folder, "connection.json"), temporary = `${path}.${randomUUID()}.tmp`;
     await writeFile(temporary, JSON.stringify({ protocol: 1, url: `http://127.0.0.1:${(http.address() as { port: number }).port}`, token, pid: process.pid, mode: "preview" }), { mode: 0o600 });
     await rename(temporary, path);
-    vite.httpServer?.once("close", () => { http.close(); void rm(path, { force: true }); });
+    vite.httpServer?.once("close", () => { http.close(); void readFile(path, "utf8").then(text => { if (JSON.parse(text).token === token) return rm(path, { force: true }); }).catch(() => {}); });
   } };
 }

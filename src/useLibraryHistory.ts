@@ -60,10 +60,10 @@ export function historyReducer(state: HistoryState, action: Action): HistoryStat
 }
 export function useLibraryHistory() {
   const [state, setState] = useState<HistoryState>({ current: null, past: [], future: [], time: 0, group: false });
-  const live = useRef(state), locked = useRef(false);
+  const live = useRef(state), locked = useRef(false), queued = useRef<Action[]>([]);
   const publish = useCallback((next: HistoryState) => { live.current = next; setState(next); }, []);
   const send = useCallback((action: Action) => {
-    if (locked.current) return;
+    if (locked.current) { queued.current.push(action); return; }
     publish(historyReducer(live.current, action));
   }, [publish]);
   const set = useCallback((update: Update, checkpoint = false) => send({ type: "set", update, time: Date.now(), checkpoint }), [send]);
@@ -73,7 +73,11 @@ export function useLibraryHistory() {
   const lock = useCallback(() => {
     if (locked.current) throw new Error("资料正在处理，请稍后重试");
     locked.current = true;
-    return () => { locked.current = false; };
-  }, []);
+    return () => {
+      locked.current = false;
+      const pending = queued.current; queued.current = [];
+      for (const action of pending) publish(historyReducer(live.current, action));
+    };
+  }, [publish]);
   return { library: state.current, lastAction: state.lastAction, setLibrary: set, undo, redo, canUndo: !!state.past.length, canRedo: !!state.future.length, getState, publish, lock };
 }

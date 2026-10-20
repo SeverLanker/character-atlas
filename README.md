@@ -4,7 +4,7 @@ Windows 本地优先的私人原创角色设定集。界面为精致画册，数
 
 ## 安装使用
 
-交付文件 `CharacterAtlas-0.2.0-Windows-x64-setup.exe` 是 Windows 64 位安装包，适用于 Windows 10 / 11。运行安装程序后即可打开「叙册」，使用软件不需要安装开发工具。
+交付文件 `CharacterAtlas-0.4.0-Windows-x64-setup.exe` 是 Windows 64 位安装包，适用于 Windows 10 / 11。运行安装程序后即可打开「叙册」，使用软件不需要安装开发工具。
 
 首次使用可阅读 `QUICKSTART.zh-CN.md`。打开演示角色「林弥」，呼出身份卡后点击照片，可以触发整份监狱档案切换。
 
@@ -28,7 +28,7 @@ Windows 本地优先的私人原创角色设定集。界面为精致画册，数
 
 准备：
 
-1. 安装 Node.js 22 LTS 或更新版本：<https://nodejs.org/>。
+1. 安装 Node.js 20.19+ 或 22 LTS：<https://nodejs.org/>。
 2. 安装 Rust stable（MSVC）：<https://rustup.rs/>。
 3. 安装 Visual Studio Build Tools，勾选「使用 C++ 的桌面开发」及 Windows SDK：<https://visualstudio.microsoft.com/visual-cpp-build-tools/>。
 4. 关闭并重新打开终端，使新安装的工具进入 PATH。
@@ -45,8 +45,8 @@ src-tauri/target/release/bundle/nsis/*.exe
 
 ```powershell
 npm install
+npm run lint
 npm test
-npm run test:storage
 npm run desktop:build
 ```
 
@@ -97,11 +97,13 @@ Windows 默认资料库：
 ```text
 src/model.ts              类型、版本复制、继承与资料验证
 src/storage.ts            IndexedDB / Tauri 存储与完整备份
-src/App.tsx               书架、应用状态与操作流程
+src/App.tsx               应用状态与操作流程
+src/views/                Modal、ShelfView 书架、LibrarySettingsModal 资料库设置
+src/hooks/                useAutosave 防抖保存队列、useAppKeyboard 快捷键
 src/components/BookPages.tsx 画册各栏目与身体图
 src/components/Editor.tsx   内容、版本与秘密身份编辑
 src-tauri/src/lib.rs      SQLite、图片、本地路径和备份命令
-tests/domain.test.mjs     无第三方依赖的核心模型测试
+src/domain.test.ts        核心模型测试（Vitest）
 src/backup.test.ts        ZIP 校验测试
 ```
 

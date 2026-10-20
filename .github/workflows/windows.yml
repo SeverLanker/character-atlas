@@ -1,6 +1,7 @@
 name: Build Windows desktop
 on:
   workflow_dispatch:
+  pull_request:
 permissions:
   contents: read
 jobs:
@@ -14,10 +15,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Test domain behavior
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npx tsc -b
+      - name: Test domain, backup and storage
         run: npm test
-      - name: Test backup and storage
-        run: npm run test:storage
       - name: Build Windows installer
         run: npm run desktop:build
       - name: Test native local storage

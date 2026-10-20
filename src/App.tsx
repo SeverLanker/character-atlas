@@ -5,18 +5,13 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type ReactNode,
 } from "react";
 import {
-  ArrowDownToLine,
   ContactRound,
   Copy,
   Undo2,
   Redo2,
   ArrowLeft,
-  ArrowRight,
-  ArrowUpFromLine,
-  BookMarked,
   BookOpen,
   Check,
   CheckCheck,
@@ -25,20 +20,15 @@ import {
   ChevronRight,
   CircleAlert,
   Clock3,
-  FolderOpen,
-  Grid2X2,
   HardDrive,
   Info,
   LibraryBig,
-  List,
   LoaderCircle,
   LockKeyhole,
   PencilLine,
   Plus,
-  Search,
   Settings2,
   ShieldCheck,
-  SlidersHorizontal,
   Star,
   X,
 } from "lucide-react";
@@ -67,11 +57,9 @@ import {
   exportBackup,
   libraryLocation,
   loadLibrary,
-  openFolder,
   parseBackup,
   putImage,
   restoreBackup,
-  saveLibrary,
   relocateLibrary,
   readAsset,
   recordBackupExport,
@@ -86,105 +74,15 @@ import { BookPages, IdentityCard } from "./components/BookPages";
 import { Editor } from "./components/Editor";
 import { CatalogPanel } from "./components/CatalogPanel";
 import { RecoveryPanel } from "./components/RecoveryPanel";
-import { ImportPanel } from "./components/ImportPanel";
-import { LibrarySearch } from "./components/LibrarySearch";
 import type { SearchHit } from "./search";
 import { ReadingView } from "./components/ReadingView";
 import { VersionCompare } from "./components/VersionCompare";
 import { Portrait } from "./components/Portrait";
-let saveChain: Promise<void> = Promise.resolve();
-function queueSave(library: Library, forceSnapshot = false) {
-  const job = saveChain.catch(() => {}).then(() => saveLibrary(library, forceSnapshot));
-  saveChain = job;
-  return job;
-}
-interface Confirm {
-  title: string;
-  message: string;
-  action: () => void | Promise<void>;
-  label?: string;
-  danger?: boolean;
-}
-function Modal({
-  title,
-  children,
-  onClose,
-  className = "",
-  bare = false,
-}: {
-  title: string;
-  children: ReactNode;
-  onClose: () => void;
-  className?: string;
-  bare?: boolean;
-}) {
-  const content = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const root = content.current;
-    const focusable = () =>
-      Array.from(
-        root?.querySelectorAll<HTMLElement>(
-          'button:not(:disabled),input,select,textarea,[tabindex="0"]',
-        ) ?? [],
-      );
-    if (!root?.contains(document.activeElement)) {
-      if (bare) root?.focus();
-      else focusable()[0]?.focus();
-    }
-    function key(e: KeyboardEvent) {
-      if (e.key === "Tab") {
-        const nodes = focusable();
-        const first = nodes[0],
-          last = nodes.at(-1);
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && (document.activeElement === last || document.activeElement === root)) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    }
-    root?.addEventListener("keydown", key);
-    return () => {
-      root?.removeEventListener("keydown", key);
-      previous?.focus();
-    };
-  }, [bare]);
-  return (
-    <div
-      className={"modal-backdrop" + (bare ? " identity-overlay" : "")}
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        ref={content}
-        className={"modal " + className}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        tabIndex={-1}
-      >
-        {bare ? <button className="identity-dismiss" aria-label="关闭窗口" onClick={onClose}><X size={18} /></button> : <header>
-          <div>
-            <small>CHARACTER ATLAS</small>
-            <h2>{title}</h2>
-          </div>
-          <button
-            className="icon-button"
-            aria-label="关闭窗口"
-            onClick={onClose}
-          >
-            <X size={20} />
-          </button>
-        </header>}
-        {children}
-      </div>
-    </div>
-  );
-}
+import { Modal, type Confirm } from "./views/Modal";
+import { ShelfView } from "./views/ShelfView";
+import { LibrarySettingsModal } from "./views/LibrarySettingsModal";
+import { useAppKeyboard } from "./hooks/useAppKeyboard";
+import { queueSave, useAutosave } from "./hooks/useAutosave";
 export default function App() {
   const { library, setLibrary, undo, redo, canUndo, canRedo } =
     useLibraryHistory();
@@ -216,12 +114,8 @@ export default function App() {
     [newCollection, setNewCollection] = useState(""),
     [busy, setBusy] = useState(false),
     [toast, setToast] = useState(""),
-    [saveState, setSaveState] = useState<"saving" | "saved" | "error">("saved"),
-    [saveError, setSaveError] = useState(""),
     [location, setLocation] = useState("");
-  const restoreInput = useRef<HTMLInputElement>(null),
-    latest = useRef<Library | null>(null),
-    saveSerial = useRef(0),
+  const latest = useRef<Library | null>(null),
     toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   latest.current = library;
   const notify = useCallback((text: string) => {
@@ -245,24 +139,7 @@ export default function App() {
       live = false;
     };
   }, []);
-  useEffect(() => {
-    if (!library) return;
-    const serial = ++saveSerial.current;
-    setSaveState("saving");
-    queueSave(library)
-      .then(() => {
-        if (saveSerial.current === serial) {
-          setSaveState("saved");
-          setSaveError("");
-        }
-      })
-      .catch((error) => {
-        if (saveSerial.current === serial) {
-          setSaveState("error");
-          setSaveError(String(error));
-        }
-      });
-  }, [library]);
+  const { saveState, saveError, flush } = useAutosave(library);
   useEffect(() => {
     if (!desktop) return;
     let cleanup: (() => void) | undefined;
@@ -271,7 +148,7 @@ export default function App() {
       .onCloseRequested(async (event) => {
         event.preventDefault();
         try {
-          if (latest.current) await queueSave(latest.current);
+          if (latest.current) await flush(true);
           await getCurrentWindow().destroy();
         } catch (error) {
           notify("保存失败，窗口保持打开：" + String(error));
@@ -305,55 +182,7 @@ export default function App() {
       ].id,
     );
   }
-  useEffect(() => {
-    function key(e: KeyboardEvent) {
-      if (e.key === "Escape" && !busy) {
-        if (confirm) setConfirm(null);
-        else if (preview) setPreview(null);
-        else if (modal) setModal(null);
-        else if (editing) setEditing(false);
-        return;
-      }
-      const element = e.target as HTMLElement;
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        !element.matches("input,textarea,select,[contenteditable]")
-      ) {
-        if (e.key.toLowerCase() === "z" || e.key.toLowerCase() === "y") {
-          e.preventDefault();
-          if (e.shiftKey || e.key.toLowerCase() === "y") redo();
-          else undo();
-          return;
-        }
-      }
-      if (
-        editing ||
-        modal ||
-        confirm ||
-        preview ||
-        shelf ||
-        element.matches("input,textarea,select,[contenteditable]")
-      )
-        return;
-      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-        e.preventDefault();
-        setPage((current) => {
-          const index = pageMeta.findIndex((p) => p.id === current);
-          return pageMeta[
-            Math.max(
-              0,
-              Math.min(
-                pageMeta.length - 1,
-                index + (e.key === "ArrowRight" ? 1 : -1),
-              ),
-            )
-          ].id;
-        });
-      }
-    }
-    document.addEventListener("keydown", key);
-    return () => document.removeEventListener("keydown", key);
-  }, [editing, modal, confirm, preview, shelf, busy, undo, redo]);
+  useAppKeyboard({ editing, modal, confirm, preview, shelf, busy, undo, redo, setConfirm, setPreview, setModal, setEditing, setPage });
   useEffect(() => {
     if (!library || !activeId) return;
     const active = library.characters.find((item) => item.id === activeId);
@@ -520,7 +349,7 @@ export default function App() {
     if (!library) return;
     setBusy(true);
     try {
-      await saveChain.catch(() => {});
+      await flush().catch(() => {});
       const bytes = await exportBackup(library);
       const dispatched = await downloadBytes(
         bytes,
@@ -539,7 +368,7 @@ export default function App() {
   async function moveLibrary() {
     setBusy(true);
     try {
-      await saveChain;
+      await flush();
       const path = await relocateLibrary();
       if (path) {
         setLocation(path);
@@ -553,6 +382,7 @@ export default function App() {
   }
   async function applyRecoveredLibrary(candidate: Library) {
     for (const ref of assetRefs(candidate)) await readAsset(ref);
+    await flush();
     await queueSave(candidate, true);
     setLibrary(candidate, true);
     setLoadError(""); setActiveId(""); setShelf(true); setCatalogOpen(false);
@@ -581,7 +411,7 @@ export default function App() {
         label: changes.length ? "保留原件并修复导入" : "恢复并替换",
         danger: true,
         action: async () => {
-          await saveChain;
+          await flush();
           if (rawOriginal !== null) {
             await preserveOriginal(rawOriginal);
             await preserveOriginal(await readRawLibrary());
@@ -874,214 +704,18 @@ export default function App() {
               <CatalogPanel entries={library.catalog ?? []} onChange={(catalog) => setLibrary((lib) => lib ? { ...lib, catalog } : lib, true)} />
             </section>
           ) : shelf ? (
-            <>
-              <div className="shelf-heading">
-                <div>
-                  <span className="eyebrow">
-                    YOUR PERSONAL CHARACTER COLLECTION
-                  </span>
-                  <h1>{filter === "全部角色" ? "角色书架" : filter}</h1>
-                  <p>收藏每一个灵魂，记录每一种可能。</p>
-                </div>
-                <button
-                  className="button primary"
-                  onClick={() => setModal("new")}
-                >
-                  <Plus size={17} />
-                  创建角色
-                </button>
-              </div>
-              <section className="shelf-banner">
-                <div>
-                  <span className="eyebrow">BETWEEN THE PAGES</span>
-                  <h2>
-                    每个名字，
-                    <br />
-                    都有自己的故事。
-                  </h2>
-                  <p>
-                    从一张证件，到一段人生。
-                    <br />
-                    把想象中的他们，认真收进书页。
-                  </p>
-                  <div className="shelf-metrics" aria-label="资料库概览">
-                    <span><b>{library.characters.length}</b>位角色</span>
-                    <span><b>{library.characters.reduce((sum, role) => sum + role.versions.length, 0)}</b>段篇章</span>
-                    <span><b>{new Set(library.characters.map(role => role.collection).filter(Boolean)).size}</b>个世界</span>
-                  </div>
-                </div>
-                <div className="banner-art" aria-hidden="true">
-                  <div className="banner-book back">
-                    <span>STORIES</span>
-                  </div>
-                  <div className="banner-book front">
-                    <BookOpen size={32} strokeWidth={0.8} />
-                    <span>
-                      THE CHARACTER
-                      <br />
-                      ATLAS
-                    </span>
-                    <i>Vol. 01</i>
-                  </div>
-                  <span className="banner-orbit" />
-                </div>
-                <span className="banner-index">
-                  A PRIVATE UNIVERSE / EST. 2026
-                </span>
-              </section>
-              <div className="shelf-tools">
-                <div className="shelf-count">
-                  <BookMarked size={17} />
-                  <h2>{filter === "全部角色" ? "全部角色" : filter}</h2>
-                  <span>{filtered.length}</span>
-                </div>
-                <div className="shelf-controls">
-                  <button
-                    className="icon-button"
-                    aria-label="撤销修改"
-                    disabled={!canUndo}
-                    onClick={undo}
-                  >
-                    <Undo2 size={17} />
-                  </button>
-                  <button
-                    className="icon-button"
-                    aria-label="重做修改"
-                    disabled={!canRedo}
-                    onClick={redo}
-                  >
-                    <Redo2 size={17} />
-                  </button>
-                  <label className="search-input">
-                    <Search size={15} />
-                    <input
-                      aria-label="搜索角色"
-                      placeholder="寻找一个名字…"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                    {search && (
-                      <button
-                        className="icon-button"
-                        aria-label="清空搜索"
-                        onClick={() => setSearch("")}
-                      >
-                        <X size={13} />
-                      </button>
-                    )}
-                  </label>
-                  <label className="sort-control">
-                    <SlidersHorizontal size={14} />
-                    <select
-                      aria-label="排序方式"
-                      value={sort}
-                      onChange={(e) => setSort(e.target.value)}
-                    >
-                      <option value="recent">最近更新</option>
-                      <option value="name">姓名排序</option>
-                    </select>
-                  </label>
-                  <div className="view-toggle">
-                    <button
-                      className={layout === "grid" ? "active" : ""}
-                      aria-label="网格视图"
-                      onClick={() => setLayout("grid")}
-                    >
-                      <Grid2X2 size={15} />
-                    </button>
-                    <button
-                      className={layout === "list" ? "active" : ""}
-                      aria-label="列表视图"
-                      onClick={() => setLayout("list")}
-                    >
-                      <List size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <details className="global-search-panel">
-                <summary>跨角色内容检索</summary>
-                <LibrarySearch library={library} onOpen={(hit) => {
-                  setActiveId(hit.characterId); setVersionId(hit.versionId); setPage(hit.page);
-                  setHidden(hit.hidden); setShelf(false); setCatalogOpen(false); setEditing(false); setSearchHit(hit);
-                }} />
-              </details>
-              <div
-                className={
-                  "character-grid " +
-                  (layout === "list" ? "character-list" : "")
-                }
-              >
-                {filtered.map((character, i) => (
-                  <article
-                    className="character-card"
-                    key={character.id}
-                    style={{ "--card-delay": i * 60 + "ms" } as CSSProperties}
-                  >
-                    <button
-                      className="character-open identity-surface"
-                      aria-label={"打开" + character.name + "的档案"}
-                      onClick={() => enter(character)}
-                    >
-                      <IdentityCard
-                        profile={defaultVersion(character).profile}
-                        hidden={false}
-                      />
-                      <div className="identity-card-caption">
-                        <div>
-                          <small>{character.collection}</small>
-                          <strong>{character.name}</strong>
-                        </div>
-                        <span>
-                          {defaultVersion(character).name} ·{" "}
-                          {character.versions.length} 个版本{" "}
-                          <ArrowUpFromLine size={12} />
-                        </span>
-                      </div>
-                    </button>
-                    <button
-                      className={
-                        "card-favorite " +
-                        (character.favorite ? "favorited" : "")
-                      }
-                      onClick={() => toggleFavorite(character)}
-                      aria-label={
-                        character.favorite
-                          ? "取消收藏" + character.name
-                          : "收藏" + character.name
-                      }
-                    >
-                      <Star
-                        size={16}
-                        fill={character.favorite ? "currentColor" : "none"}
-                      />
-                    </button>
-                  </article>
-                ))}
-                <button
-                  className="new-character-card"
-                  onClick={() => setModal("new")}
-                >
-                  <span>
-                    <Plus size={25} strokeWidth={1} />
-                  </span>
-                  <h3>下一位，谁会到来？</h3>
-                  <p>为新的灵魂，留下一页。</p>
-                  <small>
-                    创建角色 <ArrowRight size={13} />
-                  </small>
-                </button>
-              </div>
-              {!filtered.length && search && (
-                <p className="no-results">
-                  没有找到“{search}”，换一个名字试试。
-                </p>
-              )}
-              <footer className="shelf-footer">
-                <span>属于你的角色，也属于他们自己的故事。</span>
-                <span>CHARACTER ATLAS · LOCAL LIBRARY</span>
-              </footer>
-            </>
+            <ShelfView
+              library={library} filter={filter} filtered={filtered}
+              search={search} setSearch={setSearch} sort={sort} setSort={setSort}
+              layout={layout} setLayout={setLayout}
+              canUndo={canUndo} canRedo={canRedo} undo={undo} redo={redo}
+              onNewCharacter={() => setModal("new")}
+              enter={enter} toggleFavorite={toggleFavorite}
+              onSearchHit={(hit) => {
+                setActiveId(hit.characterId); setVersionId(hit.versionId); setPage(hit.page);
+                setHidden(hit.hidden); setShelf(false); setCatalogOpen(false); setEditing(false); setSearchHit(hit);
+              }}
+            />
           ) : c && v && p ? (
             <>
               <div className="dossier-heading">
@@ -1525,139 +1159,19 @@ export default function App() {
         </Modal>
       )}
       {modal === "library" && (
-        <Modal
-          title="本地资料库"
-          onClose={() => {
-            if (!busy) setModal(null);
-          }}
-        >
-          <div className="storage-card">
-            <HardDrive size={22} strokeWidth={1.2} />
-            <div>
-              <strong>
-                {desktop ? "Windows 本地资料库" : "浏览器本地资料库"}
-              </strong>
-              <p>{location}</p>
-            </div>
-            {desktop && (
-              <button
-                className="icon-button"
-                onClick={() => openFolder().catch((e) => notify(String(e)))}
-                aria-label="打开资料库文件夹"
-              >
-                <FolderOpen size={18} />
-              </button>
-            )}
-          </div>
-          <p className="modal-description">
-            {desktop
-              ? "文字保存在本地 SQLite 数据库，图片存放在资料库的 assets 文件夹。无需账号，不上传云端。"
-              : "当前是网页预览，资料保存在此浏览器的 IndexedDB 中。清除网站数据会移除资料，请定期导出完整备份；备份可导入桌面版。"}
-          </p>
-          <div className="library-stats">
-            <div>
-              <strong>{library.characters.length}</strong>
-              <span>角色</span>
-            </div>
-            <div>
-              <strong>
-                {library.characters.reduce((n, c) => n + c.versions.length, 0)}
-              </strong>
-              <span>剧情版本</span>
-            </div>
-            <div>
-              <strong>
-                {library.characters.reduce(
-                  (n, c) =>
-                    n + c.versions.filter((v) => v.secret.enabled).length,
-                  0,
-                )}
-              </strong>
-              <span>秘密档案</span>
-            </div>
-          </div>
-          {saveState === "error" && (
-            <div className="save-error">
-              <CircleAlert size={16} />
-              <p>{saveError}</p>
-              <button
-                className="button small"
-                onClick={() => {
-                  setLibrary({ ...library });
-                }}
-              >
-                重试保存
-              </button>
-            </div>
-          )}
-          <div className="backup-actions">
-            {desktop && (
-              <button
-                className="backup-action"
-                disabled={busy}
-                onClick={moveLibrary}
-              >
-                <FolderOpen size={22} />
-                <span>
-                  <strong>更改资料库存放位置</strong>
-                  <small>复制到自选空文件夹，原位置保留</small>
-                </span>
-                <ChevronRight size={17} />
-              </button>
-            )}
-            <button
-              className="backup-action"
-              disabled={busy}
-              onClick={runExport}
-            >
-              <ArrowDownToLine size={22} />
-              <span>
-                <strong>导出完整备份</strong>
-                <small>角色、全部版本、秘密档案及上传图片</small>
-              </span>
-              <ChevronRight size={17} />
-            </button>
-            <button
-              className="backup-action"
-              disabled={busy}
-              onClick={() => restoreInput.current?.click()}
-            >
-              <ArrowUpFromLine size={22} />
-              <span>
-                <strong>恢复备份</strong>
-                <small>从叙册 ZIP 备份替换当前资料库</small>
-              </span>
-              <ChevronRight size={17} />
-            </button>
-          </div>
-          <p className="library-tip">
-            <Info size={14} />
-            备份包含秘密档案，请妥善保管。
-          </p>
-          <RecoveryPanel key={backupRevision} onApply={applyRecoveredLibrary} />
-          <ImportPanel current={library} onImport={async (base, payload, choices) => {
-            await saveChain;
+        <LibrarySettingsModal
+          library={library} busy={busy} location={location}
+          saveState={saveState} saveError={saveError} backupRevision={backupRevision}
+          notify={notify} onClose={() => setModal(null)}
+          onRetrySave={() => setLibrary({ ...library })}
+          moveLibrary={moveLibrary} runExport={runExport} pickRestore={pickRestore}
+          applyRecoveredLibrary={applyRecoveredLibrary}
+          onImport={async (base, payload, choices) => {
+            await flush();
             const result = await appendLibraryImport(base, payload, choices);
             setLibrary(result, true); setActiveId(""); setShelf(true); setCatalogOpen(false); setEditing(false); setHidden(false);
-          }} />
-          {busy && (
-            <div className="operation-busy">
-              <LoaderCircle size={16} className="spin" />
-              正在处理资料，请稍候…
-            </div>
-          )}
-          <input
-            ref={restoreInput}
-            type="file"
-            accept=".zip"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void pickRestore(file);
-              e.target.value = "";
-            }}
-          />
-        </Modal>
+          }}
+        />
       )}
       {preview && (
         <Modal

@@ -1,17 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { strToU8, zipSync } from "fflate";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => true, invoke: (...args: unknown[]) => invoke(...args) }));
-vi.mock("@tauri-apps/plugin-dialog", () => {
-  throw new Error("前端不应再调用对话框插件");
-});
 
 const storage = await import("./storage");
 
 beforeEach(() => invoke.mockReset());
 
 describe("桌面端写文件只传内容和建议文件名", () => {
+  it("前端不再引用对话框插件（对话框由 Rust 侧弹出）", () => {
+    const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8"));
+    expect(pkg.dependencies["@tauri-apps/plugin-dialog"]).toBeUndefined();
+    expect(readFileSync(join(__dirname, "storage.ts"), "utf8")).not.toContain("plugin-dialog");
+  });
   it("备份走 save_backup，不传路径", async () => {
     invoke.mockResolvedValueOnce(true);
     await expect(storage.downloadBytes(new Uint8Array([1, 2, 3]), "叙册备份.zip")).resolves.toBe(true);

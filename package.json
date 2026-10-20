@@ -1,7 +1,7 @@
 {
   "name": "character-atlas",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "engines": {
     "node": ">=20.19"
@@ -21,7 +21,6 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
-    "@tauri-apps/plugin-dialog": "^2.4.0",
     "fflate": "^0.8.2",
     "idb": "^8.0.3",
     "lucide-react": "^0.468.0",

@@ -4,7 +4,7 @@ Windows 本地优先的私人原创角色设定集。界面为精致画册，数
 
 ## 安装使用
 
-交付文件 `CharacterAtlas-0.4.0-Windows-x64-setup.exe` 是 Windows 64 位安装包，适用于 Windows 10 / 11。运行安装程序后即可打开「叙册」，使用软件不需要安装开发工具。
+交付文件 `CharacterAtlas-0.5.0-Windows-x64-setup.exe` 是 Windows 64 位安装包，适用于 Windows 10 / 11。运行安装程序后即可打开「叙册」，使用软件不需要安装开发工具。
 
 首次使用可阅读 `QUICKSTART.zh-CN.md`。打开演示角色「林弥」，呼出身份卡后点击照片，可以触发整份监狱档案切换。
 

@@ -7,7 +7,7 @@ const files = {};
 async function collect(dir) {
   for (const item of await readdir(dir, { withFileTypes: true })) {
     if (
-      ["node_modules", "dist", "dist-0.1.0", "target", ".git", "deliverables"].includes(
+      ["node_modules", ".agent", "dist", "dist-0.1.0", "target", ".git", "deliverables"].includes(
         item.name,
       ) ||
       item.name.endsWith(".zip") ||

@@ -27,3 +27,5 @@
 .catalog-import-attention .catalog-import-warning { color: var(--ink); }
 .catalog-header-notes { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
 .library-picker-modal .picker-search select { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; }
+
+.agent-busy-overlay { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; background: #203b3066; color: white; backdrop-filter: blur(2px); }

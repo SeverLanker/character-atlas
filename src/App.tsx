@@ -1,3 +1,4 @@
+import { useAgentBridge } from "./hooks/useAgentBridge";
 import { IdentityDisplay } from "./components/IdentityDisplay";
 import {
   useCallback,
@@ -112,8 +113,8 @@ function filterCharacters(library: Library | null, filter: string, search: strin
 }
 export default function App() {
   const [themePref, setThemePref] = useAppTheme();
-  const { library, setLibrary, undo, redo, canUndo, canRedo, lastAction } =
-    useLibraryHistory();
+  const history = useLibraryHistory();
+  const { library, setLibrary, undo, redo, canUndo, canRedo, lastAction } = history;
   const [loadError, setLoadError] = useState("");
   const [activeId, setActiveId] = useState(""),
     [versionId, setVersionId] = useState(""),
@@ -179,6 +180,7 @@ export default function App() {
     };
   }, []);
   const { saveState, saveError, flush } = useAutosave(library);
+  const agentBusy = useAgentBridge(history, flush, busy);
   useEffect(() => {
     if (!desktop) return;
     let cleanup: (() => void) | undefined;
@@ -221,7 +223,7 @@ export default function App() {
       ].id,
     );
   }
-  useAppKeyboard({ editing, modal, confirm, preview, shelf, busy, undo, redo, setConfirm, setPreview, setModal, setEditing, setPage, selecting: selection.selecting, exitSelecting: selection.exit });
+  useAppKeyboard({ editing, modal, confirm, preview, shelf, busy: busy || agentBusy, undo, redo, setConfirm, setPreview, setModal, setEditing, setPage, selecting: selection.selecting, exitSelecting: selection.exit });
   useEffect(() => {
     if (!library || !activeId) return;
     const active = library.characters.find((item) => item.id === activeId);
@@ -1357,6 +1359,7 @@ export default function App() {
           </div>
         </Modal>
       )}
+      {agentBusy && <div className="agent-busy-overlay" role="status">正在处理 Agent 请求，请稍候…</div>}
       {toast && (
         <div className="toast" role="status">
           <Check size={16} />

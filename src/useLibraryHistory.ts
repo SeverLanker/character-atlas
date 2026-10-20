@@ -1,8 +1,8 @@
-import { useCallback, useReducer } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Library } from "./model";
 type Update = Library | null | ((current: Library | null) => Library | null);
 export type HistoryAction = "set" | "undo" | "redo";
-interface State {
+export interface HistoryState {
   lastAction?: HistoryAction;
   current: Library | null;
   past: Library[];
@@ -14,7 +14,7 @@ type Action =
   | { type: "set"; update: Update; time: number; checkpoint: boolean }
   | { type: "undo" }
   | { type: "redo" };
-export function historyReducer(state: State, action: Action): State {
+export function historyReducer(state: HistoryState, action: Action): HistoryState {
   if (action.type === "undo") {
     const previous = state.past.at(-1);
     if (!previous || !state.current) return state;
@@ -59,27 +59,21 @@ export function historyReducer(state: State, action: Action): State {
   };
 }
 export function useLibraryHistory() {
-  const [state, dispatch] = useReducer(historyReducer, {
-    current: null,
-    past: [],
-    future: [],
-    time: 0,
-    group: false,
-  });
-  const set = useCallback(
-    (update: Update, checkpoint = false) =>
-      dispatch({ type: "set", update, time: Date.now(), checkpoint }),
-    [],
-  );
-  const undo = useCallback(() => dispatch({ type: "undo" }), []),
-    redo = useCallback(() => dispatch({ type: "redo" }), []);
-  return {
-    library: state.current,
-    lastAction: state.lastAction,
-    setLibrary: set,
-    undo,
-    redo,
-    canUndo: !!state.past.length,
-    canRedo: !!state.future.length,
-  };
+  const [state, setState] = useState<HistoryState>({ current: null, past: [], future: [], time: 0, group: false });
+  const live = useRef(state), locked = useRef(false);
+  const publish = useCallback((next: HistoryState) => { live.current = next; setState(next); }, []);
+  const send = useCallback((action: Action) => {
+    if (locked.current) return;
+    publish(historyReducer(live.current, action));
+  }, [publish]);
+  const set = useCallback((update: Update, checkpoint = false) => send({ type: "set", update, time: Date.now(), checkpoint }), [send]);
+  const undo = useCallback(() => send({ type: "undo" }), [send]);
+  const redo = useCallback(() => send({ type: "redo" }), [send]);
+  const getState = useCallback(() => live.current, []);
+  const lock = useCallback(() => {
+    if (locked.current) throw new Error("资料正在处理，请稍后重试");
+    locked.current = true;
+    return () => { locked.current = false; };
+  }, []);
+  return { library: state.current, lastAction: state.lastAction, setLibrary: set, undo, redo, canUndo: !!state.past.length, canRedo: !!state.future.length, getState, publish, lock };
 }

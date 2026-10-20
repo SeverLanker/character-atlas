@@ -1,10 +1,11 @@
+import type { AgentRecord } from "./agent-api";
 import { openDB } from "idb";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
 import { assetRefs, validateLibrary, migrateLibrary, type Library } from "./model";
 import { inspectRecovery } from "./recovery";
 import { defaultImportChoice, mergeLibraries, type ImportChoices } from "./merge";
-const db = () =>
+export const db = () =>
   openDB("character-atlas", 2, {
     upgrade(database) {
       for (const name of ["library", "assets", "snapshots", "originals", "meta"])
@@ -61,9 +62,14 @@ export async function snapshotLibrary(snapshot: LibrarySnapshot): Promise<Librar
   for (const ref of assetRefs(lib)) await readAsset(ref);
   return lib;
 }
-export async function saveLibrary(library: Library, forceSnapshot = false, expectedCurrent?: Library): Promise<void> {
+export async function saveLibrary(library: Library, forceSnapshot = false, expectedCurrent?: Library, agent?: AgentRecord & { id: string; deadline: number }): Promise<void> {
   validateLibrary(library);
+  if (agent && Date.now() > agent.deadline) throw new Error("请求已超时，未提交；请使用相同 request_id 重试");
   if (desktop) {
+    if (agent) {
+      await invoke("save_agent_library", { id: agent.id, expected: JSON.stringify(expectedCurrent), data: JSON.stringify(library), record: JSON.stringify(agent) });
+      return;
+    }
     if (expectedCurrent && JSON.stringify(await loadLibrary()) !== JSON.stringify(expectedCurrent)) throw new Error("资料库已变化，请重新预览导入");
     await invoke("save_library", { data: JSON.stringify(library) });
   }
@@ -72,6 +78,11 @@ export async function saveLibrary(library: Library, forceSnapshot = false, expec
     const tx = database.transaction(["library", "snapshots", "meta"], "readwrite");
     void tx.done.catch(() => {});
     try {
+    if (agent) {
+      const stored = await tx.objectStore("meta").get(`agent-request:${agent.request_id}`);
+      if (stored) throw new Error("request_id 已被处理，请重试读取原结果");
+      if (Date.now() > agent.deadline) throw new Error("请求已超时，未提交");
+    }
     const previous = await tx.objectStore("library").get("current");
     if (expectedCurrent && JSON.stringify(migrateLibrary(typeof previous === "string" ? JSON.parse(previous) : previous)) !== JSON.stringify(expectedCurrent))
       throw new Error("资料库已变化，请重新预览导入");
@@ -86,6 +97,7 @@ export async function saveLibrary(library: Library, forceSnapshot = false, expec
         await tx.objectStore("snapshots").delete(row.id);
     }
     await tx.objectStore("library").put(library, "current");
+    if (agent) await tx.objectStore("meta").put(agent, `agent-request:${agent.request_id}`);
     await tx.objectStore("meta").put(true, "initialized");
     await tx.done;
     } catch (error) {
@@ -358,4 +370,13 @@ export async function openFolder(): Promise<void> {
 export async function relocateLibrary(): Promise<string | null> {
   if (!desktop) return null;
   return invoke<string | null>("relocate_library");
+}
+
+
+export async function readAgentRecord(requestId: string, fingerprint: string) {
+  const stored = desktop ? await invoke<string | null>("read_agent_record", { requestId }) : await (await db()).get("meta", `agent-request:${requestId}`);
+  const record = typeof stored === "string" ? JSON.parse(stored) : stored;
+  if (!record) return null;
+  if (record.fingerprint !== fingerprint) throw new Error("request_id 已用于不同内容，请换一个编号（409）");
+  return record.reply as import("./agent-api").AgentReply;
 }

@@ -7,11 +7,17 @@ use std::{
     sync::Mutex,
     time::{SystemTime, UNIX_EPOCH},
 };
-use tauri::{Manager, State};
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_dialog::DialogExt;
+
+mod native_write;
+use native_write::{check_size, suggested_file_name, validate_target, WriteKind};
 
 struct LibraryState {
     root: Mutex<PathBuf>,
     config: PathBuf,
+    /// 应用数据目录（含 library-config.json 与默认资料库），任何导出都不能写到这里。
+    data_dir: PathBuf,
 }
 type AppResult<T> = Result<T, String>;
 fn err(e: impl std::fmt::Display) -> String {
@@ -39,6 +45,7 @@ fn validate_data(data: &str) -> AppResult<()> {
 fn asset_path(root: &Path, name: &str) -> AppResult<PathBuf> {
     let (stem, extension) = name.rsplit_once('.').ok_or("图片名称无效")?;
     if stem.is_empty()
+        || stem.len() > 128
         || !stem
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
@@ -152,37 +159,61 @@ fn read_asset(state: State<LibraryState>, name: String) -> AppResult<String> {
     let root = state.root.lock().map_err(err)?;
     Ok(STANDARD.encode(fs::read(asset_path(&root, &name)?).map_err(err)?))
 }
-#[tauri::command]
-fn write_backup(path: String, data: String) -> AppResult<()> {
-    let path = PathBuf::from(path);
-    if path.extension().is_none_or(|ext| ext != "zip") {
-        return Err("备份文件必须使用 .zip 扩展名".into());
+/// 弹出系统保存对话框（Rust 侧），校验用户选的路径后原子写入。返回 false 表示用户取消。
+/// 前端只提供内容和建议文件名，路径从不经过前端。
+fn save_with_dialog(
+    app: &AppHandle,
+    state: &LibraryState,
+    kind: WriteKind,
+    suggested_name: &str,
+    data: &str,
+) -> AppResult<bool> {
+    // base64 解码前先按长度估算，避免对超大输入做无谓的解码。
+    check_size(kind, data.len() / 4 * 3)?;
+    let bytes = STANDARD.decode(data).map_err(|_| "导出内容损坏，未写入。".to_string())?;
+    check_size(kind, bytes.len())?;
+    let mut dialog = app
+        .dialog()
+        .file()
+        .set_file_name(suggested_file_name(suggested_name, kind))
+        .add_filter(kind.filter_name(), &[kind.extension()]);
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.set_parent(&window);
     }
-    atomic_write(&path, &STANDARD.decode(data).map_err(err)?)
-}
-const MAX_MARKDOWN_BYTES: usize = 32 * 1024 * 1024;
-const MAX_EXPORT_ZIP_BYTES: usize = 512 * 1024 * 1024;
-fn check_export(path: &Path, size: usize) -> AppResult<()> {
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase());
-    let limit = match ext.as_deref() {
-        Some("md") => MAX_MARKDOWN_BYTES,
-        Some("zip") => MAX_EXPORT_ZIP_BYTES,
-        _ => return Err("导出文件必须使用 .md 或 .zip 扩展名".into()),
+    let Some(chosen) = dialog.blocking_save_file() else {
+        return Ok(false);
     };
-    if size > limit {
-        return Err(format!("导出文件超过 {} MB 上限", limit / 1024 / 1024));
-    }
-    Ok(())
+    let chosen = chosen
+        .into_path()
+        .map_err(|_| "保存位置无效，请重新选择。".to_string())?;
+    let protected = [state.root.lock().map_err(err)?.clone(), state.data_dir.clone()];
+    let target = validate_target(&chosen, kind, &protected)?;
+    atomic_write(&target, &bytes)?;
+    Ok(true)
 }
 #[tauri::command]
-fn write_export(path: String, data: String) -> AppResult<()> {
-    let path = PathBuf::from(path);
-    let bytes = STANDARD.decode(data).map_err(err)?;
-    check_export(&path, bytes.len())?;
-    atomic_write(&path, &bytes)
+async fn save_backup(
+    app: AppHandle,
+    state: State<'_, LibraryState>,
+    suggested_name: String,
+    data: String,
+) -> AppResult<bool> {
+    save_with_dialog(&app, &state, WriteKind::Backup, &suggested_name, &data)
+}
+#[tauri::command]
+async fn save_export(
+    app: AppHandle,
+    state: State<'_, LibraryState>,
+    suggested_name: String,
+    kind: String,
+    data: String,
+) -> AppResult<bool> {
+    let kind = match kind.as_str() {
+        "md" => WriteKind::ExportMarkdown,
+        "zip" => WriteKind::ExportZip,
+        _ => return Err("不支持的导出类型".into()),
+    };
+    save_with_dialog(&app, &state, kind, &suggested_name, &data)
 }
 #[tauri::command]
 fn library_location(state: State<LibraryState>) -> AppResult<String> {
@@ -215,7 +246,10 @@ fn copy_directory(source: &Path, destination: &Path) -> AppResult<()> {
         let entry = entry.map_err(err)?;
         let path = entry.path();
         let target = destination.join(entry.file_name());
-        if path.is_dir() {
+        let file_type = entry.file_type().map_err(err)?;
+        if file_type.is_symlink() {
+            continue; // 资料库里不应有符号链接，迁移时不跟随
+        } else if file_type.is_dir() {
             copy_directory(&path, &target)?;
         } else {
             fs::copy(path, target).map_err(err)?;
@@ -223,12 +257,14 @@ fn copy_directory(source: &Path, destination: &Path) -> AppResult<()> {
     }
     Ok(())
 }
-#[tauri::command]
-fn relocate_library(state: State<LibraryState>, destination: String) -> AppResult<String> {
+fn relocate_to(state: &LibraryState, destination: &Path) -> AppResult<String> {
     let mut root = state.root.lock().map_err(err)?;
-    let destination = PathBuf::from(destination);
-    if !destination.is_dir() {
-        return Err("请选择一个已存在的空文件夹".into());
+    if native_write::is_unc_or_device(&destination.to_string_lossy()) {
+        return Err("不支持网络共享（UNC）或设备路径，请选择本机磁盘上的文件夹。".into());
+    }
+    let meta = fs::symlink_metadata(destination).map_err(|_| "请选择一个已存在的空文件夹".to_string())?;
+    if meta.file_type().is_symlink() || !meta.is_dir() {
+        return Err("请选择一个已存在的空文件夹（不支持符号链接）".into());
     }
     let destination = fs::canonicalize(destination).map_err(err)?;
     let current = fs::canonicalize(&*root).map_err(err)?;
@@ -246,6 +282,21 @@ fn relocate_library(state: State<LibraryState>, destination: String) -> AppResul
     )?;
     *root = destination;
     Ok(root.to_string_lossy().to_string())
+}
+/// 迁移资料库：文件夹由 Rust 侧弹出的系统对话框选择，前端不再传路径。返回 None 表示取消。
+#[tauri::command]
+async fn relocate_library(app: AppHandle, state: State<'_, LibraryState>) -> AppResult<Option<String>> {
+    let mut dialog = app.dialog().file().set_title("选择用于存放资料库的空文件夹");
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.set_parent(&window);
+    }
+    let Some(folder) = dialog.blocking_pick_folder() else {
+        return Ok(None);
+    };
+    let folder = folder
+        .into_path()
+        .map_err(|_| "文件夹无效，请重新选择。".to_string())?;
+    relocate_to(&state, &folder).map(Some)
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -279,6 +330,7 @@ pub fn run() {
             app.manage(LibraryState {
                 root: Mutex::new(root),
                 config,
+                data_dir,
             });
             Ok(())
         })
@@ -287,8 +339,8 @@ pub fn run() {
             save_library,
             write_asset,
             read_asset,
-            write_backup,
-            write_export,
+            save_backup,
+            save_export,
             library_location,
             open_library_folder,
             relocate_library
@@ -336,13 +388,43 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
-    fn export_only_allows_markdown_and_zip_within_limits() {
-        assert!(check_export(Path::new("a.md"), 10).is_ok());
-        assert!(check_export(Path::new("a.ZIP"), 10).is_ok());
-        assert!(check_export(Path::new("a.exe"), 10).is_err());
-        assert!(check_export(Path::new("noext"), 10).is_err());
-        assert!(check_export(Path::new("a.md"), MAX_MARKDOWN_BYTES + 1).is_err());
-        assert!(check_export(Path::new("a.zip"), MAX_EXPORT_ZIP_BYTES + 1).is_err());
+    fn atomic_write_cleans_up_temporary_file_on_failure() {
+        let root = temporary_directory();
+        // 目标是已存在的非空文件夹，rename 会失败
+        fs::create_dir_all(root.join("taken.zip").join("inner")).unwrap();
+        assert!(atomic_write(&root.join("taken.zip"), b"data").is_err());
+        let leftovers: Vec<_> = fs::read_dir(&root)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty());
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn relocate_rejects_symlinks_and_non_empty_folders() {
+        let base = temporary_directory();
+        let root = base.join("lib");
+        fs::create_dir_all(root.join("assets")).unwrap();
+        let state = LibraryState {
+            root: Mutex::new(root.clone()),
+            config: base.join("config.json"),
+            data_dir: base.clone(),
+        };
+        fs::create_dir_all(base.join("full").join("x")).unwrap();
+        assert!(relocate_to(&state, &base.join("full")).is_err());
+        assert!(relocate_to(&state, &root.join("assets")).is_err());
+        assert!(relocate_to(&state, &base.join("missing")).is_err());
+        #[cfg(unix)]
+        {
+            fs::create_dir_all(base.join("empty")).unwrap();
+            std::os::unix::fs::symlink(base.join("empty"), base.join("link")).unwrap();
+            assert!(relocate_to(&state, &base.join("link")).is_err());
+        }
+        fs::create_dir_all(base.join("new")).unwrap();
+        assert!(relocate_to(&state, &base.join("new")).is_ok());
+        assert!(base.join("new").join("assets").is_dir());
+        fs::remove_dir_all(base).unwrap();
     }
     #[test]
     fn supports_old_and_new_library_schemas() {

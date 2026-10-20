@@ -197,18 +197,37 @@ export function prepareBackupRecovery(bytes: Uint8Array) {
   const parsed = parseBackup(repairedBytes); // Includes referenced image and size checks.
   return { ...proposal, ...parsed, raw, repairedBytes };
 }
+export const ZIP_LIMITS = {
+  /** ZIP 文件本身 */
+  archiveBytes: 256 * 1024 * 1024,
+  /** 解压后总量（按条目头声明的原始大小累计；fflate 按声明大小分配输出，不会超出） */
+  expandedBytes: 512 * 1024 * 1024,
+  /** 条目总数（含被忽略的条目） */
+  entries: 5000,
+  libraryJsonBytes: 64 * 1024 * 1024,
+  assetBytes: 12 * 1024 * 1024,
+  /** 单个条目的压缩比上限；正常图片约 1:1，JSON 通常 < 1:30 */
+  ratio: 200,
+};
 function unpackBackup(bytes: Uint8Array) {
-  if (bytes.length > 256 * 1024 * 1024)
+  if (bytes.length > ZIP_LIMITS.archiveBytes)
     throw new Error("备份文件超过 256 MB，请拆分资料库。");
   let expanded = 0;
+  let entries = 0;
   const files = unzipSync(bytes, {
     filter(file) {
-      expanded += file.originalSize;
-      if (expanded > 512 * 1024 * 1024) throw new Error("备份解压后过大");
-      return (
+      if (++entries > ZIP_LIMITS.entries) throw new Error("备份中的文件数量异常，已停止解压。");
+      const keep =
         file.name === "library.json" ||
-        /^assets\/[a-zA-Z0-9_-]+\.(png|jpg|jpeg|webp|gif)$/.test(file.name)
-      );
+        /^assets\/[a-zA-Z0-9_-]{1,128}\.(png|jpg|jpeg|webp|gif)$/.test(file.name);
+      if (!keep) return false; // 不认识的条目（含 ../ 等路径）直接跳过，不解压
+      expanded += file.originalSize;
+      if (expanded > ZIP_LIMITS.expandedBytes) throw new Error("备份解压后过大");
+      const limit = file.name === "library.json" ? ZIP_LIMITS.libraryJsonBytes : ZIP_LIMITS.assetBytes;
+      if (file.originalSize > limit) throw new Error(file.name === "library.json" ? "备份中的 library.json 超过 64 MB" : "备份中的图片超过 12 MB");
+      if (file.originalSize > 1024 * 1024 && file.originalSize > file.size * ZIP_LIMITS.ratio)
+        throw new Error("备份中的文件压缩比异常，可能已损坏或被篡改，已停止解压。");
+      return true;
     },
   });
   if (!files["library.json"])
@@ -264,47 +283,28 @@ export async function appendLibraryImport(current: Library, payload: LibraryImpo
   await saveLibrary(result, true, current);
   return result;
 }
-export async function downloadBytes(
-  bytes: Uint8Array,
-  name: string,
-): Promise<boolean> {
-  if (desktop) {
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const path = await save({
-      defaultPath: name,
-      filters: [{ name: "叙册备份", extensions: ["zip"] }],
-    });
-    if (path) await invoke("write_backup", { path, data: toBase64(bytes) });
-    return Boolean(path);
-  }
-  const url = URL.createObjectURL(
-    new Blob([new Uint8Array(bytes)], { type: "application/zip" }),
-  );
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 30000);
+/**
+ * 桌面端写文件：保存对话框由 Rust 侧弹出并直接写入，前端只传内容和建议文件名，从不传路径。
+ * 返回 false 表示用户取消。网页端触发浏览器下载。
+ */
+export async function downloadBytes(bytes: Uint8Array, name: string): Promise<boolean> {
+  if (desktop) return invoke<boolean>("save_backup", { suggestedName: name, data: toBase64(bytes) });
+  browserDownload(bytes, name, "application/zip");
   return true;
 }
-/** 导出文件（Markdown / ZIP）。桌面经保存对话框写入，Rust 侧限制扩展名与体积；网页触发下载。 */
+/** 导出文件（Markdown / ZIP）。桌面由 Rust 侧弹对话框、校验路径、限制扩展名与体积；网页触发下载。 */
 export async function downloadExport(bytes: Uint8Array, name: string, kind: "md" | "zip"): Promise<boolean> {
-  if (desktop) {
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const path = await save({
-      defaultPath: name,
-      filters: [kind === "md" ? { name: "Markdown", extensions: ["md"] } : { name: "Markdown 压缩包", extensions: ["zip"] }],
-    });
-    if (path) await invoke("write_export", { path, data: toBase64(bytes) });
-    return Boolean(path);
-  }
-  const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: kind === "md" ? "text/markdown;charset=utf-8" : "application/zip" }));
+  if (desktop) return invoke<boolean>("save_export", { suggestedName: name, kind, data: toBase64(bytes) });
+  browserDownload(bytes, name, kind === "md" ? "text/markdown;charset=utf-8" : "application/zip");
+  return true;
+}
+function browserDownload(bytes: Uint8Array, name: string, type: string) {
+  const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type }));
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
-  return true;
 }
 export async function libraryLocation(): Promise<string> {
   return desktop ? invoke("library_location") : `当前浏览器 · ${window.location.origin} · IndexedDB`;
@@ -312,14 +312,8 @@ export async function libraryLocation(): Promise<string> {
 export async function openFolder(): Promise<void> {
   if (desktop) await invoke("open_library_folder");
 }
+/** 迁移资料库：文件夹由 Rust 侧弹出的系统对话框选择。返回 null 表示取消或网页版。 */
 export async function relocateLibrary(): Promise<string | null> {
   if (!desktop) return null;
-  const { open } = await import("@tauri-apps/plugin-dialog");
-  const folder = await open({
-    directory: true,
-    multiple: false,
-    title: "选择用于存放资料库的空文件夹",
-  });
-  if (!folder) return null;
-  return invoke("relocate_library", { destination: folder });
+  return invoke<string | null>("relocate_library");
 }

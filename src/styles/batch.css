@@ -1,0 +1,41 @@
+/* 书架多选与批量操作。颜色只用 token，四个应用主题下自动适配。 */
+.select-mode-toggle.active { border-color: var(--accent); color: var(--accent); }
+.batch-bar {
+  position: sticky; top: 76px; z-index: 12;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  margin: 0 0 18px; padding: 12px 14px;
+  color: var(--ink); background: var(--paper);
+  border: 1px solid var(--accent); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-surface);
+}
+.batch-count { font-size: 14px; min-width: 110px; }
+.batch-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.batch-group + .batch-group { padding-left: 14px; border-left: 1px solid var(--line); }
+.batch-exit { margin-left: auto; }
+.batch-bar .button.batch-danger:not(:disabled) { color: #b03a2e; border-color: color-mix(in srgb, #b03a2e 45%, transparent); }
+[data-theme="night"] .batch-bar .button.batch-danger:not(:disabled) { color: #f0a090; }
+
+.character-grid.selecting .character-card { position: relative; cursor: pointer; }
+.character-grid.selecting .card-favorite { display: none; }
+.select-check {
+  position: absolute; top: 12px; right: 12px; z-index: 3;
+  display: grid; place-items: center; width: 24px; height: 24px;
+  color: var(--paper); background: var(--paper);
+  border: 2px solid var(--muted); border-radius: 6px;
+  pointer-events: none;
+  transition: background .15s, border-color .15s;
+}
+.character-card.selected .select-check { background: var(--accent); border-color: var(--accent); color: var(--c-accent-contrast, #fffdf5); }
+.character-grid.selecting .character-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), var(--shadow-surface);
+}
+.character-grid.selecting .character-open:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.character-list.selecting .select-check { top: 50%; transform: translateY(-50%); right: 16px; }
+@media (max-width: 760px) {
+  .batch-group + .batch-group { padding-left: 0; border-left: 0; }
+  .batch-exit { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .select-check { transition: none; }
+}

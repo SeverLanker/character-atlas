@@ -15,12 +15,15 @@ export interface AppKeyboardOptions {
   setModal: (value: null) => void;
   setEditing: (value: boolean) => void;
   setPage: Dispatch<SetStateAction<Page>>;
+  /** 书架多选模式：Esc 在其他层级都关闭后退出多选 */
+  selecting?: boolean;
+  exitSelecting?: () => void;
 }
 
 /** 全局快捷键：Esc 关闭层级、Ctrl+Z / Ctrl+Y 撤销重做、← → 翻页。逻辑自 App.tsx 原样迁出。 */
 export function useAppKeyboard({
   editing, modal, confirm, preview, shelf, busy, undo, redo,
-  setConfirm, setPreview, setModal, setEditing, setPage,
+  setConfirm, setPreview, setModal, setEditing, setPage, selecting, exitSelecting,
 }: AppKeyboardOptions) {
   useEffect(() => {
     function key(e: KeyboardEvent) {
@@ -29,6 +32,7 @@ export function useAppKeyboard({
         else if (preview) setPreview(null);
         else if (modal) setModal(null);
         else if (editing) setEditing(false);
+        else if (selecting) exitSelecting?.();
         return;
       }
       const element = e.target as HTMLElement;
@@ -70,5 +74,5 @@ export function useAppKeyboard({
     }
     document.addEventListener("keydown", key);
     return () => document.removeEventListener("keydown", key);
-  }, [editing, modal, confirm, preview, shelf, busy, undo, redo]);
+  }, [editing, modal, confirm, preview, shelf, busy, undo, redo, selecting, exitSelecting]);
 }

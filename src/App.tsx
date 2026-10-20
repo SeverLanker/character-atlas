@@ -87,6 +87,29 @@ import { LibrarySettingsModal } from "./views/LibrarySettingsModal";
 import { useAppKeyboard } from "./hooks/useAppKeyboard";
 import { queueSave, useAutosave } from "./hooks/useAutosave";
 import { useAppTheme } from "./hooks/useAppTheme";
+import { useShelfSelection } from "./hooks/useShelfSelection";
+import { countAffectedRelationships, deleteCharacters, moveToCollection, setFavorite, subsetLibrary } from "./batch";
+/** 书架的筛选 / 搜索 / 排序（多选需要在 Hook 里提前拿到可见结果，所以提出为函数）。 */
+function filterCharacters(library: Library | null, filter: string, search: string, sort: string): Character[] {
+  if (!library) return [];
+  return library.characters
+    .filter(
+      (c) =>
+        (filter === "全部角色" ||
+          (filter === "特别收藏" && c.favorite) ||
+          c.collection === filter) &&
+        [
+          c.name,
+          c.collection,
+          ...c.versions.map((v) => v.profile.basics.name),
+        ].some((s) => s.toLowerCase().includes(search.toLowerCase())),
+    )
+    .sort((a, b) =>
+      sort === "name"
+        ? a.name.localeCompare(b.name, "zh-CN")
+        : b.updatedAt.localeCompare(a.updatedAt),
+    );
+}
 export default function App() {
   const [themePref, setThemePref] = useAppTheme();
   const { library, setLibrary, undo, redo, canUndo, canRedo } =
@@ -105,7 +128,7 @@ export default function App() {
     [sort, setSort] = useState("recent"),
     [layout, setLayout] = useState<"grid" | "list">("grid");
   const [modal, setModal] = useState<
-      "library" | "new" | "identity" | "copyVersion" | null
+      "library" | "new" | "identity" | "copyVersion" | "batchMove" | null
     >(null),
     [confirm, setConfirm] = useState<Confirm | null>(null),
     [preview, setPreview] = useState<{ ref: string; caption: string } | null>(
@@ -122,6 +145,11 @@ export default function App() {
     [busy, setBusy] = useState(false),
     [toast, setToast] = useState(""),
     [location, setLocation] = useState("");
+  const shelfVisible = shelf && !catalogOpen && !graphOpen;
+  const selection = useShelfSelection(
+    shelfVisible ? filterCharacters(library, filter, search, sort).map((x) => x.id) : [],
+  );
+  const [moveTarget, setMoveTarget] = useState("");
   const latest = useRef<Library | null>(null),
     toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   latest.current = library;
@@ -193,7 +221,7 @@ export default function App() {
       ].id,
     );
   }
-  useAppKeyboard({ editing, modal, confirm, preview, shelf, busy, undo, redo, setConfirm, setPreview, setModal, setEditing, setPage });
+  useAppKeyboard({ editing, modal, confirm, preview, shelf, busy, undo, redo, setConfirm, setPreview, setModal, setEditing, setPage, selecting: selection.selecting, exitSelecting: selection.exit });
   useEffect(() => {
     if (!library || !activeId) return;
     const active = library.characters.find((item) => item.id === activeId);
@@ -470,6 +498,57 @@ export default function App() {
       true,
     );
   }
+  /** 批量修改：走 batch.ts 的纯函数（含 validateLibrary），一次 setLibrary checkpoint = 撤销栈一步。 */
+  function applyBatch(update: (lib: Library) => Library, message: string) {
+    const current = latest.current;
+    if (!current) return;
+    try {
+      const next = update(current); // 校验失败会在这里抛出，资料库保持不变
+      if (next === current) return notify("所选角色已经是这个状态");
+      setLibrary(next, true);
+      notify(message);
+    } catch (error) {
+      notify("批量操作失败：" + String(error));
+    }
+  }
+  function namesOf(ids: string[]) {
+    const names = (library?.characters ?? []).filter((x) => ids.includes(x.id)).map((x) => "“" + x.name + "”");
+    return names.slice(0, 5).join("、") + (names.length > 5 ? ` 等 ${names.length} 位` : "");
+  }
+  async function exportSelectedBackup() {
+    if (!library || !selection.selectedIds.length) return;
+    setBusy(true);
+    try {
+      await flush().catch(() => {});
+      const bytes = await exportBackup(subsetLibrary(latest.current ?? library, selection.selectedIds));
+      const ok = await downloadBytes(bytes, `叙册备份-所选${selection.selectedIds.length}位-${new Date().toISOString().slice(0, 10)}.zip`);
+      if (ok) notify("所选角色的备份已导出（含秘密档案，可用于恢复或追加导入）");
+    } catch (error) {
+      notify("备份失败：" + String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+  function confirmBatchDelete() {
+    if (!library) return;
+    const ids = [...selection.selectedIds];
+    if (!ids.length) return;
+    const affected = countAffectedRelationships(library, ids);
+    setConfirm({
+      title: `删除所选的 ${ids.length} 位角色？`,
+      message:
+        `将删除 ${namesOf(ids)}，包括它们的全部剧情版本和秘密档案。` +
+        (affected ? `其他角色中有 ${affected} 条关系指向这些角色，关系条目会保留，但不再关联到角色。` : "") +
+        "可以用「撤销」一次恢复。",
+      label: `删除 ${ids.length} 位角色`,
+      danger: true,
+      action: async () => {
+        await flush().catch(() => {});
+        applyBatch((lib) => deleteCharacters(lib, ids), `已删除 ${ids.length} 位角色，可撤销`);
+        selection.clear();
+      },
+    });
+  }
   function newCharacter() {
     const name = newName.trim();
     if (!name) return;
@@ -511,23 +590,7 @@ export default function App() {
       </div>
     );
   const groups = [...new Set(library.characters.map((c) => c.collection))];
-  const filtered = library.characters
-    .filter(
-      (c) =>
-        (filter === "全部角色" ||
-          (filter === "特别收藏" && c.favorite) ||
-          c.collection === filter) &&
-        [
-          c.name,
-          c.collection,
-          ...c.versions.map((v) => v.profile.basics.name),
-        ].some((s) => s.toLowerCase().includes(search.toLowerCase())),
-    )
-    .sort((a, b) =>
-      sort === "name"
-        ? a.name.localeCompare(b.name, "zh-CN")
-        : b.updatedAt.localeCompare(a.updatedAt),
-    );
+  const filtered = filterCharacters(library, filter, search, sort);
   return (
     <div
       className={"app " + (hidden && !shelf ? "revealed-app" : "")}
@@ -732,7 +795,20 @@ export default function App() {
               canUndo={canUndo} canRedo={canRedo} undo={undo} redo={redo}
               onNewCharacter={() => setModal("new")}
               onOpenGraph={() => { setCatalogOpen(false); setGraphOpen(true); }}
-              enter={enter} toggleFavorite={toggleFavorite}
+              enter={(character) => { selection.exit(); enter(character); }} toggleFavorite={toggleFavorite}
+              selecting={selection.selecting} selectedIds={selection.selectedIds}
+              onToggleSelecting={selection.toggleMode} onCardSelect={selection.select}
+              onSelectAll={selection.selectAll} onClearSelection={selection.clear}
+              batch={{
+                favorite: (value) => {
+                  const ids = selection.selectedIds;
+                  applyBatch((lib) => setFavorite(lib, ids, value), value ? `已收藏 ${ids.length} 位角色` : `已取消收藏 ${ids.length} 位角色`);
+                },
+                move: () => { setMoveTarget(""); setModal("batchMove"); },
+                exportMarkdown: () => setMarkdownScope({ kind: "selection", ids: [...selection.selectedIds] }),
+                exportBackup: () => void exportSelectedBackup(),
+                remove: confirmBatchDelete,
+              }}
               onSearchHit={(hit) => {
                 setActiveId(hit.characterId); setVersionId(hit.versionId); setPage(hit.page);
                 setHidden(hit.hidden); setShelf(false); closePanels(); setEditing(false); setSearchHit(hit);
@@ -1120,6 +1196,41 @@ export default function App() {
             <button className="button primary" disabled={!copyName.trim()}>
               创建新阶段
             </button>
+          </form>
+        </Modal>
+      )}
+      {modal === "batchMove" && (
+        <Modal title={`移动所选 ${selection.selectedIds.length} 位角色到分组`} onClose={() => setModal(null)}>
+          <form
+            className="modal-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const ids = selection.selectedIds;
+              const name = moveTarget.trim();
+              if (!name) return;
+              applyBatch((lib) => moveToCollection(lib, ids, name), `已将 ${ids.length} 位角色移到「${name}」`);
+              setModal(null);
+            }}
+          >
+            <label className="field">
+              <span>分组（选择已有分组，或输入新名称新建）</span>
+              <input
+                autoFocus
+                list="batch-collection-options"
+                value={moveTarget}
+                maxLength={60}
+                onChange={(e) => setMoveTarget(e.target.value)}
+                placeholder="例如：雾港来信"
+              />
+              <datalist id="batch-collection-options">
+                {groups.map((g) => <option key={g} value={g} />)}
+              </datalist>
+            </label>
+            {moveTarget.trim() && !groups.includes(moveTarget.trim()) && <p className="modal-description">将新建分组「{moveTarget.trim()}」。</p>}
+            <div className="modal-actions">
+              <button type="button" className="button" onClick={() => setModal(null)}>取消</button>
+              <button type="submit" className="button primary" disabled={!moveTarget.trim()}>移动</button>
+            </div>
           </form>
         </Modal>
       )}

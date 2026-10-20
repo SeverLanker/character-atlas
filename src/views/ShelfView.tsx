@@ -1,8 +1,10 @@
 import type { CSSProperties } from "react";
 import {
   ArrowRight, Network, ArrowUpFromLine, BookMarked, BookOpen, Grid2X2, List, Plus, Redo2,
-  Search, SlidersHorizontal, Star, Undo2, X,
+  Search, SlidersHorizontal, Star, Undo2, X, ListChecks, Check,
 } from "lucide-react";
+import type { MouseEvent } from "react";
+import { BatchBar, type BatchActions } from "../components/BatchBar";
 import { defaultVersion, type Character, type Library } from "../model";
 import { IdentityCard } from "../components/BookPages";
 import { LibrarySearch } from "../components/LibrarySearch";
@@ -27,13 +29,30 @@ export interface ShelfViewProps {
   enter: (character: Character) => void;
   toggleFavorite: (character: Character) => void;
   onSearchHit: (hit: SearchHit) => void;
+  /** 多选模式（可选，未传时书架行为与以前一致） */
+  selecting?: boolean;
+  selectedIds?: string[];
+  onToggleSelecting?: () => void;
+  onCardSelect?: (id: string, modifiers: { shift: boolean; toggle: boolean }) => void;
+  onSelectAll?: () => void;
+  onClearSelection?: () => void;
+  batch?: BatchActions;
 }
 
 /** 角色书架。状态仍由 App 持有，以便在书架与档案之间切换时保留搜索、排序与布局。 */
 export function ShelfView({
   library, filter, filtered, search, setSearch, sort, setSort, layout, setLayout,
   canUndo, canRedo, undo, redo, onNewCharacter, onOpenGraph, enter, toggleFavorite, onSearchHit,
+  selecting = false, selectedIds = [], onToggleSelecting, onCardSelect, onSelectAll, onClearSelection, batch,
 }: ShelfViewProps) {
+  const selected = new Set(selectedIds);
+  function openOrSelect(character: Character, e: MouseEvent) {
+    const toggle = e.ctrlKey || e.metaKey;
+    if (onCardSelect && (selecting || toggle)) {
+      e.preventDefault();
+      onCardSelect(character.id, { shift: e.shiftKey, toggle });
+    } else enter(character);
+  }
   return (
             <>
               <div className="shelf-heading">
@@ -145,6 +164,17 @@ export function ShelfView({
                       <option value="name">姓名排序</option>
                     </select>
                   </label>
+                  {onToggleSelecting && (
+                    <button
+                      className={"button small select-mode-toggle" + (selecting ? " active" : "")}
+                      aria-pressed={selecting}
+                      onClick={onToggleSelecting}
+                      title="多选：Ctrl/Cmd+点击单选，Shift+点击连选，Esc 退出"
+                    >
+                      <ListChecks size={15} />
+                      {selecting ? "退出多选" : "多选"}
+                    </button>
+                  )}
                   <div className="view-toggle">
                     <button
                       className={layout === "grid" ? "active" : ""}
@@ -163,6 +193,16 @@ export function ShelfView({
                   </div>
                 </div>
               </div>
+              {selecting && batch && onSelectAll && onClearSelection && onToggleSelecting && (
+                <BatchBar
+                  count={selectedIds.length}
+                  visible={filtered.length}
+                  onSelectAll={onSelectAll}
+                  onClear={onClearSelection}
+                  onExit={onToggleSelecting}
+                  actions={batch}
+                />
+              )}
               <details className="global-search-panel">
                 <summary>跨角色内容检索</summary>
                 <LibrarySearch library={library} onOpen={onSearchHit} />
@@ -170,19 +210,26 @@ export function ShelfView({
               <div
                 className={
                   "character-grid " +
-                  (layout === "list" ? "character-list" : "")
+                  (layout === "list" ? "character-list" : "") +
+                  (selecting ? " selecting" : "")
                 }
               >
                 {filtered.map((character, i) => (
                   <article
-                    className="character-card"
+                    className={"character-card" + (selected.has(character.id) ? " selected" : "")}
                     key={character.id}
                     style={{ "--card-delay": i * 60 + "ms" } as CSSProperties}
                   >
+                    {selecting && (
+                      <span className="select-check" aria-hidden="true">
+                        {selected.has(character.id) && <Check size={15} strokeWidth={3} />}
+                      </span>
+                    )}
                     <button
                       className="character-open identity-surface"
-                      aria-label={"打开" + character.name + "的档案"}
-                      onClick={() => enter(character)}
+                      aria-label={selecting ? "选择" + character.name : "打开" + character.name + "的档案"}
+                      aria-pressed={selecting ? selected.has(character.id) : undefined}
+                      onClick={(e) => openOrSelect(character, e)}
                     >
                       <IdentityCard
                         profile={defaultVersion(character).profile}
@@ -219,7 +266,7 @@ export function ShelfView({
                     </button>
                   </article>
                 ))}
-                <button
+                {!selecting && <button
                   className="new-character-card"
                   onClick={onNewCharacter}
                 >
@@ -231,7 +278,7 @@ export function ShelfView({
                   <small>
                     创建角色 <ArrowRight size={13} />
                   </small>
-                </button>
+                </button>}
               </div>
               {!filtered.length && search && (
                 <p className="no-results">

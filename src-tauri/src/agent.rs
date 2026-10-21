@@ -90,35 +90,76 @@ fn read_body(stream: &mut TcpStream, mut initial: Vec<u8>, length: usize, deadli
 fn reason(status: u16) -> &'static str {
     match status { 200 => "OK", 400 => "Bad Request", 401 => "Unauthorized", 404 => "Not Found", 405 => "Method Not Allowed", 408 => "Request Timeout", 409 => "Conflict", 411 => "Length Required", 413 => "Payload Too Large", 415 => "Unsupported Media Type", 422 => "Unprocessable Entity", 431 => "Request Header Fields Too Large", 500 => "Internal Server Error", 503 => "Service Unavailable", 504 => "Gateway Timeout", _ => "Status" }
 }
-fn write_reply(stream: &mut TcpStream, reply: &Reply) {
+/// Total time spent discarding unread input after a reply (bounded even if the client keeps trickling).
+const DRAIN_DEADLINE: Duration = Duration::from_millis(500);
+const DRAIN_MAX: usize = 256 * 1024;
+/// Writes all bytes before `deadline`; each write waits at most the remaining time.
+fn write_all_deadline(stream: &mut TcpStream, mut bytes: &[u8], deadline: Instant) -> bool {
+    while !bytes.is_empty() {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() || stream.set_write_timeout(Some(left)).is_err() { return false; }
+        match stream.write(bytes) {
+            Ok(0) => return false,
+            Ok(n) => bytes = &bytes[n..],
+            Err(error) if error.kind() == ErrorKind::Interrupted => {}
+            Err(_) => return false,
+        }
+    }
+    true
+}
+/// Discards unread input until EOF, `DRAIN_MAX` bytes or a fixed total deadline.
+fn drain(stream: &mut TcpStream) {
+    let deadline = Instant::now() + DRAIN_DEADLINE;
+    let mut sink = [0u8; 4096]; let mut drained = 0;
+    while drained < DRAIN_MAX {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() || stream.set_read_timeout(Some(left)).is_err() { break; }
+        match stream.read(&mut sink) { Ok(0) => break, Ok(n) => drained += n, Err(error) if error.kind() == ErrorKind::Interrupted => {}, Err(_) => break }
+    }
+}
+/// Writes the reply within `write_timeout` in total, then half-closes and drains briefly
+/// so the client sees the reply instead of a reset.
+fn write_reply(stream: &mut TcpStream, reply: &Reply, write_timeout: Duration) {
     let content_type = if reply.content_type.contains(['\r', '\n']) { "application/octet-stream" } else { reply.content_type.as_str() };
     let head = format!("HTTP/1.1 {} {}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n", reply.status, reason(reply.status), reply.body.len());
-    let _ = stream.write_all(head.as_bytes()).and_then(|_| stream.write_all(reply.body.as_bytes())).and_then(|_| stream.flush());
-    // Half-close, then discard a little unread input so the client sees the reply instead of a reset.
+    let deadline = Instant::now() + write_timeout;
+    if !(write_all_deadline(stream, head.as_bytes(), deadline) && write_all_deadline(stream, reply.body.as_bytes(), deadline)) {
+        let _ = stream.shutdown(Shutdown::Both); return;
+    }
     let _ = stream.shutdown(Shutdown::Write);
-    let _ = stream.set_read_timeout(Some(Duration::from_millis(200)));
-    let mut sink = [0u8; 4096]; let mut drained = 0;
-    while drained < 256 * 1024 { match stream.read(&mut sink) { Ok(0) | Err(_) => break, Ok(n) => drained += n } }
+    drain(stream);
+}
+/// Used on the accept thread when full: one non-blocking write, no drain, so no client can stall accepting.
+fn reject_busy(mut stream: TcpStream) {
+    let reply = failure(503, "连接过多，请稍后重试");
+    let text = format!("HTTP/1.1 503 Service Unavailable\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n{}", reply.content_type, reply.body.len(), reply.body);
+    if stream.set_nonblocking(true).is_err() { return; }
+    let _ = stream.write(text.as_bytes());
+    // Discard only input that has already arrived (non-blocking), so closing is less likely to reset the reply.
+    let mut sink = [0u8; 4096];
+    for _ in 0..16 { match stream.read(&mut sink) { Ok(n) if n > 0 => {}, _ => break } }
+    let _ = stream.shutdown(Shutdown::Write);
 }
 /// Request checks shared by the desktop app and tests.
 struct Gate { token: String, port: u16, ready: Box<dyn Fn() -> bool + Send + Sync>, in_flight: Arc<AtomicUsize>, limits: Limits }
 fn serve(listener: TcpListener, gate: Arc<Gate>, work: mpsc::Sender<Job>) {
     let connections = Arc::new(AtomicUsize::new(0));
     for stream in listener.incoming() {
-        let Ok(mut stream) = stream else { continue };
-        let _ = stream.set_write_timeout(Some(gate.limits.write_timeout));
-        let Some(connection) = take_slot(&connections, gate.limits.max_connections) else { write_reply(&mut stream, &failure(503, "连接过多，请稍后重试")); continue };
+        // Back off on accept errors (e.g. out of file descriptors) instead of spinning.
+        let Ok(stream) = stream else { std::thread::sleep(Duration::from_millis(50)); continue };
+        let Some(connection) = take_slot(&connections, gate.limits.max_connections) else { reject_busy(stream); continue };
         let (gate, work) = (gate.clone(), work.clone());
         std::thread::spawn(move || handle(stream, &gate, &work, connection));
     }
 }
 fn handle(mut stream: TcpStream, gate: &Gate, work: &mpsc::Sender<Job>, _connection: Slot) {
+    let write_timeout = gate.limits.write_timeout;
     let (method, url, headers, initial) = match read_head(&mut stream, Instant::now() + gate.limits.header_timeout) {
         Ok(head) => head,
         Err(0) => return,
-        Err(408) => { write_reply(&mut stream, &failure(408, "请求头传输超时")); return; }
-        Err(431) => { write_reply(&mut stream, &failure(431, "请求头过大")); return; }
-        Err(_) => { write_reply(&mut stream, &failure(400, "HTTP 请求格式错误")); return; }
+        Err(408) => { write_reply(&mut stream, &failure(408, "请求头传输超时"), write_timeout); return; }
+        Err(431) => { write_reply(&mut stream, &failure(431, "请求头过大"), write_timeout); return; }
+        Err(_) => { write_reply(&mut stream, &failure(400, "HTTP 请求格式错误"), write_timeout); return; }
     };
     let request = HttpRequest { method, url, headers, stream };
     let host = format!("127.0.0.1:{}", gate.port);
@@ -160,7 +201,7 @@ fn canonical(value: &Value) -> Value {
     }
 }
 fn failure(status: u16, message: &str) -> Reply { Reply { status, body: json!({"error":message}).to_string(), content_type: "application/json;charset=utf-8".into() } }
-fn answer(mut request: HttpRequest, reply: Reply) { write_reply(&mut request.stream, &reply); }
+fn answer(mut request: HttpRequest, reply: Reply) { write_reply(&mut request.stream, &reply, LIMITS.write_timeout); }
 fn authorized(actual: &str, expected: &str) -> bool {
     actual.len() == expected.len() && actual.bytes().zip(expected.bytes()).fold(0u8, |n, (a,b)| n | (a ^ b)) == 0
 }
@@ -273,11 +314,12 @@ mod tests {
     }
     const TEST_LIMITS: Limits = Limits { header_timeout: Duration::from_millis(400), body_timeout: Duration::from_millis(400), write_timeout: Duration::from_millis(400), max_connections: 32, max_in_flight: 8 };
     /// Starts the real transport with a worker that answers every request with 200.
-    fn test_server() -> (u16, Arc<AtomicUsize>) {
+    fn test_server() -> (u16, Arc<AtomicUsize>) { test_server_with(TEST_LIMITS) }
+    fn test_server_with(limits: Limits) -> (u16, Arc<AtomicUsize>) {
         let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
         let in_flight = Arc::new(AtomicUsize::new(0));
-        let gate = Arc::new(Gate { token: "t".into(), port, ready: Box::new(|| true), in_flight: in_flight.clone(), limits: TEST_LIMITS });
+        let gate = Arc::new(Gate { token: "t".into(), port, ready: Box::new(|| true), in_flight: in_flight.clone(), limits });
         let (work, jobs) = mpsc::channel::<Job>();
         std::thread::spawn(move || { for job in jobs { let body = String::from_utf8_lossy(&job.bytes).to_string(); answer(job.request, Reply { status: 200, body, content_type: "text/plain\r\nX-Evil: 1".into() }); } });
         std::thread::spawn(move || serve(listener, gate, work));
@@ -291,6 +333,47 @@ mod tests {
     }
     fn get(port: u16) -> String { send(port, format!("GET /stats HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\n\r\n")) }
     fn post_head(port: u16) -> String { format!("POST /undo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nContent-Type: application/json\r\nContent-Length: 10\r\n\r\n") }
+    fn pair() -> (TcpStream, TcpStream) {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        (listener.accept().unwrap().0, client)
+    }
+    fn trickle(mut stream: TcpStream, every: Duration, total: Duration) -> std::thread::JoinHandle<()> {
+        std::thread::spawn(move || { let end = Instant::now() + total; while Instant::now() < end { if stream.write_all(b"x").is_err() { break; } std::thread::sleep(every); } })
+    }
+    #[test] fn drain_stops_at_its_deadline_under_trickle() {
+        let (mut server, client) = pair();
+        let feeder = trickle(client.try_clone().unwrap(), Duration::from_millis(50), Duration::from_secs(3));
+        let started = Instant::now();
+        write_reply(&mut server, &failure(400, "x"), Duration::from_secs(1));
+        assert!(started.elapsed() < DRAIN_DEADLINE + Duration::from_millis(300), "{:?}", started.elapsed());
+        drop((server, client)); let _ = feeder.join();
+    }
+    #[test] fn slow_reader_cannot_hold_writer_past_deadline() {
+        let (mut server, client) = pair();
+        let big = Reply { status: 200, body: "a".repeat(64 * 1024 * 1024), content_type: "text/plain".into() };
+        let started = Instant::now();
+        write_reply(&mut server, &big, Duration::from_millis(300)); // client never reads
+        assert!(started.elapsed() < Duration::from_millis(1500), "{:?}", started.elapsed());
+        drop(client);
+    }
+    #[test] fn trickling_rejected_client_does_not_block_accept() {
+        let limits = Limits { max_connections: 2, ..TEST_LIMITS };
+        let (port, _) = test_server_with(limits);
+        let held: Vec<TcpStream> = (0..2).map(|_| TcpStream::connect(("127.0.0.1", port)).unwrap()).collect();
+        std::thread::sleep(Duration::from_millis(100));
+        // Rejected with 503 (or reset), then keeps sending a byte every 100 ms.
+        let rejected = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let feeders: Vec<_> = (0..3).map(|_| trickle(TcpStream::connect(("127.0.0.1", port)).unwrap(), Duration::from_millis(100), Duration::from_secs(3))).collect();
+        let feeder = trickle(rejected.try_clone().unwrap(), Duration::from_millis(100), Duration::from_secs(3));
+        // Held slots free after the header timeout plus the bounded drain of their 408 reply.
+        std::thread::sleep(limits.header_timeout + DRAIN_DEADLINE + Duration::from_millis(300));
+        let started = Instant::now();
+        let reply = get(port);
+        assert!(reply.starts_with("HTTP/1.1 200"), "{reply}");
+        assert!(started.elapsed() < Duration::from_millis(1000), "{:?}", started.elapsed());
+        drop((held, rejected)); let _ = feeder.join(); for f in feeders { let _ = f.join(); }
+    }
     #[test] fn transport_keeps_security_checks() {
         let (port, _) = test_server();
         let ok = get(port);
@@ -333,13 +416,17 @@ mod tests {
         std::thread::sleep(TEST_LIMITS.body_timeout + Duration::from_millis(300));
         assert_eq!(in_flight.load(Ordering::SeqCst), 0);
         assert!(get(port).starts_with("HTTP/1.1 200"));
+        // Let the stalled connections finish their bounded drain so all connection slots are free.
+        drop(stalled); std::thread::sleep(DRAIN_DEADLINE + Duration::from_millis(100));
         // Connections that never send anything are also bounded and released.
         let idle: Vec<TcpStream> = (0..TEST_LIMITS.max_connections).map(|_| TcpStream::connect(("127.0.0.1", port)).unwrap()).collect();
         std::thread::sleep(Duration::from_millis(100));
-        assert!(get(port).starts_with("HTTP/1.1 503"));
-        std::thread::sleep(TEST_LIMITS.header_timeout + Duration::from_millis(300));
+        // Rejected without blocking: the client sees the 503, or a reset if its request arrived after the close.
+        let busy = get(port);
+        assert!(busy.starts_with("HTTP/1.1 503") || busy.is_empty(), "{busy}");
+        std::thread::sleep(TEST_LIMITS.header_timeout + DRAIN_DEADLINE + Duration::from_millis(300));
         assert!(get(port).starts_with("HTTP/1.1 200"));
-        drop((stalled, idle));
+        drop(idle);
     }
     #[test] fn connection_file_removed_only_with_matching_token() {
         let path = std::env::temp_dir().join(format!("atlas-agent-{}.json", random().unwrap()));

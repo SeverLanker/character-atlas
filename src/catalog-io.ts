@@ -10,7 +10,10 @@ const aliases: Record<string, string> = {
  类别:"类别",类型:"类别",分类:"类别",kind:"类别",
  等级:"等级",级别:"等级",rank:"等级",标签:"标签",tag:"标签",tags:"标签",
  说明:"说明",内容:"说明",描述:"说明",text:"说明",世界:"世界",作品:"世界",world:"世界",
+ 来源:"来源",出处:"来源",source:"来源",来源编号:"来源编号",来源id:"来源编号",sourceid:"来源编号",source_id:"来源编号",
 };
+const optional = ["世界", "来源", "来源编号"];
+const reserved = new Set(["__proto__", "constructor", "prototype"]);
 export interface CatalogImportRow {
   line: number; title: string; status: "new" | "duplicate" | "error"; reason: string;
   entry?: CatalogEntry; supplied: string[];
@@ -59,9 +62,13 @@ export function parseCatalog(text: string, format: "json" | "csv" | "tsv", exist
     if (missing.length || duplicates.length) throw new Error(`表头错误（第 1 行）：收到「${original.join("、") || "空表头"}」；${missing.length ? `缺少列：${missing.join("、")}；` : ""}${duplicates.length ? `映射后重复列：${duplicates.join("、")}；` : ""}需包含名称、类别、等级、标签、说明。`);
     original.forEach((cell, i) => {
       if (cell !== header[i]) headerNotes.push(`第 1 行：『${cell}』按『${header[i]}』处理`);
-      if (![...columns, "世界"].includes(header[i])) headerNotes.push(`第 1 行：未识别列『${cell}』，将忽略`);
+      if (![...columns, ...optional].includes(header[i])) headerNotes.push(reserved.has(cell) ? `第 1 行：未识别列『${cell}』，将忽略` : `第 1 行：未识别列『${cell}』，原样保存到 extra 并在导出时带回`);
     });
-    raw = rows.map(cells => cells.length !== header.length ? { _error: `列数 ${cells.length} 与表头 ${header.length} 不符；含逗号或换行的内容需用双引号包围` } : Object.fromEntries(header.map((key, i) => [[...columns, "世界"].includes(key) ? key : `${key}（未识别列）`, cells[i]])));
+    // Unknown columns travel in a separate object so they cannot collide with known fields.
+    raw = rows.map(cells => cells.length !== header.length ? { _error: `列数 ${cells.length} 与表头 ${header.length} 不符；含逗号或换行的内容需用双引号包围` } : {
+      ...Object.fromEntries(header.flatMap((key, i) => [...columns, ...optional].includes(key) ? [[key, cells[i]]] : [])),
+      _extra: Object.fromEntries(header.flatMap((key, i) => [...columns, ...optional].includes(key) || reserved.has(key) || !cells[i] ? [] : [[key, cells[i]]])),
+    });
 
   }
   if (raw.length > 10000) throw new Error("单次最多导入 10000 条，请分批导入。");
@@ -83,9 +90,11 @@ export function parseCatalog(text: string, format: "json" | "csv" | "tsv", exist
       if (row._error) throw new Error(String(row._error));
       const external = "名称" in row || "类别" in row;
       const get = (chinese: string, internal: string) => row[external ? chinese : internal];
-      const known = new Set([...(external ? ["名称", "类别", "等级", "标签", "说明", "世界"] : ["title", "kind", "rank", "tags", "text", "world"]), "id", "common", "favorite", "createdAt", "updatedAt"]);
+      const known = new Set([...(external ? ["名称", "类别", "等级", "标签", "说明", "世界", "来源", "来源编号"] : ["title", "kind", "rank", "tags", "text", "world", "source", "sourceId", "extra"]), "id", "common", "favorite", "createdAt", "updatedAt", "_extra"]);
       const unknown = Object.keys(row).filter(key => !known.has(key));
       if (unknown.length) result.warnings.push(`忽略字段：${unknown.join("、")}`);
+      const columnsKept = Object.keys((row._extra ?? {}) as object);
+      if (columnsKept.length) result.warnings.push(`未识别列已保存到 extra：${columnsKept.join("、")}`);
       const title = get("名称", "title");
       if (typeof title !== "string" || !title.trim()) throw new Error("名称必填且必须是字符串");
       result.title = title.trim();
@@ -106,6 +115,16 @@ export function parseCatalog(text: string, format: "json" | "csv" | "tsv", exist
       if (world !== undefined && (typeof world !== "string" || world.length > 200)) throw new Error("世界／作品必须是字符串，最多 200 字");
       const entry: CatalogEntry = { id: typeof row.id === "string" ? row.id : uid(), kind: kind as CatalogKind, title: title.trim(), rank, text: description, tags: [...new Set(tags.map(tag => tag.trim()).filter(Boolean))], common: row.common === true };
       if (typeof world === "string") entry.world = world.trim();
+      const source = get("来源", "source"), sourceId = get("来源编号", "sourceId");
+      if (source !== undefined && (typeof source !== "string" || source.length > 500)) throw new Error("来源（source）必须是字符串，最多 500 字");
+      if (sourceId !== undefined && (typeof sourceId !== "string" || sourceId.length > 200)) throw new Error("来源编号（sourceId）必须是字符串，最多 200 字");
+      if (typeof source === "string" && source.trim()) entry.source = source.trim();
+      if (typeof sourceId === "string" && sourceId.trim()) entry.sourceId = sourceId.trim();
+      const extra = row._extra ?? row.extra;
+      if (extra !== undefined) {
+        if (!extra || typeof extra !== "object" || Array.isArray(extra) || Object.entries(extra).some(([key, text]) => reserved.has(key) || key.length > 100 || typeof text !== "string" || text.length > 5000) || Object.keys(extra).length > 50) throw new Error("extra 必须是字符串键值对象（最多 50 项，键 ≤100 字，值 ≤5000 字）");
+        if (Object.keys(extra).length) entry.extra = { ...(extra as Record<string, string>) };
+      }
       if (typeof row.favorite === "boolean") entry.favorite = row.favorite;
       if (typeof row.createdAt === "string") entry.createdAt = row.createdAt;
       if (typeof row.updatedAt === "string") entry.updatedAt = row.updatedAt;
@@ -116,7 +135,7 @@ export function parseCatalog(text: string, format: "json" | "csv" | "tsv", exist
       if ((existingCounts.get(catalogKey(entry)) ?? 0) > 1) throw new Error("库内已有多条归一化同名条目，请先整理或更名后再导入，避免覆盖错误对象");
       if ([...(categories.get(crossKey(entry)) ?? [])].some(kind => kind !== entry.kind)) result.warnings.push("同一世界有同名但不同类别的条目，将独立保留，不自动合并");
       if (matches.some(item => item.title !== entry.title || (item.world ?? "") !== (entry.world ?? ""))) result.warnings.push("名称或世界经 NFKC、空格归一后重名；覆盖保留原名称与世界写法");
-      if (unknown.length && !rank.trim() && !description.trim() && !entry.tags?.length) result.attention = true;
+      if ((unknown.length || columnsKept.length) && !rank.trim() && !description.trim() && !entry.tags?.length) result.attention = true;
       result.status = seen.has(catalogKey(entry)) ? "duplicate" : "new";
       result.reason = result.status === "duplicate" ? "库中或本次文件内已有同类同名条目" : "校验通过";
       seen.add(catalogKey(entry));
@@ -150,6 +169,10 @@ export function exportCatalog(entries: CatalogEntry[], format: "json" | "csv" | 
   if (format === "json") return JSON.stringify({ format: "character-atlas-catalog", schemaVersion: 1, entries }, null, 2);
   const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
   const withWorld = entries.some(entry => !!entry.world?.trim());
+  const withSource = entries.some(entry => entry.source), withSourceId = entries.some(entry => entry.sourceId);
+  // Extra columns come back after the known ones, in first-seen order; names that clash with a known column are skipped.
+  const extraKeys = [...new Set(entries.flatMap(entry => Object.keys(entry.extra ?? {})))].filter(key => !Object.hasOwn(aliases, normalizeCatalogName(key)));
   const separator = format === "tsv" ? "\t" : ",";
-  return (format === "csv" ? "\uFEFF" : "") + [[...columns, ...(withWorld ? ["世界"] : [])], ...entries.map(entry => [entry.title, catalogLabels[entry.kind], entry.rank, (entry.tags ?? []).join("、"), entry.text, ...(withWorld ? [entry.world ?? ""] : [])])].map(row => row.map(quote).join(separator)).join("\r\n");
+  const header = [...columns, ...(withWorld ? ["世界"] : []), ...(withSource ? ["来源"] : []), ...(withSourceId ? ["来源编号"] : []), ...extraKeys];
+  return (format === "csv" ? "\uFEFF" : "") + [header, ...entries.map(entry => [entry.title, catalogLabels[entry.kind], entry.rank, (entry.tags ?? []).join("、"), entry.text, ...(withWorld ? [entry.world ?? ""] : []), ...(withSource ? [entry.source ?? ""] : []), ...(withSourceId ? [entry.sourceId ?? ""] : []), ...extraKeys.map(key => entry.extra?.[key] ?? "")])].map(row => row.map(quote).join(separator)).join("\r\n");
 }

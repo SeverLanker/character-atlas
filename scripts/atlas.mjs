@@ -13,19 +13,26 @@ atlas catalog export --format tsv --out catalog.tsv
 atlas characters list
 atlas characters import --file roles.json --dry-run [--on-conflict skip|replace|copy]
 atlas characters import --file backup.zip --request-id chars-001 --on-conflict copy
+atlas catalog list [--kind skill --world NAME --tag TAG --tags a,b --tag-mode all --q WORDS --favorite] [--limit 100 --cursor ID | --all]
 atlas catalog get ID
 atlas catalog patch ID --json '{"rank":"精通"}' --request-id edit-001
+atlas catalog patch ID --json '{"title":"新名称","kind":"spell"}' --request-id rename-001
+atlas catalog batch --json '{"filter":{"world":"新迦南市"},"set":{"source":"目录.md"},"add_tags":["已校"]}' [--dry-run] --request-id batch-001
+atlas catalog duplicates [--by normalized|name] [--kind skill --world NAME]
+atlas catalog export --ids ID1,ID2 --format csv --out picked.csv
+atlas backup --out atlas-backup.zip
 atlas catalog delete ID --request-id delete-001
 atlas undo --request-id undo-001
 atlas redo --request-id redo-001
 Options: --connection-file PATH (or ATLAS_AGENT_FILE), --format csv|json|tsv (import and export),
---world NAME --kind skill|spell|specialty|item --tag TAG --q WORDS --favorite,
+--world NAME --kind skill|spell|specialty|item --tag TAG --tags a,b --tag-mode any|all --q WORDS --favorite --ids a,b,
+Writes send the request id as the Idempotency-Key header (and request_id in the body when there is one).
 --overwrite-rows 1,2 --out PATH [--force], --data patch.json
 Preview: --connection-file .agent/connection.json
 `;
 const args = process.argv.slice(2), options = {}, positionals = [];
-const booleans = new Set(["dry-run", "force", "favorite", "help"]);
-const allowed = new Set([...booleans, "on-conflict", "file", "format", "scope", "out", "connection-file", "request-id", "overwrite", "overwrite-rows", "json", "data", "world", "kind", "tag", "q"]);
+const booleans = new Set(["dry-run", "force", "favorite", "help", "all"]);
+const allowed = new Set([...booleans, "on-conflict", "file", "format", "scope", "out", "connection-file", "request-id", "overwrite", "overwrite-rows", "json", "data", "world", "kind", "tag", "q", "tags", "tag-mode", "ids", "limit", "cursor", "by"]);
 try {
   for (let i = 0; i < args.length; i++) {
     if (!args[i].startsWith("--")) { positionals.push(args[i]); continue; }
@@ -44,6 +51,10 @@ try {
   const base = new URL(connection.url);
   if (base.protocol !== "http:" || base.hostname !== "127.0.0.1" || typeof connection.token !== "string" || !/^[a-f0-9]{64}$/.test(connection.token)) throw new Error("连接文件无效，必须是 127.0.0.1 HTTP 地址和本机 token");
   let method = "GET", path, body;
+  const filters = query => {
+    for (const [option, key] of [["world", "world"], ["kind", "kind"], ["tag", "tag"], ["tags", "tags"], ["tag-mode", "tag_mode"], ["q", "q"], ["ids", "ids"]]) if (options[option] !== undefined) query.set(key, options[option]);
+    if (options.favorite) query.set("favorite", "1");
+  };
   const [command, action, id] = positionals;
   if (command === "stats") path = "/stats";
   else if (command === "characters" && action === "list") path = "/characters";
@@ -65,21 +76,50 @@ try {
     method = "POST"; path = `/catalog/import${options["dry-run"] ? "?dry_run=1" : ""}`;
   } else if (command === "catalog" && action === "export") {
     const query = new URLSearchParams({ format: options.format ?? "json", scope: options.scope ?? "all" });
-    for (const key of ["world", "kind", "tag", "q"]) if (options[key] !== undefined) query.set(key, options[key]);
-    if (options.favorite) query.set("favorite", "1");
+    filters(query);
     path = `/catalog/export?${query}`;
+  } else if (command === "catalog" && action === "list") {
+    const query = new URLSearchParams();
+    filters(query);
+    for (const key of ["limit", "cursor"]) if (options[key] !== undefined) query.set(key, options[key]);
+    path = `/catalog?${query}`;
+  } else if (command === "catalog" && action === "duplicates") {
+    const query = new URLSearchParams();
+    for (const key of ["by", "kind", "world"]) if (options[key] !== undefined) query.set(key, options[key]);
+    path = `/catalog/duplicates?${query}`;
+  } else if (command === "catalog" && action === "batch") {
+    method = "PATCH"; path = `/catalog${options["dry-run"] ? "?dry_run=1" : ""}`;
+    body = JSON.parse(options.data ? await readFile(options.data, "utf8") : options.json ?? "{}");
+  } else if (command === "backup") {
+    if (!options.out) throw new Error("backup 需要 --out 文件名（ZIP）");
+    path = "/backup";
   } else if (command === "catalog" && ["get", "patch", "delete"].includes(action) && id) {
     path = `/catalog/${encodeURIComponent(id)}`;
-    if (action === "delete") { method = "DELETE"; body = {}; }
+    if (action === "delete") method = "DELETE";
     if (action === "patch") { method = "PATCH"; body = JSON.parse(options.data ? await readFile(options.data, "utf8") : options.json ?? "{}"); }
   } else throw new Error("命令无效，运行 atlas --help 查看用法");
   const writing = method !== "GET" && !options["dry-run"];
   const requestId = writing ? options["request-id"] ?? randomUUID() : undefined;
   if (requestId) {
-    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("请求数据必须是对象");
-    body.request_id = requestId; process.stderr.write(`request_id=${requestId}\n`);
+    if (body !== undefined && (!body || typeof body !== "object" || Array.isArray(body))) throw new Error("请求数据必须是对象");
+    if (body) body.request_id = requestId;
+    process.stderr.write(`request_id=${requestId}\n`);
   }
-  const request = { method, headers: { Authorization: `Bearer ${connection.token}`, ...(method !== "GET" ? { "Content-Type": "application/json" } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) };
+  const request = { method, headers: { Authorization: `Bearer ${connection.token}`, ...(body ? { "Content-Type": "application/json" } : {}), ...(requestId ? { "Idempotency-Key": requestId } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) };
+  if (command === "catalog" && action === "list" && options.all) {
+    // Follows next_cursor until the end and prints one combined list.
+    const items = []; let next = null, total = 0;
+    do {
+      const url = new URL(path, base); if (next) url.searchParams.set("cursor", next);
+      const page = await fetch(url, { ...request, signal: AbortSignal.timeout(35000) });
+      const text = await page.text();
+      if (!page.ok) throw new Error(`HTTP ${page.status}: ${text}`);
+      const data = JSON.parse(text); items.push(...data.items); total = data.total; next = data.next_cursor;
+    } while (next);
+    const output = JSON.stringify({ total, items }, null, 2);
+    if (options.out) { await writeFile(options.out, output, { flag: options.force ? "w" : "wx" }); process.stderr.write(`已保存：${options.out}\n`); } else process.stdout.write(output + "\n");
+    process.exit(0);
+  }
   let response;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {

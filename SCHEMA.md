@@ -114,6 +114,9 @@ interface CatalogEntry extends Entry {
   common: boolean;
   tags?: string[]; // 最多 50 个，每个最多 100 字；编辑器保存时去空白、去重
   favorite?: boolean; // 条目库收藏，不影响角色中的精选能力
+  source?: string; // 下一版起：来源（自由文本，如文档路径），最多 500 字
+  sourceId?: string; // 下一版起：外部体系中的编号（如 D-32），最多 200 字
+  extra?: Record<string, string>; // 下一版起：导入时未识别的列，原样保存并在导出时带回；最多 50 项，键 ≤100 字，值 ≤5000 字
 }
 ```
 
@@ -122,6 +125,8 @@ interface CatalogEntry extends Entry {
 追加导入为副本时，同批导入角色之间的公开与秘密关联会重映射到新 ID。跳过的角色如果已存在则继续指向原角色；目标不在资料库时显示不可用。
 
 `catalog` 保存共享文字模板，不保存角色物品图片。角色中的 `skills`、`items` 是独立副本。模板修改不联动已有角色。
+
+`source`、`sourceId`、`extra` 均为可选字段，旧资料无需迁移，schemaVersion 仍为 2；旧版本打开含这些字段的资料库时会忽略它们。CSV / TSV 导入导出中对应列为「来源」（别名：出处、source）和「来源编号」（别名：来源id、sourceId、source_id）；其他未识别列存入 `extra`，导出时作为额外列写回。
 
 ## 体型 Body（可选，0.4.x 起）
 

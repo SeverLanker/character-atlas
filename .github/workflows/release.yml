@@ -1,0 +1,89 @@
+name: Publish release from main
+on:
+  workflow_dispatch:
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require main
+        run: test "$GITHUB_REF" = refs/heads/main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check version and release notes
+        id: version
+        shell: bash
+        run: |
+          node --input-type=module <<'JS' >> "$GITHUB_OUTPUT"
+          import fs from 'node:fs';
+          const read = p => fs.readFileSync(p, 'utf8');
+          const version = JSON.parse(read('package.json')).version;
+          if (!/^\d+\.\d+\.\d+$/.test(version)) throw Error('Expected stable version');
+          const lock = JSON.parse(read('package-lock.json'));
+          const cargo = read('src-tauri/Cargo.toml').match(/^version = "([^"]+)"/m)?.[1];
+          if ([lock.version, lock.packages[''].version, cargo, JSON.parse(read('src-tauri/tauri.conf.json')).version].some(v => v !== version)) throw Error('Version mismatch');
+          const section = read('CHANGELOG.md').split(/^## /m).find(s => s.startsWith(version + ' · '));
+          if (!section) throw Error('Missing release notes');
+          console.log('version=' + version);
+          JS
+  build:
+    needs: guard
+    uses: ./.github/workflows/windows.yml
+  publish:
+    needs: [guard, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.guard.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: Character-Atlas-Windows
+          path: ${{ runner.temp }}/atlas-build
+      - name: Prepare release files
+        shell: bash
+        run: |
+          npm ci --no-audit --no-fund
+          npm run package:source
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import { zipSync } from 'fflate';
+          const files = {};
+          for (const p of ['atlas.cmd', 'scripts/atlas.mjs', 'AGENT-API.md']) files['atlas-agent/' + p] = fs.readFileSync(p);
+          fs.writeFileSync('deliverables/atlas-agent-cli-v1.zip', zipSync(files));
+          const version = process.env.VERSION;
+          const section = fs.readFileSync('CHANGELOG.md', 'utf8').split(/^## /m).find(s => s.startsWith(version + ' · '));
+          fs.writeFileSync('release-notes.md', section);
+          JS
+          mapfile -t installers < <(find "$RUNNER_TEMP/atlas-build" -name '*.exe' -type f)
+          test "${#installers[@]}" -eq 1
+          cp "${installers[0]}" "deliverables/CharacterAtlas-$VERSION-Windows-x64-setup.exe"
+          (cd deliverables && sha256sum "CharacterAtlas-$VERSION-Windows-x64-setup.exe" > SHA256SUMS.txt)
+      - name: Publish the tested main commit
+        shell: bash
+        run: |
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/git/refs/tags" > tags.json
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          if (JSON.parse(fs.readFileSync('tags.json')).some(t => t.ref === 'refs/tags/v' + process.env.VERSION)) throw Error('Tag already exists; never move a published tag');
+          JS
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --latest \
+            --title "叙册 v$VERSION" --notes-file release-notes.md \
+            "deliverables/CharacterAtlas-$VERSION-Windows-x64-setup.exe" \
+            deliverables/SHA256SUMS.txt deliverables/character-atlas-source.zip \
+            deliverables/atlas-agent-cli-v1.zip AGENT-API.md

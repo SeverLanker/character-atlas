@@ -9,6 +9,7 @@ import { RecoveryPanel } from "../components/RecoveryPanel";
 import { ImportPanel } from "../components/ImportPanel";
 import { Modal } from "./Modal";
 import { ThemePicker } from "../components/ThemePicker";
+import { AgentAuditToggle } from "../components/AgentAuditToggle";
 import type { ThemePref } from "../theme";
 
 export interface LibrarySettingsModalProps {
@@ -101,6 +102,7 @@ export function LibrarySettingsModal({
               </button>
             </div>
           )}
+          {desktop && <AgentAuditToggle />}
           <div className="backup-actions">
             {desktop && (
               <button

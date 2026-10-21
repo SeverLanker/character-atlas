@@ -54,7 +54,8 @@ it("表头别名映射、未知列与缺失列均给出具体信息", () => {
   const rows = parseCatalog('名字,类型,级别,tag,内容,作品,备注\n唱法,技能,失传,歌,说明,新迦南市,未知列', "csv", []);
   expect(rows[0].entry).toMatchObject({ title: "唱法", rank: "失传", world: "新迦南市", tags: ["歌"] });
   expect(rows[0].headerNotes.join()).toContain("『名字』按『名称』处理");
-  expect(rows[0].headerNotes.join()).toContain("未识别列『备注』");
+  expect(rows[0].headerNotes.join()).toContain("未识别列『备注』，原样保存到 extra");
+  expect(rows[0].entry?.extra).toEqual({ 备注: "未知列" });
   expect(rows[0].warnings.join()).toContain("备注");
   expect(() => parseCatalog('名字,类型,内容\nA,技能,说明', "csv", [])).toThrow("缺少列：等级、标签");
   expect(() => parseCatalog('名字,名称,类型,级别,标签,内容', "csv", [])).toThrow("映射后重复列：名称");

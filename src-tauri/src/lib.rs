@@ -340,6 +340,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             agent::agent_ready,
+            agent::agent_audit,
             agent::agent_respond,
             agent::read_agent_record,
             agent::save_agent_library,

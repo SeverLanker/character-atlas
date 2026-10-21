@@ -59,6 +59,12 @@ export interface CatalogEntry extends Entry {
   updatedAt?: string;
   tags?: string[];
   favorite?: boolean;
+  /** Free-text origin, e.g. a document path. */
+  source?: string;
+  /** Identifier inside an external system, e.g. "D-32". */
+  sourceId?: string;
+  /** Unrecognised import columns, kept verbatim and exported back. */
+  extra?: Record<string, string>;
   kind: CatalogKind;
   rank: string;
   common: boolean;
@@ -376,6 +382,7 @@ function validatePartialProfile(v: unknown, partial = false): void {
         "图片引用无效",
       );
 }
+const forbiddenKeys = new Set(["__proto__", "constructor", "prototype"]);
 export function validateLibrary(value: unknown): asserts value is Library {
   check(
     isObject(value) &&
@@ -396,6 +403,9 @@ export function validateLibrary(value: unknown): asserts value is Library {
       for (const key of ["createdAt", "updatedAt"]) check(item[key] === undefined || (typeof item[key] === "string" && Number.isFinite(Date.parse(item[key]))), "条目时间戳无效");
       check(item.tags === undefined || (Array.isArray(item.tags) && item.tags.length <= 50 && item.tags.every((tag: unknown) => typeof tag === "string" && tag.length <= 100)), "条目标签无效");
       check(item.favorite === undefined || typeof item.favorite === "boolean", "条目收藏标记无效");
+      check(item.source === undefined || (typeof item.source === "string" && item.source.length <= 500), "条目来源无效");
+      check(item.sourceId === undefined || (typeof item.sourceId === "string" && item.sourceId.length <= 200), "条目来源编号无效");
+      check(item.extra === undefined || (isObject(item.extra) && Object.keys(item.extra).length <= 50 && Object.entries(item.extra).every(([key, text]) => key.length <= 100 && !forbiddenKeys.has(key) && typeof text === "string" && text.length <= 5000)), "条目附加字段 extra 无效");
     }
   }
   const ids = new Set<string>();

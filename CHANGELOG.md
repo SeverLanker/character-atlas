@@ -1,5 +1,23 @@
 # 更新记录
 
+## 未发布
+
+**Agent 接口 v1.1（全部向后兼容）**
+
+- `PATCH /catalog/{id}` 可改名称与类别，id 不变；与同世界、同类别条目重名（NFKC、空格归一）时返回 409 与 `conflict_id`。
+- 新增 `GET /catalog` 轻量列表：kind / world / tag / tags + tag_mode / q / favorite / ids 筛选，`limit` + `cursor` 分页，返回 `total` 与 `next_cursor`。
+- 所有写操作接受 `Idempotency-Key` 请求头（请求体 `request_id` 照旧可用，不一致返回 422）；`dry_run` 也可写在请求体；`DELETE` 可不带请求体；`?request_id=` 给出明确错误。
+- `/stats` 增加 `undo_depth`、`redo_depth`、`agent_undo_depth`、`agent_redo_depth`、`catalog_by_world` 与标签名录 `tags`。
+- 新增批量修改 `PATCH /catalog`（筛选 + 设置世界 / 等级 / 来源 / 收藏 + 增删标签），整批一步撤销，支持预览，返回 `matched` / `updated`。
+- 新增 `GET /catalog/duplicates`，导入前可先查重名组。
+- 条目新增可选 `source`、`sourceId`，支持导入、导出、PATCH 和条目库编辑；CSV 未识别列存入 `extra` 并在导出时带回。
+- 界面修改阻挡 `/undo` 时，409 带 `blocked_by` 与 `top_action`。
+- 导出支持 `ids=`；新增 `GET /backup` 返回与界面完整备份相同的 ZIP。
+- 错误信息中的字段名改为中英对照，如 `title（名称）`。
+- Windows 上 `agent.json` 权限收紧为仅当前用户；资料库设置中可开启审计日志 `audit.jsonl`（时间、接口、request_id、受影响 id，不含 token 与内容）。
+- 命令行新增 `catalog list`、`catalog batch`、`catalog duplicates`、`backup`、`export --ids`；写命令改用 `Idempotency-Key` 请求头。
+- 暂未提供大批量导入进度（`/jobs`、SSE）。
+
 ## 0.5.5 · 2026-10-21
 
 **Agent 接口与命令行**

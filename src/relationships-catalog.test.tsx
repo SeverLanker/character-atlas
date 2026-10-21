@@ -83,7 +83,7 @@ it('条目库按标签、收藏和多个关键词组合筛选，支持清除筛�
   fireEvent.change(screen.getByLabelText('搜索法术库'),{target:{value:'ARCANE 探索 III'}});
   expect(screen.getByRole('heading',{name:/Arcane Light/})).toBeTruthy();
   expect(screen.queryByRole('heading',{name:/Fire/})).toBeNull();
-  fireEvent.change(screen.getByLabelText('筛选条目标签'),{target:{value:'战斗'}});
+  fireEvent.click(screen.getByRole('button',{name:'快捷标签 战斗'}));
   expect(screen.queryByRole('heading',{name:/Arcane Light/})).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'清除筛选'}));
   fireEvent.click(screen.getByRole('checkbox',{name:'只看收藏'}));

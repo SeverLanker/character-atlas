@@ -10,3 +10,5 @@ src-tauri/target/
 
 # Tauri 在 Linux 上本地构建 / cargo test 时生成，仓库只保留 Windows 相关 schema
 src-tauri/gen/schemas/linux-schema.json
+
+.agent/

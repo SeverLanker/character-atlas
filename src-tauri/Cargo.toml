@@ -1,6 +1,6 @@
 [package]
 name = "character-atlas"
-version = "0.5.0"
+version = "0.5.4"
 description = "叙册 · 本地私人角色设定集"
 authors = ["Character Atlas"]
 edition = "2021"
@@ -13,6 +13,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+tiny_http = "0.12"
+getrandom = "0.3"
+sha2 = "0.10"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"

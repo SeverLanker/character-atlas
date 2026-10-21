@@ -94,6 +94,19 @@ describe("单角色 Markdown", () => {
     expect(sec.indexOf("零号")).toBeGreaterThan(sec.indexOf("## 秘密身份"));
     expect(sec).not.toContain("### 物品");
   });
+  it("只有秘密照片覆盖时，显式包含秘密才导出照片与对应章节", async () => {
+    const { library, a } = sample();
+    a.versions[0].secret.overrides = { portrait: "secret_only.png" };
+    const readAsset = async () => new Uint8Array([1, 2, 3]);
+    const publicFiles = unzipSync(await libraryToMarkdownZip(library, { readAsset }));
+    expect(publicFiles["assets/secret_only.png"]).toBeUndefined();
+    const secretFiles = unzipSync(await libraryToMarkdownZip(library, { includeSecret: true, readAsset }));
+    expect(secretFiles["assets/secret_only.png"]).toEqual(new Uint8Array([1, 2, 3]));
+    const md = strFromU8(secretFiles[characterFileNames(library.characters).get(a.id)!]);
+    const chapter = md.slice(md.indexOf("## 秘密身份"));
+    expect(chapter).toContain("![头像](assets/secret_only.png)");
+    expect(chapter).not.toContain("未覆盖任何字段");
+  });
   it("多版本：当前版本 / 所有版本", () => {
     const { library, a } = sample();
     expect(characterToMarkdown(a, library, { currentVersionId: a.versions[1].id })).toContain("后期简介");
@@ -113,6 +126,14 @@ describe("整库 ZIP", () => {
     expect(sanitizeFileName("  ..  ")).toBe("未命名角色");
     const { library } = sample();
     expect([...characterFileNames(library.characters).values()]).toEqual(["林 弥.md", "沈砚.md", "沈砚 (2).md"]);
+  });
+  it("带扩展名的 Windows 设备名也能导出为可解压的文件名", async () => {
+    const characters = ["CON.notes", "nul.backup", "LPT1.txt", "COM9.profile", "console.notes"].map(name => createCharacter(name));
+    expect([...characterFileNames(characters).values()]).toEqual(["_CON.notes.md", "_nul.backup.md", "_LPT1.txt.md", "_COM9.profile.md", "console.notes.md"]);
+    const files = unzipSync(await libraryToMarkdownZip({schemaVersion: 2, characters}, {readAsset: async () => new Uint8Array()}));
+    expect(Object.keys(files)).toContain("_CON.notes.md");
+    expect(Object.keys(files)).not.toContain("CON.notes.md");
+    expect(strFromU8(files["index.md"])).toContain("./_CON.notes.md");
   });
   it("ZIP 含角色 md、index.md、图片，链接为相对路径或 wikilink", async () => {
     const { library } = sample();

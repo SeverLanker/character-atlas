@@ -1,12 +1,41 @@
 import { describe, expect, it } from "vitest";
 import { strToU8, zipSync } from "fflate";
 import { createCharacter, type Library } from "./model";
-import { parseBackup } from "./storage";
+import { exportBackup, parseBackup, prepareBackupRecovery, ZIP_LIMITS } from "./storage";
 
 function backupLibrary(): Library {
   return { schemaVersion: 1, characters: [createCharacter("备份测试")] };
 }
 describe("完整资料库备份校验", () => {
+  it("程序导出的重复长文本备份仍能完整恢复", async () => {
+    const library = backupLibrary();
+    const background = "剧情记录".repeat(150000);
+    library.characters[0].versions[0].profile.background = background;
+    const bytes = await exportBackup(library);
+    expect(parseBackup(bytes).library.characters[0].versions[0].profile.background).toBe(background);
+  });
+  it("修复重复长文本备份后仍能恢复，补字段不影响原有经历", () => {
+    const raw = JSON.parse(JSON.stringify(backupLibrary()));
+    const background = "角色经历".repeat(150000);
+    raw.characters[0].versions[0].profile.background = background;
+    delete raw.characters[0].versions[0].profile.coc.state.luck;
+    const incoming = zipSync({ "library.json": strToU8(JSON.stringify(raw)) }, { level: 0 });
+    const recovered = prepareBackupRecovery(incoming);
+    expect(recovered.changes.length).toBeGreaterThan(0);
+    const parsed = parseBackup(recovered.repairedBytes);
+    expect(parsed.library.characters[0].versions[0].profile.background).toBe(background);
+    expect(parsed.library.characters[0].versions[0].profile.coc!.state.luck).toBe(50);
+  });
+  it("导出前拒绝超过恢复条目上限的库，先提示分批而不读取图片", async () => {
+    const library = backupLibrary();
+    library.characters[0].versions[0].profile.gallery = Array.from({length: ZIP_LIMITS.entries}, (_, i) => ({id: String(i), image: `photo-${i}.png`, caption: ""}));
+    await expect(exportBackup(library)).rejects.toThrow(/5000.*分批/);
+  });
+  it("不把无效资料导出为看似成功但无法恢复的备份", async () => {
+    const library = backupLibrary();
+    library.characters[0].versions[0].profile.basics.age = 12 as unknown as string;
+    await expect(exportBackup(library)).rejects.toThrow("身份字段无效");
+  });
   it("读取包含图片的资料库", () => {
     const library = backupLibrary();
     library.characters[0].versions[0].profile.portrait = "photo.png";

@@ -272,8 +272,26 @@ small {
   margin-top: 27px;
 }
 .recent-characters {
-  overflow: auto;
-  min-height: 0;
+  flex: 1 1 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 72px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-sidebar-muted, #a6b8a8) transparent;
+  scrollbar-gutter: stable;
+}
+.recent-characters::-webkit-scrollbar { width: 6px; }
+.recent-characters::-webkit-scrollbar-track { background: transparent; }
+.recent-characters::-webkit-scrollbar-thumb { background: var(--c-sidebar-muted, #a6b8a8); border-radius: 6px; }
+.recent-characters::-webkit-scrollbar-button { display: none; height: 0; }
+@media (max-height: 800px) and (min-width: 761px) {
+  .sidebar { padding-top: 18px; padding-bottom: 12px; }
+  .sidebar .brand { padding-bottom: 18px; }
+  .sidebar .sidebar-section-label { padding-top: 5px; padding-bottom: 8px; }
+  .sidebar .series-label, .sidebar .recent-label { margin-top: 12px; }
+  .sidebar .sidebar-link { padding-top: 8px; padding-bottom: 8px; margin-bottom: 2px; }
+  .sidebar .sidebar-bottom { padding-top: 10px; }
+  .sidebar .private-note { padding-top: 8px; padding-bottom: 8px; margin-bottom: 9px; }
 }
 .recent-characters > button {
   width: 100%;
@@ -297,6 +315,8 @@ small {
 .recent-characters > button > span {
   font-size: 11px;
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .recent-characters small {
   font-size: 9px;

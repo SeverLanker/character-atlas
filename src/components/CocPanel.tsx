@@ -1,3 +1,4 @@
+import { LibraryPicker } from "./LibraryPicker";
 import { useState } from "react";
 import {
   blankCoc,
@@ -232,13 +233,8 @@ export function CocEditor({
 }) {
   const sheet = profile.coc ?? blankCoc(),
     d = derivedValues(sheet, profile.basics.age);
-  const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
-  const [candidate, setCandidate] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const candidates = query.trim() ? blankCoc().skills.filter((s) =>
-    `${s.name} ${s.specialization}`.includes(query.trim()) && !sheet.skills.some((existing) => existing.key === s.key && isSelectedSkill(existing))
-  ).slice(0, 8) : [];
   const editSkill = (id: string, patch: Partial<CocSkill>) =>
     onPatch({
       skills: sheet.skills.map((s) => (s.id === id ? { ...s, ...patch } : s)),
@@ -306,29 +302,24 @@ export function CocEditor({
         数值留空时跟随基础值。闪避跟随 DEX，母语跟随
         EDU；“基础覆盖”留空使用规则默认。搜索后选取并添加，已选技能点击标题展开编辑。
       </p>
-      <button type="button" className="button small" onClick={() => { setAdding(!adding); setQuery(""); setCandidate(""); }}>{adding ? "取消添加技能" : "添加技能或专长"}</button>
-      {adding && <input
-        type="search"
-        aria-label="编辑器搜索技能"
-        value={query}
-        placeholder="搜索技能后选取并添加…"
-        onChange={(e) => { setQuery(e.target.value); setCandidate(""); }}
-      />}
-      {adding && query.trim() && <div className="skill-picker">
-        <label>选取技能<select aria-label="选取技能" value={candidate} onChange={(e) => setCandidate(e.target.value)}>
-          <option value="">请选择搜索结果</option>
-          {candidates.map((s) => <option key={s.key} value={s.key}>{s.name}{s.specialization ? ` · ${s.specialization}` : ""}</option>)}
-        </select></label>
-        <button type="button" className="button small" disabled={!candidate} onClick={() => {
-          const template = candidates.find((s) => s.key === candidate);
-          if (!template) return;
-          const previous = sheet.skills.find((s) => s.key === candidate);
-          const added = { ...(previous ?? template), selected: true };
-          onPatch({ skills: previous ? sheet.skills.map((s) => s.id === previous.id ? added : s) : [...sheet.skills, added] });
-          setExpanded(added.id); setCandidate(""); setQuery(""); setAdding(false);
-        }}>添加选中技能</button>
-        {!candidates.length && <p className="editor-help">没有可添加的匹配技能，可更换关键词或添加自定义技能。</p>}
-      </div>}
+      <button type="button" className="button small" onClick={() => setAdding(true)}>添加技能或专长</button>
+      {adding && <LibraryPicker title="从数值技能库添加" entries={blankCoc().skills.map(skill => ({
+        id: skill.key, title: skill.name + (skill.specialization ? ` · ${skill.specialization}` : ""),
+        description: skill.notes || "添加后可填写数值、基础覆盖和专长。留空数值时跟随规则基础值。",
+        meta: `基础 ${skillBase(skill, sheet)}`,
+        disabled: sheet.skills.some(existing => existing.key === skill.key && isSelectedSkill(existing)),
+      }))} onClose={() => setAdding(false)} onAdd={key => {
+        const template = blankCoc().skills.find(skill => skill.key === key);
+        if (!template) return;
+        const previous = sheet.skills.find(skill => skill.key === key);
+        const added = { ...(previous ?? template), selected: true };
+        onPatch({ skills: previous ? sheet.skills.map(skill => skill.id === previous.id ? added : skill) : [...sheet.skills, added] });
+        setExpanded(added.id); setAdding(false);
+      }} onCustom={() => {
+        const id = crypto.randomUUID();
+        onPatch({ skills: [...sheet.skills, { id, key: "custom", name: "自定义技能", specialization: "", base: 0, value: null, selected: true, featured: false, notes: "" }] });
+        setExpanded(id); setAdding(false);
+      }} />}
       <div className="coc-edit-skills">
         {sheet.skills
           .filter(isSelectedSkill)
@@ -424,33 +415,7 @@ export function CocEditor({
             </details>
           ))}
       </div>
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={() => {
-          setQuery("");
-          const id = crypto.randomUUID();
-          setExpanded(id);
-          onPatch({
-            skills: [
-              ...sheet.skills,
-              {
-                id,
-                selected: true,
-                key: "custom",
-                name: "自定义技能",
-                specialization: "",
-                base: 0,
-                value: null,
-                featured: false,
-                notes: "",
-              },
-            ],
-          });
-        }}
-      >
-        ＋ 自定义数值技能
-      </button>
+
     </div>
   );
 }

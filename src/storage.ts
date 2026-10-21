@@ -1,10 +1,11 @@
+import type { AgentRecord } from "./agent-api";
 import { openDB } from "idb";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
+import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
 import { assetRefs, validateLibrary, migrateLibrary, type Library } from "./model";
 import { inspectRecovery } from "./recovery";
 import { defaultImportChoice, mergeLibraries, type ImportChoices } from "./merge";
-const db = () =>
+export const db = () =>
   openDB("character-atlas", 2, {
     upgrade(database) {
       for (const name of ["library", "assets", "snapshots", "originals", "meta"])
@@ -61,9 +62,14 @@ export async function snapshotLibrary(snapshot: LibrarySnapshot): Promise<Librar
   for (const ref of assetRefs(lib)) await readAsset(ref);
   return lib;
 }
-export async function saveLibrary(library: Library, forceSnapshot = false, expectedCurrent?: Library): Promise<void> {
+export async function saveLibrary(library: Library, forceSnapshot = false, expectedCurrent?: Library, agent?: AgentRecord & { id: string; deadline: number }): Promise<void> {
   validateLibrary(library);
+  if (agent && Date.now() > agent.deadline) throw new Error("请求已超时，未提交；请使用相同 request_id 重试");
   if (desktop) {
+    if (agent) {
+      await invoke("save_agent_library", { id: agent.id, expected: JSON.stringify(expectedCurrent), data: JSON.stringify(library), record: JSON.stringify(agent) });
+      return;
+    }
     if (expectedCurrent && JSON.stringify(await loadLibrary()) !== JSON.stringify(expectedCurrent)) throw new Error("资料库已变化，请重新预览导入");
     await invoke("save_library", { data: JSON.stringify(library) });
   }
@@ -72,6 +78,11 @@ export async function saveLibrary(library: Library, forceSnapshot = false, expec
     const tx = database.transaction(["library", "snapshots", "meta"], "readwrite");
     void tx.done.catch(() => {});
     try {
+    if (agent) {
+      const stored = await tx.objectStore("meta").get(`agent-request:${agent.request_id}`);
+      if (stored) throw new Error("request_id 已被处理，请重试读取原结果");
+      if (Date.now() > agent.deadline) throw new Error("请求已超时，未提交");
+    }
     const previous = await tx.objectStore("library").get("current");
     if (expectedCurrent && JSON.stringify(migrateLibrary(typeof previous === "string" ? JSON.parse(previous) : previous)) !== JSON.stringify(expectedCurrent))
       throw new Error("资料库已变化，请重新预览导入");
@@ -86,6 +97,7 @@ export async function saveLibrary(library: Library, forceSnapshot = false, expec
         await tx.objectStore("snapshots").delete(row.id);
     }
     await tx.objectStore("library").put(library, "current");
+    if (agent) await tx.objectStore("meta").put(agent, `agent-request:${agent.request_id}`);
     await tx.objectStore("meta").put(true, "initialized");
     await tx.done;
     } catch (error) {
@@ -160,15 +172,25 @@ export function imageUrl(ref: string): Promise<string> {
   return urls.get(ref)!;
 }
 export async function exportBackup(library: Library): Promise<Uint8Array> {
+  validateLibrary(library);
+  const refs = assetRefs(library);
+  if (refs.length + 2 > ZIP_LIMITS.entries) throw new Error("备份文件数量超过 5000，请从书架多选分批导出。");
   const files: Record<string, Uint8Array> = {
     "library.json": strToU8(JSON.stringify(library, null, 2)),
     "README.txt": strToU8(
       `叙册完整备份\n资料格式 schemaVersion: ${library.schemaVersion}\nlibrary.json: 角色、剧情版本、明档、秘密档案和共享 catalog 条目库。\nassets/: 图片字节；JSON 中的图片字段引用此目录下的文件名。builtin:0–2 为应用内置图片。\n可在“恢复备份”中替换整库，或在“追加导入角色”中选择冲突处理后合并。\n秘密档案不是加密，备份包含秘密内容。\n完整字段类型、必填性与枚举见源码仓库 SCHEMA.md。`,
     ),
   };
-  for (const ref of assetRefs(library))
-    files["assets/" + ref] = await readAsset(ref);
-  return zipSync(files, { level: 6 });
+  checkBackupEntrySize("library.json", files["library.json"]);
+  let expanded = Object.values(files).reduce((sum, data) => sum + data.length, 0);
+  for (const ref of refs) {
+    const data = await readAsset(ref);
+    checkBackupEntrySize("assets/" + ref, data);
+    expanded += data.length;
+    if (expanded > ZIP_LIMITS.expandedBytes) throw new Error("备份解压后超过 512 MB，请从书架多选分批导出。");
+    files["assets/" + ref] = data;
+  }
+  return packBackup(files);
 }
 export function parseBackup(bytes: Uint8Array): {
   library: Library;
@@ -193,7 +215,7 @@ export function prepareBackupRecovery(bytes: Uint8Array) {
   const proposal = inspectRecovery(raw);
   if (!proposal.changes.length) throw new Error("未发现可安全自动修复的字段，请检查原始错误。");
   files["library.json"] = strToU8(JSON.stringify(proposal.library));
-  const repairedBytes = zipSync(files, { level: 6 });
+  const repairedBytes = packBackup(files);
   const parsed = parseBackup(repairedBytes); // Includes referenced image and size checks.
   return { ...proposal, ...parsed, raw, repairedBytes };
 }
@@ -209,6 +231,38 @@ export const ZIP_LIMITS = {
   /** 单个条目的压缩比上限；正常图片约 1:1，JSON 通常 < 1:30 */
   ratio: 200,
 };
+function checkBackupEntrySize(name: string, data: Uint8Array): void {
+  const limit = name === "library.json" ? ZIP_LIMITS.libraryJsonBytes : ZIP_LIMITS.assetBytes;
+  if (data.length > limit) throw new Error(name === "library.json"
+    ? "备份中的 library.json 超过 64 MB，请从书架多选分批导出。"
+    : "备份中的图片超过 12 MB，请先缩小图片再导出。");
+}
+/** Produce archives accepted by our importer without relaxing its size or ratio limits. */
+function packBackup(files: Record<string, Uint8Array>): Uint8Array<ArrayBuffer> {
+  const entries = Object.entries(files);
+  if (entries.length > ZIP_LIMITS.entries) throw new Error("备份文件数量超过 5000，请从书架多选分批导出。");
+  let expanded = 0;
+  for (const [name, data] of entries) {
+    checkBackupEntrySize(name, data);
+    expanded += data.length;
+    if (expanded > ZIP_LIMITS.expandedBytes) throw new Error("备份解压后超过 512 MB，请从书架多选分批导出。");
+  }
+  let bytes = zipSync(files, { level: 6 });
+  const store = new Set<string>();
+  // Inspect only ZIP metadata. Repetitive valid text may exceed the anti-bomb ratio;
+  // store those entries uncompressed, preserving compression for everything else.
+  unzipSync(bytes, { filter(file) {
+    if (file.originalSize > 1024 * 1024 && file.originalSize > file.size * ZIP_LIMITS.ratio) store.add(file.name);
+    return false;
+  } });
+  if (store.size) {
+    const safe: Zippable = {};
+    for (const [name, data] of entries) safe[name] = store.has(name) ? [data, { level: 0 }] : data;
+    bytes = zipSync(safe, { level: 6 });
+  }
+  if (bytes.length > ZIP_LIMITS.archiveBytes) throw new Error("备份文件超过 256 MB，请从书架多选分批导出。");
+  return bytes;
+}
 function unpackBackup(bytes: Uint8Array) {
   if (bytes.length > ZIP_LIMITS.archiveBytes)
     throw new Error("备份文件超过 256 MB，请拆分资料库。");
@@ -293,9 +347,9 @@ export async function downloadBytes(bytes: Uint8Array, name: string): Promise<bo
   return true;
 }
 /** 导出文件（Markdown / ZIP）。桌面由 Rust 侧弹对话框、校验路径、限制扩展名与体积；网页触发下载。 */
-export async function downloadExport(bytes: Uint8Array, name: string, kind: "md" | "zip"): Promise<boolean> {
+export async function downloadExport(bytes: Uint8Array, name: string, kind: "md" | "zip" | "json" | "csv"): Promise<boolean> {
   if (desktop) return invoke<boolean>("save_export", { suggestedName: name, kind, data: toBase64(bytes) });
-  browserDownload(bytes, name, kind === "md" ? "text/markdown;charset=utf-8" : "application/zip");
+  browserDownload(bytes, name, ({ md: "text/markdown;charset=utf-8", zip: "application/zip", json: "application/json;charset=utf-8", csv: "text/csv;charset=utf-8" })[kind]);
   return true;
 }
 function browserDownload(bytes: Uint8Array, name: string, type: string) {
@@ -316,4 +370,13 @@ export async function openFolder(): Promise<void> {
 export async function relocateLibrary(): Promise<string | null> {
   if (!desktop) return null;
   return invoke<string | null>("relocate_library");
+}
+
+
+export async function readAgentRecord(requestId: string, fingerprint: string) {
+  const stored = desktop ? await invoke<string | null>("read_agent_record", { requestId }) : await (await db()).get("meta", `agent-request:${requestId}`);
+  const record = typeof stored === "string" ? JSON.parse(stored) : stored;
+  if (!record) return null;
+  if (record.fingerprint !== fingerprint) throw new Error("request_id 已用于不同内容，请换一个编号（409）");
+  return record.reply as import("./agent-api").AgentReply;
 }

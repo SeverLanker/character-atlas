@@ -36,6 +36,28 @@ describe("桌面端写文件只传内容和建议文件名", () => {
     ]);
     expect(JSON.stringify(invoke.mock.calls)).not.toContain("path");
   });
+  it("条目 JSON 和 CSV 使用原生保存通道", async () => {
+    invoke.mockResolvedValue(true);
+    await storage.downloadExport(strToU8("{}"), "条目.json", "json");
+    await storage.downloadExport(strToU8("名称,类别"), "条目.csv", "csv");
+    expect(invoke.mock.calls.map(c => c[1].kind)).toEqual(["json", "csv"]);
+    expect(JSON.stringify(invoke.mock.calls)).not.toContain("path");
+  });
+  it("Agent 写入传递旧库、编号和回执，交给原生事务一起提交", async () => {
+    invoke.mockResolvedValue(undefined);
+    const library = { schemaVersion: 2 as const, characters: [], catalog: [] };
+    const agent = { id: "session", request_id: "write-1", fingerprint: "hash", deadline: Date.now() + 30000, reply: { status: 200, body: "{}", content_type: "application/json" } };
+    await storage.saveLibrary(library, false, library, agent);
+    expect(invoke).toHaveBeenCalledWith("save_agent_library", { id: "session", expected: JSON.stringify(library), data: JSON.stringify(library), record: JSON.stringify(agent) });
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+  it("Agent 回执读取走原生库，内容指纹不同时拒绝复用", async () => {
+    const reply = { status: 200, body: "{}", content_type: "application/json" };
+    invoke.mockResolvedValue(JSON.stringify({ fingerprint: "hash", reply }));
+    await expect(storage.readAgentRecord("write-1", "hash")).resolves.toEqual(reply);
+    expect(invoke).toHaveBeenCalledWith("read_agent_record", { requestId: "write-1" });
+    await expect(storage.readAgentRecord("write-1", "other")).rejects.toThrow("409");
+  });
   it("Rust 侧的中文报错原样抛给界面", async () => {
     invoke.mockRejectedValueOnce("备份文件约 600.0 MB，超过 512 MB 上限，未写入。");
     await expect(storage.downloadBytes(new Uint8Array([1]), "a.zip")).rejects.toBe("备份文件约 600.0 MB，超过 512 MB 上限，未写入。");

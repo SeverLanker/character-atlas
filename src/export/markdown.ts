@@ -38,12 +38,13 @@ export function escapeCell(text: string | number): string {
 const yaml = (v: string) => JSON.stringify(v); // JSON 字符串即合法 YAML 双引号标量
 
 // ---------- 文件名 ----------
-const reserved = /^(con|prn|aux|nul|com\d|lpt\d)$/i;
+const reserved = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 export function sanitizeFileName(name: string): string {
   // eslint-disable-next-line no-control-regex -- 文件名需去掉控制字符
   let base = name.normalize("NFC").replace(/[\u0000-\u001f\u007f/\\:*?"<>|#[\]^]/g, " ").replace(/\s+/g, " ").trim().replace(/^\.+|\.+$/g, "").slice(0, 80).trim();
   if (!base) base = "未命名角色";
-  if (reserved.test(base) || base.toLowerCase() === "index") base = "_" + base;
+  // Windows checks device names before the first dot, even with multiple extensions.
+  if (reserved.test(base.split(".")[0].trimEnd()) || base.toLowerCase() === "index") base = "_" + base;
   return base;
 }
 /** 为每个角色生成唯一文件名（不区分大小写去重，追加「 (2)」）。按书架顺序分配，结果稳定。 */
@@ -161,6 +162,8 @@ function renderVersion(v: Version, level: number, library: Library, o: MarkdownO
   let out = renderProfile(effectiveProfile(v, false), level, library, o);
   if (o.includeSecret && v.secret.enabled) {
     const keys = new Set(Object.keys(v.secret.overrides));
+    // Portrait and basic-field visibility are rendered inside the basics section.
+    if (keys.has("portrait") || keys.has("display")) keys.add("basics");
     if (keys.has("statusNote")) keys.add("conditions");
     const h = "#".repeat(level);
     const body = renderProfile(effectiveProfile(v, true), level + 1, library, o, keys);

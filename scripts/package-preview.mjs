@@ -13,7 +13,7 @@ const result = await build({
   format: "iife",
   platform: "browser",
   target: "es2022",
-  define: { "process.env.NODE_ENV": '"production"' },
+  define: { "process.env.NODE_ENV": '"production"', "import.meta.hot": "undefined", "import.meta.env.MODE": '"production"' },
 });
 const asset =
   "data:image/png;base64," +

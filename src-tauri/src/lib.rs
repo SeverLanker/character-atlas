@@ -11,6 +11,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 mod native_write;
+mod agent;
 use native_write::{check_size, suggested_file_name, validate_target, WriteKind};
 
 struct LibraryState {
@@ -211,6 +212,8 @@ async fn save_export(
     let kind = match kind.as_str() {
         "md" => WriteKind::ExportMarkdown,
         "zip" => WriteKind::ExportZip,
+        "json" => WriteKind::ExportJson,
+        "csv" => WriteKind::ExportCsv,
         _ => return Err("不支持的导出类型".into()),
     };
     save_with_dialog(&app, &state, kind, &suggested_name, &data)
@@ -332,9 +335,14 @@ pub fn run() {
                 config,
                 data_dir,
             });
+            agent::start(app.handle()).map_err(std::io::Error::other)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            agent::agent_ready,
+            agent::agent_respond,
+            agent::read_agent_record,
+            agent::save_agent_library,
             load_library,
             save_library,
             write_asset,

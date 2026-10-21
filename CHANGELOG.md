@@ -2,6 +2,7 @@
 
 ## 未发布
 
+- 桌面 Agent 接口改用标准库 TCP 实现，每次读写都有截止时间：连接后 10 秒内未发完请求头、或请求头后 10 秒内未发完请求体，返回 408 并断开；完全不发数据的空闲连接也会在超时后释放名额，不再长期占用。同时最多 32 个连接；移除 tiny_http 依赖。
 - 新增 Agent 角色导入 `POST /characters/import`（dry_run 预览、request_id 幂等），接受单个角色、角色数组、资料库 JSON 或备份 ZIP；冲突策略 skip / replace / copy，复用界面追加导入流程（图片换名复制、关联重映射、schema 2 校验），逐个角色给出可读错误；响应和 `GET /characters` 只返回公开字段，不回显秘密档案。
 - CLI 新增 `atlas characters import` 与 `atlas characters list`，条目导出支持 `--format tsv`。
 - Agent `/undo`、`/redo` 只作用于 Agent 自己的操作；栈顶是界面修改时返回 409，不再撤销界面编辑。

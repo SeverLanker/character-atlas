@@ -4,35 +4,139 @@ use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{collections::HashMap, fs, io::Read, net::TcpListener, path::PathBuf, sync::{atomic::{AtomicBool, AtomicUsize, Ordering}, mpsc, Arc, Mutex}, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
+use std::{collections::HashMap, fs, io::{ErrorKind, Read, Write}, net::{Shutdown, TcpListener, TcpStream}, path::PathBuf, sync::{atomic::{AtomicBool, AtomicUsize, Ordering}, mpsc, Arc, Mutex}, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Reply { status: u16, body: String, content_type: String }
 struct Pending { sender: mpsc::Sender<Reply>, deadline: u128, root: PathBuf, request_id: Option<String>, fingerprint: String }
 pub struct AgentState { ready: AtomicBool, pending: Mutex<HashMap<String, Pending>>, connection: Mutex<Option<(PathBuf, String)>> }
-/// Requests being read, queued or executed at once; extra requests get 503 instead of waiting.
-const MAX_IN_FLIGHT: usize = 8;
-/// A request body must arrive within this window (checked between reads).
-const BODY_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_BODY: usize = 64 * 1024 * 1024;
+const MAX_HEAD: usize = 16 * 1024;
+/// Transport limits. Every socket read and write has a deadline, so an idle or stalled
+/// connection is closed and its slot released within the timeout.
+#[derive(Clone, Copy)]
+struct Limits {
+    /// Request line and headers must arrive within this window after accept.
+    header_timeout: Duration,
+    /// The body must arrive within this window after the headers.
+    body_timeout: Duration,
+    write_timeout: Duration,
+    /// Open connections (any phase); extra connections get 503 immediately.
+    max_connections: usize,
+    /// Requests being read, queued or executed at once; extra requests get 503 instead of waiting.
+    max_in_flight: usize,
+}
+const LIMITS: Limits = Limits { header_timeout: Duration::from_secs(10), body_timeout: Duration::from_secs(10), write_timeout: Duration::from_secs(10), max_connections: 32, max_in_flight: 8 };
 struct Slot(Arc<AtomicUsize>);
 impl Drop for Slot { fn drop(&mut self) { self.0.fetch_sub(1, Ordering::SeqCst); } }
 fn take_slot(counter: &Arc<AtomicUsize>, limit: usize) -> Option<Slot> {
     if counter.fetch_add(1, Ordering::SeqCst) >= limit { counter.fetch_sub(1, Ordering::SeqCst); return None; }
     Some(Slot(counter.clone()))
 }
-struct Job { request: tiny_http::Request, bytes: Vec<u8>, _slot: Slot }
-/// Reads at most `limit + 1` bytes; fails once `timeout` has elapsed between chunks.
-fn read_body(reader: &mut dyn Read, limit: usize, timeout: Duration) -> Result<Vec<u8>, u16> {
-    let started = Instant::now();
-    let mut bytes = Vec::new(); let mut buffer = [0u8; 64 * 1024];
-    loop {
-        let n = reader.read(&mut buffer).map_err(|_| 400u16)?;
-        if n == 0 { return Ok(bytes); }
-        bytes.extend_from_slice(&buffer[..n]);
-        if bytes.len() > limit { return Err(413); }
-        if started.elapsed() > timeout { return Err(408); }
+/// A parsed HTTP/1.1 request; the stream stays open for the single reply (`Connection: close`).
+struct HttpRequest { method: String, url: String, headers: Vec<(String, String)>, stream: TcpStream }
+impl HttpRequest {
+    fn header(&self, key: &str) -> Option<String> { self.headers.iter().find(|(name, _)| name.eq_ignore_ascii_case(key)).map(|(_, value)| value.clone()) }
+}
+struct Job { request: HttpRequest, bytes: Vec<u8>, _slot: Slot }
+/// One read bounded by `deadline`; Err(408) on timeout, Err(400) on other socket errors.
+fn read_some(stream: &mut TcpStream, buffer: &mut [u8], deadline: Instant) -> Result<usize, u16> {
+    let left = deadline.saturating_duration_since(Instant::now());
+    if left.is_zero() { return Err(408); }
+    stream.set_read_timeout(Some(left)).map_err(|_| 400u16)?;
+    match stream.read(buffer) {
+        Ok(n) => Ok(n),
+        Err(error) if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => Err(408),
+        Err(_) => Err(400),
+    }
+}
+/// Reads the request head. Err(0) means the peer closed before sending a request.
+fn read_head(stream: &mut TcpStream, deadline: Instant) -> Result<(String, String, Vec<(String, String)>, Vec<u8>), u16> {
+    let mut data = Vec::new(); let mut buffer = [0u8; 4096];
+    let end = loop {
+        if let Some(index) = data.windows(4).position(|w| w == b"\r\n\r\n") { break index; }
+        if data.len() > MAX_HEAD { return Err(431); }
+        let n = read_some(stream, &mut buffer, deadline)?;
+        if n == 0 { return Err(if data.is_empty() { 0 } else { 400 }); }
+        data.extend_from_slice(&buffer[..n]);
+    };
+    if end > MAX_HEAD { return Err(431); }
+    let head = std::str::from_utf8(&data[..end]).map_err(|_| 400u16)?;
+    let mut lines = head.split("\r\n");
+    let mut parts = lines.next().unwrap_or("").split(' ');
+    let (Some(method), Some(url), Some(version), None) = (parts.next(), parts.next(), parts.next(), parts.next()) else { return Err(400) };
+    if !version.starts_with("HTTP/1.") || method.is_empty() || !url.starts_with('/') { return Err(400); }
+    let mut headers = Vec::new();
+    for line in lines {
+        let (name, value) = line.split_once(':').ok_or(400u16)?;
+        if name.is_empty() || name.contains(' ') { return Err(400); }
+        headers.push((name.to_string(), value.trim().to_string()));
+    }
+    Ok((method.to_string(), url.to_string(), headers, data[end + 4..].to_vec()))
+}
+/// Reads exactly `length` body bytes (after `initial`) before `deadline`.
+fn read_body(stream: &mut TcpStream, mut initial: Vec<u8>, length: usize, deadline: Instant) -> Result<Vec<u8>, u16> {
+    initial.truncate(length);
+    let mut buffer = vec![0u8; 64 * 1024];
+    while initial.len() < length {
+        let want = (length - initial.len()).min(buffer.len());
+        let n = read_some(stream, &mut buffer[..want], deadline)?;
+        if n == 0 { return Err(400); }
+        initial.extend_from_slice(&buffer[..n]);
+    }
+    Ok(initial)
+}
+fn reason(status: u16) -> &'static str {
+    match status { 200 => "OK", 400 => "Bad Request", 401 => "Unauthorized", 404 => "Not Found", 405 => "Method Not Allowed", 408 => "Request Timeout", 409 => "Conflict", 411 => "Length Required", 413 => "Payload Too Large", 415 => "Unsupported Media Type", 422 => "Unprocessable Entity", 431 => "Request Header Fields Too Large", 500 => "Internal Server Error", 503 => "Service Unavailable", 504 => "Gateway Timeout", _ => "Status" }
+}
+fn write_reply(stream: &mut TcpStream, reply: &Reply) {
+    let content_type = if reply.content_type.contains(['\r', '\n']) { "application/octet-stream" } else { reply.content_type.as_str() };
+    let head = format!("HTTP/1.1 {} {}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n", reply.status, reason(reply.status), reply.body.len());
+    let _ = stream.write_all(head.as_bytes()).and_then(|_| stream.write_all(reply.body.as_bytes())).and_then(|_| stream.flush());
+    // Half-close, then discard a little unread input so the client sees the reply instead of a reset.
+    let _ = stream.shutdown(Shutdown::Write);
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(200)));
+    let mut sink = [0u8; 4096]; let mut drained = 0;
+    while drained < 256 * 1024 { match stream.read(&mut sink) { Ok(0) | Err(_) => break, Ok(n) => drained += n } }
+}
+/// Request checks shared by the desktop app and tests.
+struct Gate { token: String, port: u16, ready: Box<dyn Fn() -> bool + Send + Sync>, in_flight: Arc<AtomicUsize>, limits: Limits }
+fn serve(listener: TcpListener, gate: Arc<Gate>, work: mpsc::Sender<Job>) {
+    let connections = Arc::new(AtomicUsize::new(0));
+    for stream in listener.incoming() {
+        let Ok(mut stream) = stream else { continue };
+        let _ = stream.set_write_timeout(Some(gate.limits.write_timeout));
+        let Some(connection) = take_slot(&connections, gate.limits.max_connections) else { write_reply(&mut stream, &failure(503, "连接过多，请稍后重试")); continue };
+        let (gate, work) = (gate.clone(), work.clone());
+        std::thread::spawn(move || handle(stream, &gate, &work, connection));
+    }
+}
+fn handle(mut stream: TcpStream, gate: &Gate, work: &mpsc::Sender<Job>, _connection: Slot) {
+    let (method, url, headers, initial) = match read_head(&mut stream, Instant::now() + gate.limits.header_timeout) {
+        Ok(head) => head,
+        Err(0) => return,
+        Err(408) => { write_reply(&mut stream, &failure(408, "请求头传输超时")); return; }
+        Err(431) => { write_reply(&mut stream, &failure(431, "请求头过大")); return; }
+        Err(_) => { write_reply(&mut stream, &failure(400, "HTTP 请求格式错误")); return; }
+    };
+    let request = HttpRequest { method, url, headers, stream };
+    let host = format!("127.0.0.1:{}", gate.port);
+    if request.header("Origin").is_some() || request.header("Host").as_deref() != Some(host.as_str()) || !authorized(&request.header("Authorization").unwrap_or_default(), &format!("Bearer {}", gate.token)) {
+        answer(request, failure(401, "需要本机 Bearer token，拒绝网页跨站请求")); return;
+    }
+    if request.header("Transfer-Encoding").is_some() { answer(request, failure(411, "请使用 Content-Length 发送请求体")); return; }
+    let length = match request.header("Content-Length").map(|value| value.parse::<usize>()) { None => 0, Some(Ok(n)) => n, Some(Err(_)) => { answer(request, failure(400, "Content-Length 无效")); return; } };
+    if length > MAX_BODY { answer(request, failure(413, "请求超过 64 MB")); return; }
+    if request.method != "GET" && request.header("Content-Type").unwrap_or_default().split(';').next().unwrap_or("").trim() != "application/json" { answer(request, failure(415, "请求使用 application/json")); return; }
+    if !(gate.ready)() { answer(request, failure(503, "应用尚未就绪，请稍后重试")); return; }
+    let Some(slot) = take_slot(&gate.in_flight, gate.limits.max_in_flight) else { answer(request, failure(503, "排队请求过多，请稍后用相同 request_id 重试")); return; };
+    let mut request = request;
+    match read_body(&mut request.stream, initial, length, Instant::now() + gate.limits.body_timeout) {
+        Ok(bytes) => { let _ = work.send(Job { request, bytes, _slot: slot }); }
+        // Release the request slot before replying, so it is free once the client sees the error.
+        Err(408) => { drop(slot); answer(request, failure(408, "请求体传输超时")) }
+        Err(_) => { drop(slot); answer(request, failure(400, "读取请求失败")) }
     }
 }
 /// Removes agent.json on exit, but only if it still holds this run's token.
@@ -56,17 +160,10 @@ fn canonical(value: &Value) -> Value {
     }
 }
 fn failure(status: u16, message: &str) -> Reply { Reply { status, body: json!({"error":message}).to_string(), content_type: "application/json;charset=utf-8".into() } }
-fn answer(request: tiny_http::Request, reply: Reply) {
-    let mut response = tiny_http::Response::from_string(reply.body).with_status_code(reply.status);
-    for (name, value) in [("Content-Type", reply.content_type.as_str()), ("Cache-Control", "no-store"), ("X-Content-Type-Options", "nosniff")] {
-        if let Ok(header) = tiny_http::Header::from_bytes(name.as_bytes(), value.as_bytes()) { response.add_header(header); }
-    }
-    let _ = request.respond(response);
-}
+fn answer(mut request: HttpRequest, reply: Reply) { write_reply(&mut request.stream, &reply); }
 fn authorized(actual: &str, expected: &str) -> bool {
     actual.len() == expected.len() && actual.bytes().zip(expected.bytes()).fold(0u8, |n, (a,b)| n | (a ^ b)) == 0
 }
-fn header(request: &tiny_http::Request, key: &'static str) -> Option<String> { request.headers().iter().find(|h| h.field.equiv(key)).map(|h| h.value.as_str().to_string()) }
 fn ledger(connection: &rusqlite::Connection) -> AppResult<()> {
     connection.execute_batch("CREATE TABLE IF NOT EXISTS agent_requests (request_id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, reply TEXT NOT NULL)").map_err(err)
 }
@@ -76,7 +173,6 @@ pub fn start(app: &AppHandle) -> AppResult<()> {
     let port: u16 = std::env::var("ATLAS_AGENT_PORT").unwrap_or_else(|_| "0".into()).parse().map_err(|_| "ATLAS_AGENT_PORT 无效")?;
     let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).map_err(err)?;
     let port = listener.local_addr().map_err(err)?.port();
-    let server = tiny_http::Server::from_listener(listener, None).map_err(err)?;
     let token = random()?;
     let data_dir = app.state::<LibraryState>().data_dir.clone();
     let path = data_dir.join("agent.json");
@@ -91,35 +187,13 @@ pub fn start(app: &AppHandle) -> AppResult<()> {
     }
     fs::rename(&temporary, &path).map_err(err)?;
     app.manage(AgentState { ready: AtomicBool::new(false), pending: Mutex::new(HashMap::new()), connection: Mutex::new(Some((path, token.clone()))) });
-    let in_flight = Arc::new(AtomicUsize::new(0));
     let (work, jobs) = mpsc::channel::<Job>();
     let worker = app.clone();
-    // One worker keeps library operations serial; reading bodies happens on per-request threads.
+    // One worker keeps library operations serial; connections are read on their own threads.
     std::thread::spawn(move || { for job in jobs { process(&worker, job); } });
-    let app = app.clone();
-    std::thread::spawn(move || {
-        for request in server.incoming_requests() {
-            let host = format!("127.0.0.1:{port}");
-            if header(&request, "Origin").is_some() || header(&request, "Host").as_deref() != Some(host.as_str()) || !authorized(&header(&request, "Authorization").unwrap_or_default(), &format!("Bearer {token}")) {
-                answer(request, failure(401, "需要本机 Bearer token，拒绝网页跨站请求")); continue;
-            }
-            if request.body_length().is_some_and(|n| n > MAX_BODY) { answer(request, failure(413, "请求超过 64 MB")); continue; }
-            let method = request.method().as_str().to_string();
-            if method != "GET" && header(&request, "Content-Type").unwrap_or_default().split(';').next().unwrap_or("").trim() != "application/json" { answer(request, failure(415, "请求使用 application/json")); continue; }
-            if !app.state::<AgentState>().ready.load(Ordering::SeqCst) { answer(request, failure(503, "应用尚未就绪，请稍后重试")); continue; }
-            let Some(slot) = take_slot(&in_flight, MAX_IN_FLIGHT) else { answer(request, failure(503, "排队请求过多，请稍后用相同 request_id 重试")); continue; };
-            let work = work.clone();
-            std::thread::spawn(move || {
-                let mut request = request;
-                match read_body(request.as_reader(), MAX_BODY, BODY_TIMEOUT) {
-                    Ok(bytes) => { let _ = work.send(Job { request, bytes, _slot: slot }); }
-                    Err(408) => answer(request, failure(408, "请求体传输超时")),
-                    Err(413) => answer(request, failure(413, "请求超过 64 MB")),
-                    Err(_) => answer(request, failure(400, "读取请求失败")),
-                }
-            });
-        }
-    });
+    let ready = app.clone();
+    let gate = Arc::new(Gate { token, port, ready: Box::new(move || ready.state::<AgentState>().ready.load(Ordering::SeqCst)), in_flight: Arc::new(AtomicUsize::new(0)), limits: LIMITS });
+    std::thread::spawn(move || serve(listener, gate, work));
     Ok(())
 }
 
@@ -127,9 +201,9 @@ fn process(app: &AppHandle, job: Job) {
     let Job { request, bytes, _slot } = job;
     let state = app.state::<AgentState>();
     if !state.ready.load(Ordering::SeqCst) { answer(request, failure(503, "应用尚未就绪，请稍后重试")); return; }
-    let method = request.method().as_str().to_string();
-    let url = request.url().to_string();
-    let request_header = header(&request, "X-Request-Id");
+    let method = request.method.clone();
+    let url = request.url.clone();
+    let request_header = request.header("X-Request-Id");
     let body: Value = if bytes.is_empty() { json!({}) } else { match serde_json::from_slice(&bytes) { Ok(value) => value, Err(_) => { answer(request, failure(400, "JSON 语法错误")); return; } } };
     let request_id = request_header.or_else(|| body.get("request_id").and_then(Value::as_str).map(str::to_string));
     let id = match random() { Ok(id) => id, Err(_) => { answer(request, failure(500, "无法生成请求编号")); return; } };
@@ -197,12 +271,75 @@ mod tests {
         assert!(take_slot(&counter, 2).is_none());
         drop(a); assert!(take_slot(&counter, 2).is_some());
     }
-    #[test] fn body_reader_enforces_size_and_time() {
-        assert_eq!(read_body(&mut &b"{}"[..], 10, BODY_TIMEOUT).unwrap(), b"{}");
-        assert_eq!(read_body(&mut &[0u8; 20][..], 10, BODY_TIMEOUT), Err(413));
-        struct Slow(u8);
-        impl Read for Slow { fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> { if self.0 == 0 { return Ok(0); } self.0 -= 1; std::thread::sleep(Duration::from_millis(30)); buf[0] = b' '; Ok(1) } }
-        assert_eq!(read_body(&mut Slow(5), 100, Duration::from_millis(50)), Err(408));
+    const TEST_LIMITS: Limits = Limits { header_timeout: Duration::from_millis(400), body_timeout: Duration::from_millis(400), write_timeout: Duration::from_millis(400), max_connections: 32, max_in_flight: 8 };
+    /// Starts the real transport with a worker that answers every request with 200.
+    fn test_server() -> (u16, Arc<AtomicUsize>) {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let in_flight = Arc::new(AtomicUsize::new(0));
+        let gate = Arc::new(Gate { token: "t".into(), port, ready: Box::new(|| true), in_flight: in_flight.clone(), limits: TEST_LIMITS });
+        let (work, jobs) = mpsc::channel::<Job>();
+        std::thread::spawn(move || { for job in jobs { let body = String::from_utf8_lossy(&job.bytes).to_string(); answer(job.request, Reply { status: 200, body, content_type: "text/plain\r\nX-Evil: 1".into() }); } });
+        std::thread::spawn(move || serve(listener, gate, work));
+        (port, in_flight)
+    }
+    fn send(port: u16, raw: String) -> String {
+        let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        stream.write_all(raw.as_bytes()).unwrap();
+        let mut text = String::new(); let _ = stream.read_to_string(&mut text); text
+    }
+    fn get(port: u16) -> String { send(port, format!("GET /stats HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\n\r\n")) }
+    fn post_head(port: u16) -> String { format!("POST /undo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nContent-Type: application/json\r\nContent-Length: 10\r\n\r\n") }
+    #[test] fn transport_keeps_security_checks() {
+        let (port, _) = test_server();
+        let ok = get(port);
+        assert!(ok.starts_with("HTTP/1.1 200"), "{ok}"); assert!(!ok.contains("X-Evil"));
+        assert!(send(port, format!("GET /stats HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n\r\n")).starts_with("HTTP/1.1 401"));
+        assert!(send(port, format!("GET /stats HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nOrigin: http://evil\r\n\r\n")).starts_with("HTTP/1.1 401"));
+        assert!(send(port, "GET /stats HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer t\r\n\r\n".into()).starts_with("HTTP/1.1 401"));
+        assert!(send(port, format!("POST /undo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\n{{}}")).starts_with("HTTP/1.1 415"));
+        assert!(send(port, format!("POST /undo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nContent-Type: application/json\r\nContent-Length: 999999999\r\n\r\n")).starts_with("HTTP/1.1 413"));
+        assert!(send(port, format!("POST /undo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n")).starts_with("HTTP/1.1 411"));
+        let echoed = send(port, format!("POST /undo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{{}}"));
+        assert!(echoed.starts_with("HTTP/1.1 200") && echoed.ends_with("{}"), "{echoed}");
+        assert!(send(port, format!("GET /x HTTP/1.1\r\n{}\r\n\r\n", "a: b\r\n".repeat(4000))).starts_with("HTTP/1.1 431"));
+    }
+    #[test] fn idle_connection_is_dropped_within_timeout_and_frees_its_slot() {
+        let (port, in_flight) = test_server();
+        let started = Instant::now();
+        // Sends nothing at all.
+        let mut silent = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        silent.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        let mut text = String::new(); let _ = silent.read_to_string(&mut text);
+        assert!(text.starts_with("HTTP/1.1 408"), "{text}");
+        assert!(started.elapsed() < Duration::from_secs(2));
+        // Sends headers, then stalls the body while holding a request slot.
+        let mut stalled = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        stalled.write_all(post_head(port).as_bytes()).unwrap();
+        std::thread::sleep(Duration::from_millis(100));
+        assert_eq!(in_flight.load(Ordering::SeqCst), 1);
+        stalled.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        let mut text = String::new(); let _ = stalled.read_to_string(&mut text);
+        assert!(text.starts_with("HTTP/1.1 408"), "{text}");
+        assert_eq!(in_flight.load(Ordering::SeqCst), 0);
+    }
+    #[test] fn eight_stalled_requests_stop_blocking_after_timeout() {
+        let (port, in_flight) = test_server();
+        let stalled: Vec<TcpStream> = (0..8).map(|_| { let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap(); s.write_all(post_head(port).as_bytes()).unwrap(); s }).collect();
+        std::thread::sleep(Duration::from_millis(100));
+        assert_eq!(in_flight.load(Ordering::SeqCst), 8);
+        assert!(get(port).starts_with("HTTP/1.1 503"));
+        std::thread::sleep(TEST_LIMITS.body_timeout + Duration::from_millis(300));
+        assert_eq!(in_flight.load(Ordering::SeqCst), 0);
+        assert!(get(port).starts_with("HTTP/1.1 200"));
+        // Connections that never send anything are also bounded and released.
+        let idle: Vec<TcpStream> = (0..TEST_LIMITS.max_connections).map(|_| TcpStream::connect(("127.0.0.1", port)).unwrap()).collect();
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(get(port).starts_with("HTTP/1.1 503"));
+        std::thread::sleep(TEST_LIMITS.header_timeout + Duration::from_millis(300));
+        assert!(get(port).starts_with("HTTP/1.1 200"));
+        drop((stalled, idle));
     }
     #[test] fn connection_file_removed_only_with_matching_token() {
         let path = std::env::temp_dir().join(format!("atlas-agent-{}.json", random().unwrap()));

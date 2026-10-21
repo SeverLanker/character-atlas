@@ -62,6 +62,10 @@ export async function snapshotLibrary(snapshot: LibrarySnapshot): Promise<Librar
   for (const ref of assetRefs(lib)) await readAsset(ref);
   return lib;
 }
+/** Compares a stored (already migrated) library with an in-memory one after migrating both sides. */
+export function sameLibrary(stored: Library | null, expected: Library): boolean {
+  return stored !== null && JSON.stringify(stored) === JSON.stringify(migrateLibrary(expected));
+}
 export async function saveLibrary(library: Library, forceSnapshot = false, expectedCurrent?: Library, agent?: AgentRecord & { id: string; deadline: number }): Promise<void> {
   validateLibrary(library);
   if (agent && Date.now() > agent.deadline) throw new Error("请求已超时，未提交；请使用相同 request_id 重试");
@@ -70,7 +74,7 @@ export async function saveLibrary(library: Library, forceSnapshot = false, expec
       await invoke("save_agent_library", { id: agent.id, expected: JSON.stringify(expectedCurrent), data: JSON.stringify(library), record: JSON.stringify(agent) });
       return;
     }
-    if (expectedCurrent && JSON.stringify(await loadLibrary()) !== JSON.stringify(expectedCurrent)) throw new Error("资料库已变化，请重新预览导入");
+    if (expectedCurrent && !sameLibrary(await loadLibrary(), expectedCurrent)) throw new Error("资料库已变化，请重新预览导入");
     await invoke("save_library", { data: JSON.stringify(library) });
   }
   else {
@@ -84,7 +88,7 @@ export async function saveLibrary(library: Library, forceSnapshot = false, expec
       if (Date.now() > agent.deadline) throw new Error("请求已超时，未提交");
     }
     const previous = await tx.objectStore("library").get("current");
-    if (expectedCurrent && JSON.stringify(migrateLibrary(typeof previous === "string" ? JSON.parse(previous) : previous)) !== JSON.stringify(expectedCurrent))
+    if (expectedCurrent && !sameLibrary(previous == null ? null : migrateLibrary(typeof previous === "string" ? JSON.parse(previous) : previous), expectedCurrent))
       throw new Error("资料库已变化，请重新预览导入");
     const last = await tx.objectStore("meta").get("lastSnapshot") as number | undefined;
     const time = Date.now();
@@ -288,7 +292,7 @@ function unpackBackup(bytes: Uint8Array) {
     throw new Error("没有找到 library.json，请选择叙册导出的 ZIP 备份。");
   return files;
 }
-async function copyIncomingAssets(library: Library, assets: Record<string, Uint8Array>) {
+export async function copyIncomingAssets(library: Library, assets: Record<string, Uint8Array>) {
   // Remap incoming assets so restoring a backup never mutates existing images before the library commit.
   const map = new Map<string, string>();
   const needed = new Set(assetRefs(library));
@@ -329,7 +333,7 @@ export function parseLibraryImport(bytes: Uint8Array, filename: string): Library
 }
 export async function appendLibraryImport(current: Library, payload: LibraryImport, choices: ImportChoices): Promise<Library> {
   mergeLibraries(current, payload.library, choices); // Validate the proposed size/structure before writing images.
-  if (JSON.stringify(await loadLibrary()) !== JSON.stringify(current)) throw new Error("资料库已变化，请重新预览导入");
+  if (!sameLibrary(await loadLibrary(), current)) throw new Error("资料库已变化，请重新预览导入");
   const incoming = structuredClone(payload.library);
   incoming.characters = incoming.characters.filter((character) => (choices[character.id] ?? defaultImportChoice(current, character)) !== "skip");
   await copyIncomingAssets(incoming, payload.assets);

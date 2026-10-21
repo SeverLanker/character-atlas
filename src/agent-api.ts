@@ -2,6 +2,8 @@ import { applyCatalogImport, catalogLabels, exportCatalog, parseCatalog } from "
 import { catalogKey, normalizeCatalogName } from "./catalog-key";
 import { validateLibrary, type Library } from "./model";
 import { historyReducer, type HistoryState } from "./useLibraryHistory";
+import { characterChoices, decodeBase64, parseCharacterJson, parseCharacterZip, type ParsedCharacters } from "./character-import";
+import { mergeLibraries } from "./merge";
 
 export interface AgentReply { status: number; body: string; content_type: string }
 export interface AgentRequest {
@@ -16,7 +18,13 @@ export interface AgentContext {
   publish: (state: HistoryState) => void;
   lookup: (id: string, fingerprint: string) => Promise<AgentReply | null>;
   commit: (request: AgentRequest, previous: Library, next: Library, record: AgentRecord) => Promise<void>;
+  /** Writes incoming images under fresh names and rewrites refs in `library` in place (UI append-import pipeline). */
+  importAssets?: (library: Library, assets: Record<string, Uint8Array>) => Promise<void>;
 }
+/** Library states produced by agent writes in this session; /undo and /redo only move across these. */
+const agentStates = new WeakSet<Library>();
+const stable = (value: unknown): string => JSON.stringify(value, (_key, item) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
+const sameEntry = (a: object, b: object) => stable({ ...a, updatedAt: undefined }) === stable({ ...b, updatedAt: undefined });
 export const agentJson = (status: number, value: unknown): AgentReply => ({ status, body: JSON.stringify(value), content_type: "application/json;charset=utf-8" });
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 const operational = (error: unknown, fallback: number) => {
@@ -45,7 +53,7 @@ export async function executeAgentRequest(request: AgentRequest, context: AgentC
       const unknown = Object.keys(body).filter(key => !["format", "text", "request_id", "overwrite", "overwrite_rows"].includes(key));
       if (unknown.length) throw new ApiError(422, `不支持的导入参数：${unknown.join("、")}`);
     }
-    const dry = request.method === "POST" && path === "/catalog/import" && url.searchParams.get("dry_run") === "1";
+    const dry = request.method === "POST" && (path === "/catalog/import" || path === "/characters/import") && url.searchParams.get("dry_run") === "1";
     const mutating = request.method !== "GET" && !dry;
     const requestId = request.request_id ?? body.request_id;
     if (request.request_id && body.request_id && request.request_id !== body.request_id) throw new ApiError(422, "请求头与请求体的 request_id 不一致");
@@ -66,21 +74,28 @@ export async function executeAgentRequest(request: AgentRequest, context: AgentC
       const duplicates = rows.filter(row => row.status === "duplicate");
       const overwrite = new Set(body.overwrite === "all" ? duplicates.map(row => row.line) : body.overwrite_rows as number[] ?? []);
       if ([...overwrite].some(n => !duplicates.some(row => row.line === n))) throw new ApiError(422, "overwrite_rows 包含非重名行，请先 dry_run 核对");
+      // Overwrite rows whose result equals the stored entry are reported as unchanged, not overwritten.
+      const unchanged = new Set<number>();
+      for (const line of overwrite) {
+        const row = duplicates.find(item => item.line === line)!, existing = row.entry && catalog.find(entry => catalogKey(entry) === catalogKey(row.entry!));
+        if (existing && sameEntry(existing, applyCatalogImport([existing], [row], new Set([line]))[0])) unchanged.add(line);
+      }
+      for (const line of unchanged) overwrite.delete(line);
       const errors = rows.filter(row => row.status === "error").map(row => ({ row: row.line, title: row.title, reason: row.reason }));
       const added = rows.filter(row => row.status === "new").length;
       const warnings = rows.filter(row => row.warnings.length).map(row => ({ row: row.line, title: row.title, warnings: row.warnings, attention: !!row.attention }));
-      if (dry) reply = agentJson(200, { total: rows.length, will_add: added, will_overwrite: overwrite.size, skipped_dup: duplicates.length - overwrite.size, errors, warnings, header_notes: rows[0]?.headerNotes ?? [], preview_ids: rows.filter(row => row.entry).map(row => `row:${row.line}`), preview: rows.map(row => ({ row: row.line, title: row.title, status: row.status, reason: row.reason, entry: row.entry })) });
+      if (dry) reply = agentJson(200, { total: rows.length, will_add: added, will_overwrite: overwrite.size, unchanged: unchanged.size, skipped_dup: duplicates.length - overwrite.size - unchanged.size, errors, warnings, header_notes: rows[0]?.headerNotes ?? [], preview_ids: rows.filter(row => row.entry).map(row => `row:${row.line}`), preview: rows.map(row => ({ row: row.line, title: row.title, status: row.status, reason: row.reason, entry: row.entry })) });
       else {
         const imported = applyCatalogImport(catalog, rows, overwrite);
         // Even all-skipped requests get a durable receipt, but no empty undo step.
         if (added + overwrite.size) next = historyReducer(state, { type: "set", update: { ...library, catalog: imported }, time: Date.now(), checkpoint: true });
-        reply = agentJson(200, { added, skipped_dup: duplicates.length - overwrite.size, overwritten: overwrite.size, errors, warnings });
+        reply = agentJson(200, { added, skipped_dup: duplicates.length - overwrite.size - unchanged.size, overwritten: overwrite.size, unchanged: unchanged.size, errors, warnings });
       }
     } else if (request.method === "GET" && path === "/catalog/export") {
       if ([...url.searchParams.keys()].some(key => !["format", "scope", "kind", "world", "tag", "q", "favorite"].includes(key))) throw new ApiError(422, "存在未识别的导出筛选参数");
       if (url.searchParams.has("favorite") && !["0", "1"].includes(url.searchParams.get("favorite")!)) throw new ApiError(422, "favorite 必须为 0 或 1");
       const format = url.searchParams.get("format") ?? "json", scope = url.searchParams.get("scope") ?? "all";
-      if (format !== "json" && format !== "csv") throw new ApiError(422, "format 必须为 json 或 csv");
+      if (format !== "json" && format !== "csv" && format !== "tsv") throw new ApiError(422, "format 必须为 json、csv 或 tsv");
       if (scope !== "all" && !scope.startsWith("kind:") && !scope.startsWith("world:")) throw new ApiError(422, "scope 必须为 all / kind:skill / world:世界名");
       const kind = scope.startsWith("kind:") ? scope.slice(5) : url.searchParams.get("kind");
       if (kind && !Object.hasOwn(catalogLabels, kind)) throw new ApiError(422, "类别必须是 skill/spell/specialty/item");
@@ -88,7 +103,7 @@ export async function executeAgentRequest(request: AgentRequest, context: AgentC
       const tokens = (url.searchParams.get("q") ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean);
       const tag = url.searchParams.get("tag");
       const selected = catalog.filter(row => (!kind || row.kind === kind) && (world === null || normalizeCatalogName(row.world ?? "") === normalizeCatalogName(world)) && (!tag || row.tags?.includes(tag)) && (url.searchParams.get("favorite") !== "1" || row.favorite) && tokens.every(token => `${row.title} ${row.world ?? ""} ${row.rank} ${row.text} ${(row.tags ?? []).join(" ")}`.toLowerCase().includes(token)));
-      reply = { status: 200, body: exportCatalog(selected, format), content_type: format === "json" ? "application/json;charset=utf-8" : "text/csv;charset=utf-8" };
+      reply = { status: 200, body: exportCatalog(selected, format), content_type: format === "json" ? "application/json;charset=utf-8" : format === "tsv" ? "text/tab-separated-values;charset=utf-8" : "text/csv;charset=utf-8" };
     } else if (path.startsWith("/catalog/") && path.split("/").length === 3) {
       const id = decodeURIComponent(path.slice(9)), found = catalog.find(row => row.id === id);
       if (!found) throw new ApiError(404, "条目不存在");
@@ -110,13 +125,54 @@ export async function executeAgentRequest(request: AgentRequest, context: AgentC
     } else if (request.method === "POST" && ["/undo", "/redo"].includes(path)) {
       next = historyReducer(state, { type: path === "/undo" ? "undo" : "redo" });
       if (next === state) throw new ApiError(409, "没有可撤销／重做的操作（历史仅在本次应用会话保留）");
+      // Only step across agent-made states, so the API never reverts edits made in the UI.
+      const target = path === "/undo" ? state.current : state.future[0];
+      if (!target || !agentStates.has(target)) throw new ApiError(409, path === "/undo" ? "最近一步不是 Agent 操作，接口不会撤销界面中的修改" : "下一步重做不是 Agent 操作，请在界面中重做");
       reply = agentJson(200, { action: path.slice(1), catalog: next.current?.catalog?.length ?? 0 });
+    } else if (request.method === "GET" && path === "/characters") {
+      if ([...url.searchParams.keys()].length) throw new ApiError(422, "角色列表不接受查询参数");
+      // Public fields only; secret archives are never returned by the API.
+      reply = agentJson(200, { characters: library.characters.map(c => ({ id: c.id, name: c.name, collection: c.collection, versions: c.versions.length })) });
+    } else if (request.method === "POST" && path === "/characters/import") {
+      if ([...url.searchParams.keys()].some(key => key !== "dry_run") || (url.searchParams.has("dry_run") && !["0", "1"].includes(url.searchParams.get("dry_run")!))) throw new ApiError(422, "导入查询参数仅支持 dry_run=0 或 1");
+      const unknown = Object.keys(body).filter(key => !["format", "text", "data_base64", "on_conflict", "request_id"].includes(key));
+      if (unknown.length) throw new ApiError(422, `不支持的导入参数：${unknown.join("、")}`);
+      const onConflict = body.on_conflict ?? "skip";
+      if (typeof onConflict !== "string" || !["skip", "replace", "copy"].includes(onConflict)) throw new ApiError(422, "on_conflict 必须为 skip、replace 或 copy");
+      let parsed: ParsedCharacters;
+      try {
+        if (body.format === "json" && typeof body.text === "string" && body.data_base64 === undefined) parsed = parseCharacterJson(body.text);
+        else if (body.format === "zip" && typeof body.data_base64 === "string" && body.text === undefined) parsed = parseCharacterZip(decodeBase64(body.data_base64));
+        else throw new ApiError(422, "format=json 需要 text；format=zip 需要 data_base64");
+      } catch (error) { if (error instanceof ApiError) throw error; throw new ApiError(422, error instanceof Error ? error.message : String(error)); }
+      const incoming = parsed.library;
+      const choices = characterChoices(library, incoming, onConflict as "skip" | "replace" | "copy");
+      const existing = new Set(library.characters.map(c => c.id));
+      const plan = incoming.characters.map(c => ({ id: c.id, name: c.name, status: !existing.has(c.id) ? "new" : choices[c.id] === "skip" ? "skipped" : choices[c.id] === "replace" ? "replace" : "copy" }));
+      const count = (status: string) => plan.filter(row => row.status === status).length;
+      const summary = { total: parsed.total, errors: parsed.errors };
+      // Validate the merged result before touching images or storage.
+      const preview = mergeLibraries(library, incoming, choices);
+      if (dry) reply = agentJson(200, { ...summary, will_add: count("new"), will_replace: count("replace"), will_copy: count("copy"), will_skip: count("skipped"), characters: plan });
+      else {
+        let added = plan;
+        if (count("new") + count("replace") + count("copy")) {
+          if (context.importAssets && Object.keys(parsed.assets).length) await context.importAssets(incoming, parsed.assets);
+          const merged = Object.keys(parsed.assets).length ? mergeLibraries(library, incoming, choices) : preview;
+          // mergeLibraries appends new and copied characters in input order; report the ids actually stored.
+          const appended = merged.characters.slice(library.characters.length).map(c => c.id);
+          let cursor = 0;
+          added = plan.map(row => row.status === "new" || row.status === "copy" ? { ...row, id: appended[cursor++] ?? row.id } : row);
+          next = historyReducer(state, { type: "set", update: merged, time: Date.now(), checkpoint: true });
+        }
+        reply = agentJson(200, { ...summary, added: count("new"), replaced: count("replace"), copied: count("copy"), skipped: count("skipped"), characters: added });
+      }
     } else throw new ApiError(404, "接口不存在");
     if (mutating) {
       const candidate = next?.current ?? library;
       validateLibrary(candidate);
       try { await context.commit(request, library, candidate, { request_id: requestId as string, fingerprint: request.fingerprint, reply }); } catch (error) { throw operational(error, 500); }
-      if (next) context.publish(next);
+      if (next) { if (path !== "/undo" && path !== "/redo" && next.current) agentStates.add(next.current); context.publish(next); }
     }
     return reply;
   } catch (error) {

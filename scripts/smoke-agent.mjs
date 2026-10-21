@@ -53,8 +53,38 @@ try {
 } finally {
   if (id) await json("DELETE", `/catalog/${id}`, { request_id: `${prefix}:cleanup` });
 }
+// Character import: a uniquely named temporary character, removed again with an agent-only undo.
+{
+  const time = new Date().toISOString(), versionId = randomUUID(), secret = `smoke-secret-${randomUUID()}`;
+  const basics = Object.fromEntries(["alias", "age", "gender", "species", "occupation", "affiliation", "height", "weight", "blood", "birthday", "birthplace", "residence", "measurements", "code"].map(key => [key, ""]));
+  // Same shape as blankProfile(); coc and display are filled in by migration.
+  const blank = { basics: { name: prefix, ...basics }, portrait: "", quote: "", summary: "", personality: "", appearance: "", background: "", events: [], relationships: [], customFields: [], attributes: [], skills: [], items: [], gallery: [], conditions: [], statusNote: "" };
+  const character = { id: randomUUID(), name: prefix, collection: "Agent 冒烟", favorite: false, accent: "#7a8f6a", createdAt: time, updatedAt: time, defaultVersionId: versionId,
+    versions: [{ id: versionId, name: "初版", date: "", note: "", createdAt: time, updatedAt: time, profile: blank, secret: { enabled: true, label: "秘", trigger: "portrait", theme: "noir", overrides: { summary: secret } } }] };
+  const text = JSON.stringify(character);
+  const preview = await call("POST", "/characters/import?dry_run=1", { format: "json", text });
+  if (preview.status === 200) {
+    assert.equal(JSON.parse(preview.text).will_add, 1); assert.ok(!preview.text.includes(secret));
+    assert.equal((await json("GET", "/stats")).characters, before.characters);
+    const body = { format: "json", text, request_id: `${prefix}:characters` };
+    const first = await call("POST", "/characters/import", body);
+    assert.equal(first.status, 200, first.text); assert.ok(!first.text.includes(secret));
+    assert.equal((await call("POST", "/characters/import", body)).text, first.text);
+    const listed = await call("GET", "/characters");
+    assert.ok(listed.text.includes(prefix)); assert.ok(!listed.text.includes(secret));
+    assert.equal((await json("GET", "/stats")).characters, before.characters + 1);
+    assert.equal((await call("POST", "/characters/import", { ...body, on_conflict: "replace" })).status, 409);
+    await json("POST", "/undo", { request_id: `${prefix}:undo-characters` });
+    assert.equal((await json("GET", "/stats")).characters, before.characters);
+    report.checks.push("character import: dry-run, commit, replay, list without secrets, agent undo cleanup");
+  } else {
+    // Seed profile fields differ between versions; report rather than mask a validation change.
+    throw new Error(`character dry-run failed: ${preview.status} ${preview.text}`);
+  }
+}
 report.after = await json("GET", "/stats");
 assert.equal(report.after.catalog, before.catalog);
+assert.equal(report.after.characters, before.characters);
 assert.deepEqual(await json("GET", "/catalog/export?format=json&scope=all"), baseline);
 report.checks.push("temporary row deleted; original catalog exactly unchanged");
 if (process.argv[3]) await writeFile(process.argv[3], JSON.stringify(report, null, 2));

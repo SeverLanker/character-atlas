@@ -146,9 +146,10 @@ export function applyCatalogImport(existing: CatalogEntry[], rows: CatalogImport
   return result;
 }
 
-export function exportCatalog(entries: CatalogEntry[], format: "json" | "csv"): string {
+export function exportCatalog(entries: CatalogEntry[], format: "json" | "csv" | "tsv"): string {
   if (format === "json") return JSON.stringify({ format: "character-atlas-catalog", schemaVersion: 1, entries }, null, 2);
   const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
   const withWorld = entries.some(entry => !!entry.world?.trim());
-  return "\uFEFF" + [[...columns, ...(withWorld ? ["世界"] : [])], ...entries.map(entry => [entry.title, catalogLabels[entry.kind], entry.rank, (entry.tags ?? []).join("、"), entry.text, ...(withWorld ? [entry.world ?? ""] : [])])].map(row => row.map(quote).join(",")).join("\r\n");
+  const separator = format === "tsv" ? "\t" : ",";
+  return (format === "csv" ? "\uFEFF" : "") + [[...columns, ...(withWorld ? ["世界"] : [])], ...entries.map(entry => [entry.title, catalogLabels[entry.kind], entry.rank, (entry.tags ?? []).join("、"), entry.text, ...(withWorld ? [entry.world ?? ""] : [])])].map(row => row.map(quote).join(separator)).join("\r\n");
 }

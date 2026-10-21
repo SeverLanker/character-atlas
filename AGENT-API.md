@@ -14,7 +14,7 @@
 - 所有请求必须带 `Authorization: Bearer <token>`。JSON 写请求使用 `Content-Type: application/json`。
 - 不接受带 `Origin` 的网页跨站请求，不开放 CORS。客户端使用文件提供的 `127.0.0.1:端口` 地址。
 
-应用未加载、没有就绪窗口或正在执行资料恢复等操作时返回 503。每次请求最长等待 30 秒；写请求超时后可用相同编号重试。传输请求体上限 64 MB；导入文本仍受 32 MB / 10000 条限制。
+应用未加载、没有就绪窗口或正在执行资料恢复等操作时返回 503。桌面版同时最多处理/排队 8 个请求，超出立即返回 503；请求体须在 10 秒内传完，否则返回 408（完全停止发送的连接会占用一个名额直到断开）。应用正常退出时删除连接文件；CLI 发现文件中的 `pid` 已退出时会提示先启动叙册。每次请求最长等待 30 秒；写请求超时后可用相同编号重试。传输请求体上限 64 MB；导入文本仍受 32 MB / 10000 条限制。
 
 ## 命令行
 
@@ -30,6 +30,10 @@
 .\atlas.cmd catalog get 条目ID
 .\atlas.cmd catalog patch 条目ID --data patch.json --request-id patch-001
 .\atlas.cmd catalog delete 条目ID --request-id delete-001
+.\atlas.cmd characters list
+.\atlas.cmd characters import --file roles.json --dry-run
+.\atlas.cmd characters import --file backup.zip --on-conflict copy --request-id chars-001
+.\atlas.cmd catalog export --format tsv --out catalog.tsv
 .\atlas.cmd undo --request-id undo-001
 .\atlas.cmd redo --request-id redo-001
 ```
@@ -72,13 +76,31 @@
 
 `preview_ids` 是本批数据行的定位编号，不是落库条目的内部 UUID。`errors` 含 `{row,title,reason}`；`warnings` 显示未知字段等提示；`preview` 附解析后的条目。
 
-真实导入：`POST /catalog/import`，加 `request_id`，返回 `{added,skipped_dup,overwritten,errors,warnings}`。
+真实导入：`POST /catalog/import`，加 `request_id`，返回 `{added,skipped_dup,overwritten,unchanged,errors,warnings}`。覆盖结果与原条目完全相同的重名行计入 `unchanged`（预览中同样返回 `unchanged`），不算覆盖，也不产生撤销记录。
 
 重名默认跳过。可指定 `overwrite: "all"`，或 `overwrite_rows: [1,3]`，仅覆盖已确认的重名行。覆盖保留原 id、名称、世界写法和创建时间，坏条跳过。一次实际变更是一项撤销记录；全跳过时不增加空撤销记录。
 
+## 角色导入与列表
+
+`POST /characters/import?dry_run=1`，正式导入去掉 `dry_run` 并带 `request_id`（幂等规则同上）。
+
+```json
+{"format":"json","text":"<角色 JSON>","on_conflict":"skip"}
+{"format":"zip","data_base64":"<叙册备份 ZIP 的 Base64>","on_conflict":"copy"}
+```
+
+- `text` 可以是完整资料库（`{schemaVersion, characters}`）、角色数组或单个角色对象，与界面“追加导入”相同；只导入角色，忽略其中的共享条目库。
+- JSON 不能携带图片：除 `builtin:0–2` 外的图片引用逐个报错，请改用备份 ZIP。ZIP 中的图片在正式导入时以新文件名复制并重写引用，未知或路径穿越的 ZIP 条目会被跳过，限制同恢复备份（单图 12 MB、压缩比、条目数）。
+- `on_conflict`：库中已有同一角色 id 时的处理，`skip`（默认）、`replace`（原位替换）或 `copy`（生成新 id 追加）；新 id 直接添加。角色之间的关联编号随复制一起重映射。
+- 校验按 schema 2 逐个角色进行，坏角色不影响其他角色，`errors` 为 `[{index,id,name,reason}]`，`reason` 指出字段或“角色 / 版本 / 表层或秘密档案”路径。JSON 文本上限 32 MB，ZIP 上限 48 MB，单次最多 2000 个角色。
+- 预览返回 `{total,errors,will_add,will_replace,will_copy,will_skip,characters:[{id,name,status}]}`；正式导入返回 `{total,errors,added,replaced,copied,skipped,characters}`，`characters[].id` 为实际保存的 id（copy 为新 id）。
+- 秘密档案可以导入，但任何响应都不回显秘密字段。
+
+`GET /characters` 只返回公开字段：`{characters:[{id,name,collection,versions}]}`。
+
 ## 导出与读取
 
-`GET /catalog/export?format=json|csv&scope=all|kind:skill|world:新迦南市`
+`GET /catalog/export?format=json|csv|tsv&scope=all|kind:skill|world:新迦南市`
 
 - 返回原始 JSON / CSV 内容。CSV 保留 UTF-8 BOM，多行与引号规则不变。
 - 附加 `kind=skill|spell|specialty|item`、`world=...`、`tag=...`、`q=关键词`、`favorite=1` 可以组合出与界面筛选相同的条件。省略 world 表示所有世界，`world=` 表示全库通用。
@@ -100,6 +122,7 @@
 ## 撤销、重做与计数
 
 - `POST /undo` / `POST /redo`：`{"request_id":"独立编号"}`，返回 `{action,catalog}`；没有历史时 409。
+- 接口的撤销 / 重做只跨越 Agent 自己产生的状态：栈顶（或下一步重做）是界面修改时返回 409，界面编辑请在界面中撤销。
 - `GET /stats`：`{characters,versions,catalog,catalog_by_kind:{skill,spell,specialty,item},can_undo,can_redo}`。
 
 ## 状态码

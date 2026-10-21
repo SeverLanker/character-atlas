@@ -1,5 +1,15 @@
 # 更新记录
 
+## 未发布
+
+- 新增 Agent 角色导入 `POST /characters/import`（dry_run 预览、request_id 幂等），接受单个角色、角色数组、资料库 JSON 或备份 ZIP；冲突策略 skip / replace / copy，复用界面追加导入流程（图片换名复制、关联重映射、schema 2 校验），逐个角色给出可读错误；响应和 `GET /characters` 只返回公开字段，不回显秘密档案。
+- CLI 新增 `atlas characters import` 与 `atlas characters list`，条目导出支持 `--format tsv`。
+- Agent `/undo`、`/redo` 只作用于 Agent 自己的操作；栈顶是界面修改时返回 409，不再撤销界面编辑。
+- 覆盖导入时内容未变化的重名行计为 `unchanged`，不再计入覆盖，也不增加撤销记录。
+- 修复网页预览首次打开（演示资料）时 Agent 写入和追加导入总是返回“资料库已变化”的问题：演示资料先迁移，比较前两侧统一迁移。
+- 桌面接口：请求体 10 秒传输超时（408）、最多 8 个并发/排队请求（超出返回 503）、读取请求体不再阻塞其他请求；正常退出时删除 agent.json。CLI 发现连接文件中的进程已退出时给出明确提示。
+- Cargo.toml 声明 `rust-version = "1.90"`。
+
 ## 0.5.4 · 2026-10-21
 
 - 新增仅监听 127.0.0.1 的 Agent 接口，启动生成连接文件与 token，拒绝跨站网页请求。

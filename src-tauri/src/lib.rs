@@ -353,8 +353,13 @@ pub fn run() {
             open_library_folder,
             relocate_library
         ])
-        .run(tauri::generate_context!())
-        .expect("无法启动叙册，请检查资料库路径及文件权限");
+        .build(tauri::generate_context!())
+        .expect("无法启动叙册，请检查资料库路径及文件权限")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                agent::cleanup(app);
+            }
+        });
 }
 
 #[cfg(test)]

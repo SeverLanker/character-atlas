@@ -4,7 +4,7 @@ Windows 本地优先的私人原创角色设定集。界面为精致画册，数
 
 ## 安装使用
 
-交付文件 `CharacterAtlas-0.5.0-Windows-x64-setup.exe` 是 Windows 64 位安装包，适用于 Windows 10 / 11。运行安装程序后即可打开「叙册」，使用软件不需要安装开发工具。
+在 [GitHub Releases](https://github.com/SeverLanker/character-atlas/releases/latest) 下载 Windows 64 位安装包，适用于 Windows 10 / 11。运行安装程序后即可打开「叙册」，使用软件不需要安装开发工具。主线的未发布改动请参阅 CHANGELOG，不等同于已发布安装包的功能。
 
 首次使用可阅读 `QUICKSTART.zh-CN.md`。打开演示角色「林弥」，呼出身份卡后点击照片，可以触发整份监狱档案切换。
 
@@ -28,12 +28,14 @@ Windows 本地优先的私人原创角色设定集。界面为精致画册，数
 
 当前开发基线、模块入口和验证边界见 [HANDOFF.md](HANDOFF.md)，更新内容见 [CHANGELOG.md](CHANGELOG.md)。继续修改前先同步仓库最新分支，避免使用早期 0.2.0 工作目录覆盖新版。
 
+协作和发布遵循 [CONTRIBUTING.md](CONTRIBUTING.md)：改动走 PR，合入 main 后才能从主线发布。Agent 接口与 CLI 用法见 [AGENT-API.md](AGENT-API.md)。
+
 ## Windows 构建
 
 准备：
 
 1. 安装 Node.js 20.19+ 或 22 LTS：<https://nodejs.org/>。
-2. 安装 Rust stable（MSVC）：<https://rustup.rs/>。
+2. 安装 Rust stable（MSVC，最低 1.90）：<https://rustup.rs/>。
 3. 安装 Visual Studio Build Tools，勾选「使用 C++ 的桌面开发」及 Windows SDK：<https://visualstudio.microsoft.com/visual-cpp-build-tools/>。
 4. 关闭并重新打开终端，使新安装的工具进入 PATH。
 

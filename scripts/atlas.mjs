@@ -9,19 +9,23 @@ atlas stats
 atlas catalog import --file x.csv --dry-run
 atlas catalog import --file x.csv --request-id import-001 [--overwrite all]
 atlas catalog export --format csv --scope all --out catalog.csv
+atlas catalog export --format tsv --out catalog.tsv
+atlas characters list
+atlas characters import --file roles.json --dry-run [--on-conflict skip|replace|copy]
+atlas characters import --file backup.zip --request-id chars-001 --on-conflict copy
 atlas catalog get ID
 atlas catalog patch ID --json '{"rank":"精通"}' --request-id edit-001
 atlas catalog delete ID --request-id delete-001
 atlas undo --request-id undo-001
 atlas redo --request-id redo-001
-Options: --connection-file PATH (or ATLAS_AGENT_FILE), --format csv|json|tsv,
+Options: --connection-file PATH (or ATLAS_AGENT_FILE), --format csv|json|tsv (import and export),
 --world NAME --kind skill|spell|specialty|item --tag TAG --q WORDS --favorite,
 --overwrite-rows 1,2 --out PATH [--force], --data patch.json
 Preview: --connection-file .agent/connection.json
 `;
 const args = process.argv.slice(2), options = {}, positionals = [];
 const booleans = new Set(["dry-run", "force", "favorite", "help"]);
-const allowed = new Set([...booleans, "file", "format", "scope", "out", "connection-file", "request-id", "overwrite", "overwrite-rows", "json", "data", "world", "kind", "tag", "q"]);
+const allowed = new Set([...booleans, "on-conflict", "file", "format", "scope", "out", "connection-file", "request-id", "overwrite", "overwrite-rows", "json", "data", "world", "kind", "tag", "q"]);
 try {
   for (let i = 0; i < args.length; i++) {
     if (!args[i].startsWith("--")) { positionals.push(args[i]); continue; }
@@ -32,12 +36,25 @@ try {
   }
   if (options.help || !positionals.length) { process.stdout.write(help); process.exit(0); }
   const connectionFile = options["connection-file"] ?? process.env.ATLAS_AGENT_FILE ?? join(process.platform === "win32" ? process.env.LOCALAPPDATA ?? join(homedir(), "AppData", "Local") : process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share"), "studio.characteratlas.desktop", "agent.json");
-  const connection = JSON.parse(await readFile(connectionFile, "utf8"));
+  const connection = JSON.parse(await readFile(connectionFile, "utf8").catch(error => { if (error?.code === "ENOENT") throw new Error(`叙册未在运行（找不到连接文件 ${connectionFile}）。请先启动叙册。`); throw error; }));
+  if (Number.isInteger(connection.pid)) {
+    // A stale connection file means the app is not running (or exited without cleanup).
+    try { process.kill(connection.pid, 0); } catch (error) { if (error?.code === "ESRCH") throw new Error(`叙册未在运行（连接文件中的进程 ${connection.pid} 已退出）。请先启动叙册：${connectionFile}`); }
+  }
   const base = new URL(connection.url);
   if (base.protocol !== "http:" || base.hostname !== "127.0.0.1" || typeof connection.token !== "string" || !/^[a-f0-9]{64}$/.test(connection.token)) throw new Error("连接文件无效，必须是 127.0.0.1 HTTP 地址和本机 token");
   let method = "GET", path, body;
   const [command, action, id] = positionals;
   if (command === "stats") path = "/stats";
+  else if (command === "characters" && action === "list") path = "/characters";
+  else if (command === "characters" && action === "import") {
+    if (!options.file) throw new Error("导入需要 --file");
+    const zip = extname(options.file).toLowerCase() === ".zip";
+    if (options["on-conflict"] && !["skip", "replace", "copy"].includes(options["on-conflict"])) throw new Error("--on-conflict 必须为 skip、replace 或 copy");
+    body = zip ? { format: "zip", data_base64: (await readFile(options.file)).toString("base64") } : { format: "json", text: await readFile(options.file, "utf8") };
+    if (options["on-conflict"]) body.on_conflict = options["on-conflict"];
+    method = "POST"; path = `/characters/import${options["dry-run"] ? "?dry_run=1" : ""}`;
+  }
   else if (command === "undo" || command === "redo") { method = "POST"; path = `/${command}`; body = {}; }
   else if (command === "catalog" && action === "import") {
     if (!options.file) throw new Error("导入需要 --file");

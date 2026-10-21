@@ -4,6 +4,7 @@ version = "0.5.4"
 description = "叙册 · 本地私人角色设定集"
 authors = ["Character Atlas"]
 edition = "2021"
+rust-version = "1.90"
 
 [lib]
 name = "character_atlas_lib"

@@ -51,6 +51,7 @@ import {
   type Secret,
   type Version,
   assetRefs,
+  migrateLibrary,
 } from "./model";
 import { seedLibrary } from "./seed";
 import {
@@ -167,7 +168,7 @@ export default function App() {
     let live = true;
     loadLibrary()
       .then((value) => {
-        if (live) setLibrary(value ?? seedLibrary());
+        if (live) setLibrary(value ?? migrateLibrary(seedLibrary()));
       })
       .catch((error) => {
         if (live) setLoadError(String(error));

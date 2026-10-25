@@ -655,6 +655,9 @@
   min-width: 0;
 }
 .recovery-panel h2 { font-size: 18px; margin-bottom: 12px; }
+.recovery-panel .coc-edit-actions { flex-wrap: wrap; }
+.recovery-panel button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.recovery-panel li, .recovery-row > span { max-width: 100%; min-width: 0; overflow-wrap: anywhere; }
 .recovery-panel details { margin: 14px 0; }
 .recovery-panel summary { cursor: pointer; }
 .recovery-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; margin: 12px 0; }

@@ -1,7 +1,8 @@
 import type { HistoryAction } from "../useLibraryHistory";
 import { catalogKey, normalizeCatalogName } from "../catalog-key";
 import { CatalogTransfer } from "./CatalogTransfer";
-import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCatalogDraft } from "../hooks/useCatalogDraft";
 import { emptyFilter, filterCatalog, isFiltered, pageItems, paginate, PAGE_SIZES, quickTags, readCatalogPrefs, scopeEntries, tagCounts, toggle, writeCatalogPrefs, type CatalogFilter, type CatalogSort } from "../catalog-filter";
 import { uid, type CatalogEntry, type CatalogKind, type Overrides, type Profile } from "../model";
 
@@ -19,7 +20,14 @@ export function CatalogPanel({ entries, onChange, profile, onPatch, historyActio
   useEffect(() => writeCatalogPrefs(prefs), [prefs]);
   const [tagSearch, setTagSearch] = useState("");
   const [jump, setJump] = useState("");
-  const [draft, setDraft] = useState<CatalogEntry | null>(null);
+  const { draft, pending, draftError, setDraft, canSave, parkDraft, restoreDraft, forkDraft } = useCatalogDraft(entries);
+  const [locatedId, setLocatedId] = useState("");
+  const located = useRef<HTMLElement>(null), lastLocated = useRef("");
+  useEffect(() => {
+    if (locatedId && lastLocated.current !== locatedId && located.current) {
+      located.current.scrollIntoView?.({ block: "center", behavior: "smooth" }); located.current.focus(); lastLocated.current = locatedId;
+    }
+  }, [locatedId, entries]);
   const [message, setMessage] = useState("");
   /** Any filter change returns to page 1. */
   const setFilter = (patch: Partial<CatalogFilter>) => { setFilterState(current => ({ ...current, ...patch })); setPage(1); };
@@ -52,7 +60,9 @@ export function CatalogPanel({ entries, onChange, profile, onPatch, historyActio
     <h3>技能、法术、专长与物品库</h3>
     <p className="editor-help">全库角色共用，随完整备份保存。添加到角色时复制为独立条目，后续修改互不影响。数值技能使用属性页的规则技能选取器；这里保存可复用的文字设定。</p>
     <CatalogTransfer historyAction={historyAction} entries={entries} kind={kind} onChange={onChange}/>
-    <nav className="coc-filters" aria-label="条目类别">{Object.entries(labels).map(([key, label]) => <button key={key} aria-pressed={kind === key} onClick={() => { setKind(key as CatalogKind); setDraft(null); setMessage(''); }}>{label}</button>)}</nav>
+    {pending && <div role="status"><p>发现未保存草稿「{pending.entry.title || "未命名模板"}」。仅保存在这台设备，尚未加入资料库。</p><button className="button small" onClick={() => { setKind(pending.entry.kind); restoreDraft(); }}>恢复草稿</button><button className="text-button" onClick={() => setDraft(null)}>丢弃草稿</button></div>}
+    {draftError && <p role="alert">{draftError}</p>}
+    <nav className="coc-filters" aria-label="条目类别">{Object.entries(labels).map(([key, label]) => <button key={key} aria-pressed={kind === key} onClick={() => { setKind(key as CatalogKind); if (draft) parkDraft(); setMessage(''); }}>{label}</button>)}</nav>
     <label className="field"><span>搜索{labels[kind]}库</span><input type="search" value={query} onChange={(e) => setFilter({ query: e.target.value })} /></label>
     <div className="catalog-filters">
       <label>世界／作品 <select aria-label="筛选条目世界" value={worldFilter} onChange={e => setFilter({ world: e.target.value })}><option value="all">全部世界</option><option value="world:">全库通用</option>{worlds.map(([key, name]) => <option key={key} value={`world:${key}`}>{name}</option>)}</select></label>
@@ -85,15 +95,18 @@ export function CatalogPanel({ entries, onChange, profile, onPatch, historyActio
     </div>}
     <button className="button small" onClick={() => setDraft({ id: uid(), kind, title: "", text: "", rank: "", common: false, world: worlds.find(([key]) => `world:${key}` === worldFilter)?.[1] ?? "" })}>新建{labels[kind]}模板</button>
     {draft && <form className="edit-entry" onSubmit={(e) => {
-      e.preventDefault(); if (!draft.title.trim()) return;
+      e.preventDefault(); if (!draft.title.trim() || !canSave()) return;
       if (entries.some(item => item.id !== draft.id && catalogKey(item) === catalogKey(draft))) {
         setMessage('同类中已有同名模板，请修改名称或编辑原模板。'); return;
       }
       const saved = { ...draft, createdAt: draft.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString(), title: draft.title.trim(), world: draft.world?.trim(), tags: [...new Set((draft.tags ?? []).map(t => t.trim()).filter(Boolean))], source: draft.source?.trim() || undefined, sourceId: draft.sourceId?.trim() || undefined };
       if (!saved.source) delete saved.source;
       if (!saved.sourceId) delete saved.sourceId;
-      onChange(entries.some((item) => item.id === saved.id) ? entries.map((item) => item.id === saved.id ? saved : item) : [...entries, saved]);
-      if (saved.kind !== kind) setKind(saved.kind);
+      const next = entries.some((item) => item.id === saved.id) ? entries.map((item) => item.id === saved.id ? saved : item) : [...entries, saved];
+      onChange(next);
+      const targetFilter = { ...emptyFilter(saved.kind), sort: "name" as const };
+      const index = filterCatalog(next, targetFilter).findIndex(row => row.id === saved.id);
+      setFilter(targetFilter); setPage(Math.floor(index / prefs.pageSize) + 1); lastLocated.current = ""; setLocatedId(saved.id);
       setDraft(null); setMessage("模板已保存。");
     }}>
       <label className="field"><span>模板名称</span><input required value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></label>
@@ -105,10 +118,11 @@ export function CatalogPanel({ entries, onChange, profile, onPatch, historyActio
       <label className="field"><span>模板内容</span><textarea rows={4} value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} /></label>
       {draft.kind !== "item" && <><label className="field"><span>模板等级</span><input value={draft.rank} onChange={(e) => setDraft({ ...draft, rank: e.target.value })} /></label>
         <label><input type="checkbox" checked={draft.common} onChange={(e) => setDraft({ ...draft, common: e.target.checked })} /> 通用能力（阅读默认收起）</label></>}
-      <div className="coc-edit-actions"><button className="button primary small">保存模板</button><button type="button" className="button small" onClick={() => setDraft(null)}>取消</button></div>
+      <p className="editor-help">草稿自动保存在本机，离开页面后可恢复；点击“保存模板”才写入条目库。</p>
+      <div className="coc-edit-actions"><button className="button primary small">保存模板</button><button type="button" className="button small" onClick={parkDraft}>暂存并收起</button><button type="button" className="button small" onClick={forkDraft}>另存为新模板</button><button type="button" className="button small" onClick={() => setDraft(null)}>取消</button></div>
     </form>}
     <p role="status">{message}</p>
-    {visible.map((item) => <article className="edit-entry" key={item.id}>
+    {visible.map((item) => <article className="edit-entry" key={item.id} tabIndex={-1} ref={item.id === locatedId ? located : undefined}>
       <h4>{item.title} <small>{item.rank}</small></h4>
       <div className="catalog-tags"><span>{item.world || "全库通用"}</span>{(item.tags ?? []).map((t, i) => <span key={i}>{t}</span>)}{item.common && <span>通用</span>}</div>
       {item.text.length > 200 ? <details><summary>查看说明 · {item.text.length} 字</summary><p className="catalog-description">{item.text}</p></details> : <p className="catalog-description">{item.text}</p>}

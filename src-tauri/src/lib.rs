@@ -12,6 +12,7 @@ use tauri_plugin_dialog::DialogExt;
 
 mod native_write;
 mod agent;
+mod snapshots;
 use native_write::{check_size, suggested_file_name, validate_target, WriteKind};
 
 struct LibraryState {
@@ -345,6 +346,8 @@ pub fn run() {
             agent::read_agent_record,
             agent::save_agent_library,
             load_library,
+            snapshots::list_snapshots,
+            snapshots::read_snapshot,
             save_library,
             write_asset,
             read_asset,

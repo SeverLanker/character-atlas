@@ -427,6 +427,13 @@ export default function App() {
       setBusy(false);
     }
   }
+  async function beforeRecovery() {
+    const release = history.lock();
+    setBusy(true);
+    try { await flush(true); }
+    catch (error) { release(); setBusy(false); throw error; }
+    return () => { release(); setBusy(false); };
+  }
   async function applyRecoveredLibrary(candidate: Library) {
     for (const ref of assetRefs(candidate)) await readAsset(ref);
     await flush();
@@ -580,7 +587,7 @@ export default function App() {
         <h1>资料库暂时无法读取</h1>
         <p>原有资料没有被覆盖。请重试，或检查桌面资料库文件。</p>
         <code>{loadError}</code>
-        <RecoveryPanel failed onApply={applyRecoveredLibrary} />
+        <RecoveryPanel failed onApply={applyRecoveredLibrary} beforeApply={beforeRecovery} />
         <button
           className="button primary"
           onClick={() => window.location.reload()}
@@ -1311,6 +1318,7 @@ export default function App() {
           onExportMarkdown={() => { setModal(null); setMarkdownScope({ kind: "library" }); }}
           themePref={themePref} onThemeChange={setThemePref}
           applyRecoveredLibrary={applyRecoveredLibrary}
+          beforeRecovery={beforeRecovery}
           onImport={async (base, payload, choices) => {
             await flush();
             const result = await appendLibraryImport(base, payload, choices);

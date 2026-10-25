@@ -35,9 +35,12 @@ export async function loadLibrary(): Promise<Library | null> {
   const value = typeof raw === "string" ? JSON.parse(raw) : raw;
   return migrateLibrary(value);
 }
-export interface LibrarySnapshot { id: string; createdAt: string; data: unknown }
+export interface LibrarySnapshot { id: string; createdAt: string; data?: unknown; characters?: number; versions?: number; error?: string }
 export async function listSnapshots(): Promise<LibrarySnapshot[]> {
-  if (desktop) return [];
+  if (desktop) {
+    const rows = await invoke<(Omit<LibrarySnapshot, "createdAt"> & { createdAt: number })[]>("list_snapshots");
+    return rows.map(row => ({ ...row, createdAt: new Date(row.createdAt * 1000).toISOString() }));
+  }
   return (await (await db()).getAll("snapshots") as LibrarySnapshot[]).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 export async function preserveOriginal(raw: unknown): Promise<void> {
@@ -58,7 +61,8 @@ export async function exportRecoveryOriginals(): Promise<Uint8Array> {
   return zipSync(Object.fromEntries(rows.map((row, i) => [`original-${i + 1}.json`, strToU8(typeof row.data === "string" ? row.data : JSON.stringify(row.data, null, 2))])));
 }
 export async function snapshotLibrary(snapshot: LibrarySnapshot): Promise<Library> {
-  const lib = migrateLibrary(typeof snapshot.data === "string" ? JSON.parse(snapshot.data) : snapshot.data);
+  const raw = desktop ? await invoke<string>("read_snapshot", { id: snapshot.id }) : snapshot.data;
+  const lib = migrateLibrary(typeof raw === "string" ? JSON.parse(raw) : raw);
   for (const ref of assetRefs(lib)) await readAsset(ref);
   return lib;
 }

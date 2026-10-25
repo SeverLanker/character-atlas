@@ -73,6 +73,7 @@ import {
 } from "./storage";
 import { mergeCoc, blankCoc, type CocPatch } from "./coc";
 import { useLibraryHistory } from "./useLibraryHistory";
+import { catalogDraftNeedsAttention } from "./hooks/useCatalogDraft";
 import { BookPages, IdentityCard } from "./components/BookPages";
 import { Editor } from "./components/Editor";
 import { CatalogPanel } from "./components/CatalogPanel";
@@ -189,6 +190,7 @@ export default function App() {
     getCurrentWindow()
       .onCloseRequested(async (event) => {
         event.preventDefault();
+        if (catalogDraftNeedsAttention()) { notify("模板草稿尚未保存到本机，请先保存模板或复制内容，再关闭程序"); return; }
         let release: () => void;
         try { release = lockHistory(); }
         catch { notify("资料正在处理，请完成后再关闭窗口"); return; }
@@ -210,6 +212,11 @@ export default function App() {
       cleanup?.();
     };
   }, [notify, flush, getHistoryState, lockHistory]);
+  useEffect(() => {
+    const guard = (event: BeforeUnloadEvent) => { if (catalogDraftNeedsAttention()) { event.preventDefault(); event.returnValue = ""; } };
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, []);
   useEffect(() => {
     if (!(modal || confirm || preview)) return;
     const previous = document.body.style.overflow;

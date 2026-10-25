@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { Library } from "./model";
+import { markOperation, operationHistory } from "./history-labels";
 type Update = Library | null | ((current: Library | null) => Library | null);
 export type HistoryAction = "set" | "undo" | "redo";
 export interface HistoryState {
@@ -44,6 +45,7 @@ export function historyReducer(state: HistoryState, action: Action): HistoryStat
       ? action.update(state.current)
       : action.update;
   if (current === state.current) return state;
+  if (current) markOperation(current, state.current, "ui", action.time);
   const grouped =
     !action.checkpoint && state.group && action.time - state.time < 800;
   return {
@@ -79,5 +81,5 @@ export function useLibraryHistory() {
       for (const action of pending) publish(historyReducer(live.current, action));
     };
   }, [publish]);
-  return { library: state.current, lastAction: state.lastAction, setLibrary: set, undo, redo, canUndo: !!state.past.length, canRedo: !!state.future.length, getState, publish, lock };
+  return { library: state.current, operations: operationHistory(state), lastAction: state.lastAction, setLibrary: set, undo, redo, canUndo: !!state.past.length, canRedo: !!state.future.length, getState, publish, lock };
 }

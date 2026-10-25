@@ -1319,6 +1319,7 @@ export default function App() {
           themePref={themePref} onThemeChange={setThemePref}
           applyRecoveredLibrary={applyRecoveredLibrary}
           beforeRecovery={beforeRecovery}
+          history={history}
           onImport={async (base, payload, choices) => {
             await flush();
             const result = await appendLibraryImport(base, payload, choices);

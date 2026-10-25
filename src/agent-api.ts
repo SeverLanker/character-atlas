@@ -2,6 +2,7 @@ import { applyCatalogImport, catalogLabels, exportCatalog, parseCatalog } from "
 import { catalogKey } from "./catalog-key";
 import { validateLibrary, type Library } from "./model";
 import { historyReducer, type HistoryState } from "./useLibraryHistory";
+import { markOperation } from "./history-labels";
 import { characterChoices, decodeBase64, parseCharacterJson, parseCharacterZip, type ParsedCharacters } from "./character-import";
 import { mergeLibraries } from "./merge";
 import { duplicateGroups, field, fields, lightEntry, queryIsEmpty, readQuery, selectCatalog, tagList, worldCounts } from "./agent-catalog";
@@ -268,7 +269,7 @@ export async function executeAgentRequest(request: AgentRequest, context: AgentC
       const candidate = next?.current ?? library;
       validateLibrary(candidate);
       try { await context.commit(request, library, candidate, { request_id: requestId as string, fingerprint: request.fingerprint, reply }); } catch (error) { throw operational(error, 500); }
-      if (next) { if (path !== "/undo" && path !== "/redo" && next.current) agentStates.add(next.current); context.publish(next); }
+      if (next) { if (path !== "/undo" && path !== "/redo" && next.current) { agentStates.add(next.current); markOperation(next.current, library, "agent", Date.now()); } context.publish(next); }
     }
     return reply;
   } catch (error) {

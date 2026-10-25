@@ -9,6 +9,11 @@ import type { CatalogEntry } from "./model";
 const entry = (id: string, tags: string[], extra: Partial<CatalogEntry> = {}): CatalogEntry => ({ id, kind: "skill", title: id, text: "", rank: "", common: false, tags, ...extra });
 const rows = [entry("a", ["战斗", "近战"]), entry("b", ["战斗", "远程"], { favorite: true }), entry("c", ["探索"], { world: "雾港" }), entry("d", ["战斗"], { kind: "spell" }), entry("e", [])];
 
+it("界面与 Agent 一样可以按来源和来源编号搜索", () => {
+  const sourced = [entry("source-entry", [], { source: "规则书", sourceId: "D-33" })];
+  expect(filterCatalog(sourced, { ...emptyFilter("skill"), query: "规则书 D-33" }).map(row => row.id)).toEqual(["source-entry"]);
+});
+
 it("多标签：任一 / 全部，可与收藏、世界、类别、搜索组合", () => {
   const base = emptyFilter("skill");
   expect(filterCatalog(rows, { ...base, tags: ["近战", "远程"] }).map(r => r.id)).toEqual(["a", "b"]);

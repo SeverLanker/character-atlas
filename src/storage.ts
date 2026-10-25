@@ -35,9 +35,12 @@ export async function loadLibrary(): Promise<Library | null> {
   const value = typeof raw === "string" ? JSON.parse(raw) : raw;
   return migrateLibrary(value);
 }
-export interface LibrarySnapshot { id: string; createdAt: string; data: unknown }
+export interface LibrarySnapshot { id: string; createdAt: string; data?: unknown; characters?: number; versions?: number; error?: string }
 export async function listSnapshots(): Promise<LibrarySnapshot[]> {
-  if (desktop) return [];
+  if (desktop) {
+    const rows = await invoke<(Omit<LibrarySnapshot, "createdAt"> & { createdAt: number })[]>("list_snapshots");
+    return rows.map(row => ({ ...row, createdAt: new Date(row.createdAt * 1000).toISOString() }));
+  }
   return (await (await db()).getAll("snapshots") as LibrarySnapshot[]).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 export async function preserveOriginal(raw: unknown): Promise<void> {
@@ -57,10 +60,22 @@ export async function exportRecoveryOriginals(): Promise<Uint8Array> {
   if (!rows.length) throw new Error("尚无已保留的修复原件");
   return zipSync(Object.fromEntries(rows.map((row, i) => [`original-${i + 1}.json`, strToU8(typeof row.data === "string" ? row.data : JSON.stringify(row.data, null, 2))])));
 }
-export async function snapshotLibrary(snapshot: LibrarySnapshot): Promise<Library> {
-  const lib = migrateLibrary(typeof snapshot.data === "string" ? JSON.parse(snapshot.data) : snapshot.data);
-  for (const ref of assetRefs(lib)) await readAsset(ref);
+export async function snapshotLibrary(snapshot: LibrarySnapshot, verifyAssets = true): Promise<Library> {
+  const raw = desktop ? await invoke<string>("read_snapshot", { id: snapshot.id }) : snapshot.data;
+  const lib = migrateLibrary(typeof raw === "string" ? JSON.parse(raw) : raw);
+  if (verifyAssets) for (const ref of assetRefs(lib)) await readAsset(ref);
   return lib;
+}
+export interface AssetInfo { name: string; bytes: number }
+/** Inventory only. Does not read image bodies on desktop or remove any files. */
+export async function listAssetFiles(): Promise<AssetInfo[]> {
+  if (desktop) return invoke<AssetInfo[]>("list_asset_files");
+  const database = await db(), rows: AssetInfo[] = [];
+  for (const key of await database.getAllKeys("assets")) {
+    const bytes = await database.get("assets", key);
+    if (typeof key === "string" && bytes instanceof Uint8Array) rows.push({ name: key, bytes: bytes.byteLength });
+  }
+  return rows;
 }
 /** Compares a stored (already migrated) library with an in-memory one after migrating both sides. */
 export function sameLibrary(stored: Library | null, expected: Library): boolean {

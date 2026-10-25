@@ -1,5 +1,6 @@
 import { normalizeCatalogName } from "./catalog-key";
 import type { CatalogEntry, CatalogKind } from "./model";
+import { selectCatalog } from "./agent-catalog";
 
 export type TagMode = "any" | "all";
 export type CatalogSort = "original" | "name" | "favorite";
@@ -23,15 +24,11 @@ export function scopeEntries(entries: CatalogEntry[], kind: CatalogKind, world: 
   return entries.filter(entry => entry.kind === kind && inWorld(entry, world));
 }
 export function matchesTags(entry: CatalogEntry, tags: string[], mode: TagMode): boolean {
-  if (!tags.length) return true;
-  const own = new Set(entry.tags ?? []);
-  return mode === "all" ? tags.every(tag => own.has(tag)) : tags.some(tag => own.has(tag));
+  return selectCatalog([entry], { tags, tagMode: mode, q: [] }).length > 0;
 }
 export function filterCatalog(entries: CatalogEntry[], filter: CatalogFilter): CatalogEntry[] {
   const tokens = filter.query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  const rows = scopeEntries(entries, filter.kind, filter.world).filter(entry =>
-    matchesTags(entry, filter.tags, filter.tagMode) && (!filter.favorite || entry.favorite) &&
-    tokens.every(token => `${entry.title} ${entry.world ?? ""} ${entry.text} ${entry.rank} ${(entry.tags ?? []).join(" ")}`.toLocaleLowerCase().includes(token)));
+  const rows = selectCatalog(scopeEntries(entries, filter.kind, filter.world), { tags: filter.tags, tagMode: filter.tagMode, q: tokens, favorite: filter.favorite || undefined });
   if (filter.sort === "name") return [...rows].sort((a, b) => a.title.localeCompare(b.title, "zh-CN"));
   if (filter.sort === "favorite") return [...rows].sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite));
   return rows;

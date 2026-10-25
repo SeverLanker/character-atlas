@@ -7,7 +7,7 @@ const connection = JSON.parse(await readFile(process.argv[2] ?? ".agent/connecti
 assert.equal(new URL(connection.url).hostname, "127.0.0.1");
 const prefix = `agent-smoke-${randomUUID()}`, world = prefix;
 const call = async (method, path, body, extra = {}) => {
-  const response = await fetch(new URL(path, connection.url), { method, headers: { Authorization: `Bearer ${connection.token}`, "Content-Type": "application/json", ...extra }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(35000) });
+  const response = await fetch(new URL(path, connection.url), { method, headers: { Authorization: `Bearer ${connection.token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...extra }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(35000) });
   return { status: response.status, text: await response.text() };
 };
 const json = async (...args) => { const reply = await call(...args); assert.equal(reply.status, 200, reply.text); return JSON.parse(reply.text); };
@@ -50,8 +50,30 @@ try {
   const exported = await call("GET", `/catalog/export?format=csv&world=${encodeURIComponent(world)}&kind=specialty`);
   assert.equal(exported.status, 200); assert.ok(exported.text.includes("验证通过"));
   report.checks.push("single entry validation, patch/get and filtered CSV export");
+  // v1.1: rename keeps id, Idempotency-Key header, list, stats, batch, duplicates, ids export, backup.
+  const key = name => ({ "Idempotency-Key": `${prefix}:${name}` });
+  const renamed = await json("PATCH", `/catalog/${id}`, { title: `${prefix}-改名`, kind: "skill", source: "smoke.md", sourceId: "S-1" }, key("rename"));
+  assert.equal(renamed.id, id); assert.equal(renamed.kind, "skill");
+  assert.equal((await call("PATCH", `/catalog/${id}`, { rank: "x", request_id: "other" }, key("mismatch"))).status, 422);
+  const listed = await json("GET", `/catalog?world=${encodeURIComponent(world)}&limit=5`);
+  assert.equal(listed.total, 1); assert.equal(listed.items[0].id, id); assert.ok(!("text" in listed.items[0])); assert.equal(listed.next_cursor, null);
+  const stats = await json("GET", "/stats");
+  assert.equal(stats.catalog_by_world[world], 1); assert.ok(stats.agent_undo_depth >= 1); assert.ok(stats.tags.some(t => t.tag === "甲"));
+  const batch = { filter: { world }, add_tags: ["丁"], remove_tags: ["丙"] };
+  assert.equal((await json("PATCH", "/catalog", { ...batch, dry_run: true })).will_update, 1);
+  assert.deepEqual((await json("PATCH", "/catalog", batch, key("batch"))).ids, [id]);
+  assert.deepEqual((await json("GET", `/catalog/${id}`)).tags, ["甲", "乙", "丁"]);
+  await json("POST", "/undo", undefined, key("undo-batch"));
+  assert.deepEqual((await json("GET", `/catalog/${id}`)).tags, ["甲", "乙", "丙"]);
+  assert.equal((await json("GET", `/catalog/duplicates?world=${encodeURIComponent(world)}`)).group_count, 0);
+  const picked = await call("GET", `/catalog/export?format=csv&ids=${encodeURIComponent(id)}`);
+  assert.ok(picked.text.includes("S-1") && picked.text.includes("来源编号"));
+  const backup = await fetch(new URL("/backup", connection.url), { headers: { Authorization: `Bearer ${connection.token}` }, signal: AbortSignal.timeout(35000) });
+  if (backup.status === 200) { const head = Buffer.from(await backup.arrayBuffer()).subarray(0, 2).toString(); assert.equal(head, "PK"); report.checks.push("backup zip"); } else report.checks.push(`backup skipped: HTTP ${backup.status}`);
+  report.checks.push("v1.1: rename keeps id, Idempotency-Key, list, stats, batch + undo, duplicates, ids export");
 } finally {
-  if (id) await json("DELETE", `/catalog/${id}`, { request_id: `${prefix}:cleanup` });
+  // DELETE without a body: request id travels in the Idempotency-Key header.
+  if (id) await json("DELETE", `/catalog/${id}`, undefined, { "Idempotency-Key": `${prefix}:cleanup` });
 }
 // Character import: a uniquely named temporary character, removed again with an agent-only undo.
 {

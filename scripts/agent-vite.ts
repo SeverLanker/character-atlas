@@ -40,7 +40,7 @@ export function atlasAgent(): Plugin {
       const authorization = Buffer.from(req.headers.authorization ?? "");
       const expected = Buffer.from(`Bearer ${token}`);
       if (req.headers.origin || req.headers.host !== `127.0.0.1:${(http.address() as { port: number }).port}` || authorization.length !== expected.length || !timingSafeEqual(authorization, expected)) { answer(401, { error: "需要本机 Bearer token，拒绝网页跨站请求" }); return; }
-      if (req.method !== "GET" && req.headers["content-type"]?.split(";")[0].trim() !== "application/json") { answer(415, { error: "请求使用 application/json" }); return; }
+      if (req.method !== "GET" && (Number(req.headers["content-length"] ?? 0) > 0 || req.headers["transfer-encoding"]) && req.headers["content-type"]?.split(";")[0].trim() !== "application/json") { answer(415, { error: "请求使用 application/json" }); return; }
       if (Number(req.headers["content-length"] ?? 0) > 64 * 1024 * 1024) { answer(413, { error: "请求超过 64 MB" }); return; }
       req.setTimeout(10000, () => req.destroy());
       try {
@@ -51,16 +51,19 @@ export function atlasAgent(): Plugin {
         let body: unknown;
         try { body = text ? JSON.parse(text) : undefined; } catch { answer(400, { error: "JSON 语法错误" }); return; }
         if (!active || active.socket.readyState !== 1) { answer(503, { error: "请打开本地预览应用；尚无就绪的应用连接" }); return; }
+        const header = (name: string) => { const value = req.headers[name]; return Array.isArray(value) ? value[0] : value; };
+        const idempotency = header("idempotency-key") ?? header("x-request-id");
+        if (header("idempotency-key") && header("x-request-id") && header("idempotency-key") !== header("x-request-id")) { answer(422, { error: "Idempotency-Key 与 X-Request-Id 请求头不一致" }); return; }
         const id = randomUUID(), deadline = Date.now() + 30000;
         const fingerprint = createHash("sha256").update(`${req.method}\n${req.url}\n${JSON.stringify(canonical(body ?? {}))}`).digest("hex");
         const client = active;
         const reply = await new Promise<AgentReply>(resolve => {
           const timer = setTimeout(() => resolve({ status: 504, body: JSON.stringify({ error: "请求超时；写操作请使用相同 request_id 重试" }), content_type: "application/json" }), 30000);
           pending.set(id, { client, resolve: value => { clearTimeout(timer); resolve(value); } });
-          client.send("atlas:agent-request", { id, deadline, fingerprint, method: req.method, url: req.url, body, request_id: req.headers["x-request-id"] } as AgentRequest);
+          client.send("atlas:agent-request", { id, deadline, fingerprint, method: req.method, url: req.url, body, request_id: idempotency } as AgentRequest);
         });
         pending.delete(id);
-        res.writeHead(reply.status, { "Content-Type": reply.content_type, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }); res.end(reply.body);
+        res.writeHead(reply.status, { "Content-Type": reply.content_type, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }); res.end(reply.encoding === "base64" ? Buffer.from(reply.body, "base64") : reply.body);
       } catch { if (!res.headersSent) answer(500, { error: "请求未完成，请用相同 request_id 重试" }); else res.end(); }
     });
     const configured = process.env.ATLAS_AGENT_PORT === undefined ? 0 : Number(process.env.ATLAS_AGENT_PORT);

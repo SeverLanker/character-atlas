@@ -89,7 +89,9 @@ export function CatalogPanel({ entries, onChange, profile, onPatch, historyActio
       if (entries.some(item => item.id !== draft.id && catalogKey(item) === catalogKey(draft))) {
         setMessage('同类中已有同名模板，请修改名称或编辑原模板。'); return;
       }
-      const saved = { ...draft, createdAt: draft.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString(), title: draft.title.trim(), world: draft.world?.trim(), tags: [...new Set((draft.tags ?? []).map(t => t.trim()).filter(Boolean))] };
+      const saved = { ...draft, createdAt: draft.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString(), title: draft.title.trim(), world: draft.world?.trim(), tags: [...new Set((draft.tags ?? []).map(t => t.trim()).filter(Boolean))], source: draft.source?.trim() || undefined, sourceId: draft.sourceId?.trim() || undefined };
+      if (!saved.source) delete saved.source;
+      if (!saved.sourceId) delete saved.sourceId;
       onChange(entries.some((item) => item.id === saved.id) ? entries.map((item) => item.id === saved.id ? saved : item) : [...entries, saved]);
       if (saved.kind !== kind) setKind(saved.kind);
       setDraft(null); setMessage("模板已保存。");
@@ -98,6 +100,8 @@ export function CatalogPanel({ entries, onChange, profile, onPatch, historyActio
       <label className="field"><span>模板类别</span><select value={draft.kind} onChange={e => setDraft({ ...draft, kind: e.target.value as CatalogKind })}>{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
       <label className="field"><span>世界／作品</span><input aria-label="模板世界／作品" maxLength={200} list={worldListId} value={draft.world ?? ""} placeholder="留空表示全库通用" onChange={e => setDraft({ ...draft, world: e.target.value })}/><datalist id={worldListId}>{worlds.map(([key, name]) => <option key={key} value={name}/>)}</datalist></label>
       <label className="field"><span>模板标签（逗号分隔）</span><input maxLength={1000} value={(draft.tags ?? []).join(',')} onChange={e => setDraft({ ...draft, tags: e.target.value.split(/[,，]/).slice(0, 50).map(t => t.slice(0, 100)) })}/></label>
+      <label className="field"><span>来源</span><input aria-label="模板来源" maxLength={500} value={draft.source ?? ""} placeholder="如文档路径，可留空" onChange={e => setDraft({ ...draft, source: e.target.value })}/></label>
+      <label className="field"><span>来源编号</span><input aria-label="模板来源编号" maxLength={200} value={draft.sourceId ?? ""} placeholder="如 D-32，可留空" onChange={e => setDraft({ ...draft, sourceId: e.target.value })}/></label>
       <label className="field"><span>模板内容</span><textarea rows={4} value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} /></label>
       {draft.kind !== "item" && <><label className="field"><span>模板等级</span><input value={draft.rank} onChange={(e) => setDraft({ ...draft, rank: e.target.value })} /></label>
         <label><input type="checkbox" checked={draft.common} onChange={(e) => setDraft({ ...draft, common: e.target.checked })} /> 通用能力（阅读默认收起）</label></>}
@@ -108,6 +112,7 @@ export function CatalogPanel({ entries, onChange, profile, onPatch, historyActio
       <h4>{item.title} <small>{item.rank}</small></h4>
       <div className="catalog-tags"><span>{item.world || "全库通用"}</span>{(item.tags ?? []).map((t, i) => <span key={i}>{t}</span>)}{item.common && <span>通用</span>}</div>
       {item.text.length > 200 ? <details><summary>查看说明 · {item.text.length} 字</summary><p className="catalog-description">{item.text}</p></details> : <p className="catalog-description">{item.text}</p>}
+      {(item.source || item.sourceId) && <p className="catalog-source">来源：{item.source}{item.sourceId && <> · <code>{item.sourceId}</code></>}</p>}
       <div className="coc-edit-actions">{profile && onPatch && <button disabled={alreadyAdded(item)} className="button small" onClick={() => applyEntry(item)}>{alreadyAdded(item) ? '已有同名条目' : '添加到当前版本'}</button>}
         <button className="text-button" aria-label={`${item.favorite ? '取消收藏' : '收藏'}模板 ${item.title}`} aria-pressed={!!item.favorite} onClick={() => onChange(entries.map(row => row.id === item.id ? { ...row, favorite: !row.favorite } : row))}>{item.favorite ? '★ 已收藏' : '☆ 收藏'}</button>
         <button className="button small" onClick={() => setDraft({ ...item })}>编辑模板</button>

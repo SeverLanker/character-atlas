@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { copyIncomingAssets, desktop, readAgentRecord, saveLibrary } from "../storage";
+import { copyIncomingAssets, desktop, exportBackup, readAgentRecord, saveLibrary } from "../storage";
 import { executeAgentRequest, agentJson, type AgentRequest, type AgentReply } from "../agent-api";
 import { queueSave } from "./useAutosave";
 import type { useLibraryHistory } from "../useLibraryHistory";
@@ -29,6 +29,7 @@ export function useAgentBridge(history: ReturnType<typeof useLibraryHistory>, fl
           publish: state => latest.current.history.publish(state),
           lookup: readAgentRecord,
           importAssets: copyIncomingAssets,
+          backup: exportBackup,
           commit: (req, previous, next, record) => saveLibrary(next, false, previous, { ...record, id: req.id, deadline: req.deadline }),
         });
         await respond(reply);

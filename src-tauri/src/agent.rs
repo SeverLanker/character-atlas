@@ -8,9 +8,24 @@ use std::{collections::HashMap, fs, io::{ErrorKind, Read, Write}, net::{Shutdown
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Reply { status: u16, body: String, content_type: String }
+pub struct Reply {
+    status: u16, body: String, content_type: String,
+    /// "base64" for binary bodies (GET /backup); decoded before writing.
+    #[serde(default, skip_serializing_if = "Option::is_none")] encoding: Option<String>,
+    /// Affected ids for the optional audit log; never sent to the client.
+    #[serde(default, skip_serializing_if = "Option::is_none")] audit_ids: Option<Vec<String>>,
+}
+impl Reply {
+    fn bytes(&self) -> std::borrow::Cow<'_, [u8]> {
+        use base64::Engine;
+        if self.encoding.as_deref() == Some("base64") {
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(&self.body) { return bytes.into(); }
+        }
+        self.body.as_bytes().into()
+    }
+}
 struct Pending { sender: mpsc::Sender<Reply>, deadline: u128, root: PathBuf, request_id: Option<String>, fingerprint: String }
-pub struct AgentState { ready: AtomicBool, pending: Mutex<HashMap<String, Pending>>, connection: Mutex<Option<(PathBuf, String)>> }
+pub struct AgentState { ready: AtomicBool, pending: Mutex<HashMap<String, Pending>>, connection: Mutex<Option<(PathBuf, String)>>, audit: AtomicBool, data_dir: PathBuf }
 const MAX_BODY: usize = 64 * 1024 * 1024;
 const MAX_HEAD: usize = 16 * 1024;
 /// Transport limits. Every socket read and write has a deadline, so an idle or stalled
@@ -121,9 +136,10 @@ fn drain(stream: &mut TcpStream) {
 /// so the client sees the reply instead of a reset.
 fn write_reply(stream: &mut TcpStream, reply: &Reply, write_timeout: Duration) {
     let content_type = if reply.content_type.contains(['\r', '\n']) { "application/octet-stream" } else { reply.content_type.as_str() };
-    let head = format!("HTTP/1.1 {} {}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n", reply.status, reason(reply.status), reply.body.len());
+    let body = reply.bytes();
+    let head = format!("HTTP/1.1 {} {}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n", reply.status, reason(reply.status), body.len());
     let deadline = Instant::now() + write_timeout;
-    if !(write_all_deadline(stream, head.as_bytes(), deadline) && write_all_deadline(stream, reply.body.as_bytes(), deadline)) {
+    if !(write_all_deadline(stream, head.as_bytes(), deadline) && write_all_deadline(stream, &body, deadline)) {
         let _ = stream.shutdown(Shutdown::Both); return;
     }
     let _ = stream.shutdown(Shutdown::Write);
@@ -169,7 +185,9 @@ fn handle(mut stream: TcpStream, gate: &Gate, work: &mpsc::Sender<Job>, _connect
     if request.header("Transfer-Encoding").is_some() { answer(request, failure(411, "请使用 Content-Length 发送请求体")); return; }
     let length = match request.header("Content-Length").map(|value| value.parse::<usize>()) { None => 0, Some(Ok(n)) => n, Some(Err(_)) => { answer(request, failure(400, "Content-Length 无效")); return; } };
     if length > MAX_BODY { answer(request, failure(413, "请求超过 64 MB")); return; }
-    if request.method != "GET" && request.header("Content-Type").unwrap_or_default().split(';').next().unwrap_or("").trim() != "application/json" { answer(request, failure(415, "请求使用 application/json")); return; }
+    // A write without a body (e.g. DELETE with Idempotency-Key) needs no Content-Type.
+    let has_body = request.header("Content-Length").is_some_and(|n| n.trim() != "0") || request.header("Transfer-Encoding").is_some();
+    if request.method != "GET" && has_body && request.header("Content-Type").unwrap_or_default().split(';').next().unwrap_or("").trim() != "application/json" { answer(request, failure(415, "请求使用 application/json")); return; }
     if !(gate.ready)() { answer(request, failure(503, "应用尚未就绪，请稍后重试")); return; }
     let Some(slot) = take_slot(&gate.in_flight, gate.limits.max_in_flight) else { answer(request, failure(503, "排队请求过多，请稍后用相同 request_id 重试")); return; };
     let mut request = request;
@@ -200,7 +218,7 @@ fn canonical(value: &Value) -> Value {
         _ => value.clone(),
     }
 }
-fn failure(status: u16, message: &str) -> Reply { Reply { status, body: json!({"error":message}).to_string(), content_type: "application/json;charset=utf-8".into() } }
+fn failure(status: u16, message: &str) -> Reply { Reply { status, body: json!({"error":message}).to_string(), content_type: "application/json;charset=utf-8".into(), encoding: None, audit_ids: None } }
 fn answer(mut request: HttpRequest, reply: Reply) { write_reply(&mut request.stream, &reply, LIMITS.write_timeout); }
 fn authorized(actual: &str, expected: &str) -> bool {
     actual.len() == expected.len() && actual.bytes().zip(expected.bytes()).fold(0u8, |n, (a,b)| n | (a ^ b)) == 0
@@ -226,8 +244,11 @@ pub fn start(app: &AppHandle) -> AppResult<()> {
         file.write_all(json!({"protocol":1,"url":format!("http://127.0.0.1:{port}"),"token":token,"pid":std::process::id(),"mode":"desktop"}).to_string().as_bytes()).map_err(err)?;
         file.sync_all().map_err(err)?;
     }
+    // Windows has no mode bits: limit the file to the current user before it becomes visible.
+    #[cfg(windows)] if let Err(error) = restrict_to_current_user(&temporary) { eprintln!("agent.json ACL: {error}"); }
     fs::rename(&temporary, &path).map_err(err)?;
-    app.manage(AgentState { ready: AtomicBool::new(false), pending: Mutex::new(HashMap::new()), connection: Mutex::new(Some((path, token.clone()))) });
+    let audit = data_dir.join(AUDIT_FLAG).exists();
+    app.manage(AgentState { ready: AtomicBool::new(false), pending: Mutex::new(HashMap::new()), connection: Mutex::new(Some((path, token.clone()))), audit: AtomicBool::new(audit), data_dir: data_dir.clone() });
     let (work, jobs) = mpsc::channel::<Job>();
     let worker = app.clone();
     // One worker keeps library operations serial; connections are read on their own threads.
@@ -244,7 +265,10 @@ fn process(app: &AppHandle, job: Job) {
     if !state.ready.load(Ordering::SeqCst) { answer(request, failure(503, "应用尚未就绪，请稍后重试")); return; }
     let method = request.method.clone();
     let url = request.url.clone();
-    let request_header = request.header("X-Request-Id");
+    let request_header = match (request.header("Idempotency-Key"), request.header("X-Request-Id")) {
+        (Some(a), Some(b)) if a != b => { answer(request, failure(422, "Idempotency-Key 与 X-Request-Id 请求头不一致")); return; },
+        (a, b) => a.or(b),
+    };
     let body: Value = if bytes.is_empty() { json!({}) } else { match serde_json::from_slice(&bytes) { Ok(value) => value, Err(_) => { answer(request, failure(400, "JSON 语法错误")); return; } } };
     let request_id = request_header.or_else(|| body.get("request_id").and_then(Value::as_str).map(str::to_string));
     let id = match random() { Ok(id) => id, Err(_) => { answer(request, failure(500, "无法生成请求编号")); return; } };
@@ -259,7 +283,43 @@ fn process(app: &AppHandle, job: Job) {
     }
     let reply = receiver.recv_timeout(Duration::from_secs(30)).unwrap_or_else(|_| failure(504, "请求超时；写操作请使用相同 request_id 重试"));
     if let Ok(mut pending) = state.pending.lock() { pending.remove(&id); }
+    if state.audit.load(Ordering::SeqCst) && (method != "GET" || url.starts_with("/backup")) {
+        write_audit(&state.data_dir, &audit_line(&method, &url, request_id.as_deref(), &reply));
+    }
     answer(request, reply);
+}
+
+const AUDIT_FLAG: &str = "agent-audit.on";
+const AUDIT_FILE: &str = "audit.jsonl";
+const AUDIT_MAX: u64 = 10 * 1024 * 1024;
+/// One line per request: time, endpoint, request_id, status and affected ids. No token, body or entry text.
+fn audit_line(method: &str, url: &str, request_id: Option<&str>, reply: &Reply) -> String {
+    let path = url.split('?').next().unwrap_or(url);
+    let query: Vec<&str> = url.split_once('?').map(|(_, q)| q.split('&').filter_map(|pair| pair.split('=').next()).collect()).unwrap_or_default();
+    json!({"time": millis() as u64, "method": method, "endpoint": path, "query_keys": query, "request_id": request_id, "status": reply.status, "ids": reply.audit_ids.clone().unwrap_or_default()}).to_string()
+}
+fn write_audit(dir: &std::path::Path, line: &str) {
+    let path = dir.join(AUDIT_FILE);
+    if fs::metadata(&path).map(|m| m.len() > AUDIT_MAX).unwrap_or(false) { let _ = fs::rename(&path, dir.join("audit.1.jsonl")); }
+    if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(&path) { let _ = writeln!(file, "{line}"); }
+}
+#[tauri::command]
+pub fn agent_audit(state: State<AgentState>, enabled: Option<bool>) -> AppResult<bool> {
+    if let Some(enabled) = enabled {
+        let flag = state.data_dir.join(AUDIT_FLAG);
+        if enabled { fs::write(&flag, b"1").map_err(err)?; } else if flag.exists() { fs::remove_file(&flag).map_err(err)?; }
+        state.audit.store(enabled, Ordering::SeqCst);
+    }
+    Ok(state.audit.load(Ordering::SeqCst))
+}
+/// Removes inherited ACEs and grants full control to the current user only.
+#[cfg(windows)]
+fn restrict_to_current_user(path: &std::path::Path) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    let user = std::env::var("USERNAME").map_err(|_| "USERNAME 未设置".to_string())?;
+    let account = match std::env::var("USERDOMAIN") { Ok(domain) if !domain.is_empty() => format!("{domain}\\{user}"), _ => user };
+    let output = std::process::Command::new("icacls").arg(path).args(["/inheritance:r", "/grant:r"]).arg(format!("{account}:F")).creation_flags(0x0800_0000).output().map_err(|e| e.to_string())?;
+    if output.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&output.stderr).into_owned()) }
 }
 
 #[tauri::command]
@@ -321,7 +381,7 @@ mod tests {
         let in_flight = Arc::new(AtomicUsize::new(0));
         let gate = Arc::new(Gate { token: "t".into(), port, ready: Box::new(|| true), in_flight: in_flight.clone(), limits });
         let (work, jobs) = mpsc::channel::<Job>();
-        std::thread::spawn(move || { for job in jobs { let body = String::from_utf8_lossy(&job.bytes).to_string(); answer(job.request, Reply { status: 200, body, content_type: "text/plain\r\nX-Evil: 1".into() }); } });
+        std::thread::spawn(move || { for job in jobs { let body = String::from_utf8_lossy(&job.bytes).to_string(); answer(job.request, Reply { status: 200, body, content_type: "text/plain\r\nX-Evil: 1".into(), encoding: None, audit_ids: None }); } });
         std::thread::spawn(move || serve(listener, gate, work));
         (port, in_flight)
     }
@@ -351,7 +411,7 @@ mod tests {
     }
     #[test] fn slow_reader_cannot_hold_writer_past_deadline() {
         let (mut server, client) = pair();
-        let big = Reply { status: 200, body: "a".repeat(64 * 1024 * 1024), content_type: "text/plain".into() };
+        let big = Reply { status: 200, body: "a".repeat(64 * 1024 * 1024), content_type: "text/plain".into(), encoding: None, audit_ids: None };
         let started = Instant::now();
         write_reply(&mut server, &big, Duration::from_millis(300)); // client never reads
         assert!(started.elapsed() < Duration::from_millis(1500), "{:?}", started.elapsed());
@@ -384,6 +444,7 @@ mod tests {
         assert!(send(port, format!("POST /undo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\n{{}}")).starts_with("HTTP/1.1 415"));
         assert!(send(port, format!("POST /undo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nContent-Type: application/json\r\nContent-Length: 999999999\r\n\r\n")).starts_with("HTTP/1.1 413"));
         assert!(send(port, format!("POST /undo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n")).starts_with("HTTP/1.1 411"));
+        assert!(send(port, format!("DELETE /catalog/x HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nIdempotency-Key: k1\r\n\r\n")).starts_with("HTTP/1.1 200"));
         let echoed = send(port, format!("POST /undo HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer t\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{{}}"));
         assert!(echoed.starts_with("HTTP/1.1 200") && echoed.ends_with("{}"), "{echoed}");
         assert!(send(port, format!("GET /x HTTP/1.1\r\n{}\r\n\r\n", "a: b\r\n".repeat(4000))).starts_with("HTTP/1.1 431"));
@@ -450,5 +511,33 @@ mod tests {
         assert_eq!(connection.query_row("SELECT data FROM library WHERE id=1", [], |r| r.get::<_,String>(0)).unwrap(), after);
         assert_eq!(connection.query_row("SELECT COUNT(*) FROM agent_requests", [], |r| r.get::<_,u32>(0)).unwrap(),1);
         drop(connection); fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn base64_bodies_are_decoded_and_audit_lines_carry_no_body() {
+        let reply = Reply { status: 200, body: "UEsDBA==".into(), content_type: "application/zip".into(), encoding: Some("base64".into()), audit_ids: Some(vec!["a".into()]) };
+        assert_eq!(&*reply.bytes(), b"PK\x03\x04");
+        let plain = Reply { status: 200, body: "{\"secret\":1}".into(), content_type: "application/json".into(), encoding: None, audit_ids: None };
+        assert_eq!(&*plain.bytes(), plain.body.as_bytes());
+        let line: Value = serde_json::from_str(&audit_line("PATCH", "/catalog/x?dry_run=1&token=abc", Some("r1"), &plain)).unwrap();
+        assert_eq!(line["endpoint"], "/catalog/x");
+        assert_eq!(line["query_keys"], json!(["dry_run", "token"]));
+        assert!(!line.to_string().contains("abc") && !line.to_string().contains("secret"));
+        let dir = std::env::temp_dir().join(format!("atlas-audit-{}", random().unwrap()));
+        fs::create_dir_all(&dir).unwrap();
+        write_audit(&dir, "{\"a\":1}"); write_audit(&dir, "{\"a\":2}");
+        assert_eq!(fs::read_to_string(dir.join(AUDIT_FILE)).unwrap().lines().count(), 2);
+        let _ = fs::remove_dir_all(dir);
+    }
+    #[cfg(windows)]
+    #[test]
+    fn connection_file_acl_is_current_user_only() {
+        let path = std::env::temp_dir().join(format!("atlas-acl-{}.json", random().unwrap()));
+        fs::write(&path, "{}").unwrap();
+        restrict_to_current_user(&path).unwrap();
+        let output = std::process::Command::new("icacls").arg(&path).output().unwrap();
+        let text = String::from_utf8_lossy(&output.stdout).to_lowercase();
+        assert!(text.contains(&std::env::var("USERNAME").unwrap().to_lowercase()), "{text}");
+        assert!(!text.contains("everyone") && !text.contains("builtin\\users") && !text.contains("(i)"), "{text}");
+        let _ = fs::remove_file(path);
     }
 }

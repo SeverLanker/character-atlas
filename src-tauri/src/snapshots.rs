@@ -53,6 +53,19 @@ fn list(root: &Path) -> AppResult<Vec<SnapshotInfo>> {
 pub fn list_snapshots(state: State<LibraryState>) -> AppResult<Vec<SnapshotInfo>> { let root = state.root.lock().map_err(err)?; list(&root) }
 #[tauri::command]
 pub fn read_snapshot(state: State<LibraryState>, id: String) -> AppResult<String> { let root = state.root.lock().map_err(err)?; read(&root, &id) }
+#[derive(Serialize)]
+pub struct AssetInfo { name: String, bytes: u64 }
+#[tauri::command]
+pub fn list_asset_files(state: State<LibraryState>) -> AppResult<Vec<AssetInfo>> {
+    let root = state.root.lock().map_err(err)?;
+    let mut rows = Vec::new();
+    for entry in fs::read_dir(root.join("assets")).map_err(err)?.filter_map(Result::ok) {
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue };
+        if crate::asset_path(&root, &name).is_err() || !entry.file_type().map_err(err)?.is_file() { continue; }
+        rows.push(AssetInfo { name, bytes: entry.metadata().map_err(err)?.len() });
+    }
+    Ok(rows)
+}
 
 #[cfg(test)]
 mod tests {

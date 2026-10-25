@@ -11,6 +11,7 @@ import { Modal } from "./Modal";
 import { ThemePicker } from "../components/ThemePicker";
 import { AgentAuditToggle } from "../components/AgentAuditToggle";
 import { OperationHistory } from "../components/OperationHistory";
+import { LibraryHealth } from "../components/LibraryHealth";
 import type { useLibraryHistory } from "../useLibraryHistory";
 import type { ThemePref } from "../theme";
 
@@ -163,6 +164,7 @@ export function LibrarySettingsModal({
           </p>
           {themePref && onThemeChange && <ThemePicker value={themePref} onChange={onThemeChange} />}
           {history && <OperationHistory history={history} disabled={busy} />}
+          <LibraryHealth library={library} disabled={busy} />
           <RecoveryPanel key={backupRevision} onApply={applyRecoveredLibrary} beforeApply={beforeRecovery} />
           <ImportPanel current={library} onImport={onImport} />
           {busy && (

@@ -1,0 +1,58 @@
+// Isolated, synthetic workload. IndexedDB exists only in the child process's memory.
+import { build } from "esbuild";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
+const root = fileURLToPath(new URL("../", import.meta.url));
+const folder = await mkdtemp(join(tmpdir(), "atlas-scale-")), output = join(folder, "workload.cjs");
+const source = `
+import 'fake-indexeddb/auto';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {createHash} from 'node:crypto';
+import {performance} from 'node:perf_hooks';
+import {createCharacter,migrateLibrary,validateLibrary} from './src/model';
+import {buildSearchIndex,searchDocuments} from './src/search';
+import {filterCatalog,emptyFilter,paginate} from './src/catalog-filter';
+import {inspectLibraryHealth} from './src/library-health';
+import {db,exportBackup,parseBackup} from './src/storage';
+(async()=>{
+  const timings=[];
+  const measure=async(name,fn)=>{const start=performance.now();const result=await fn();timings.push({name,ms:Math.round(performance.now()-start)});return result;};
+  const assert=(ok,message)=>{if(!ok) throw Error(message);};
+  const image=new Uint8Array(readFileSync(join(process.argv[2],'public/art/characters.png')));
+  const library=migrateLibrary({schemaVersion:2,characters:Array.from({length:500},(_,i)=>{
+    const c=createCharacter('合成角色'+i);
+    c.versions=Array.from({length:3},(_,j)=>({...structuredClone(c.versions[0]),id:crypto.randomUUID(),name:'阶段'+j,profile:{...structuredClone(c.versions[0].profile),portrait:'fixture-'+((i+j)%40)+'.png',summary:'回声与旧城的合成经历。'.repeat(100)}}));c.defaultVersionId=c.versions[0].id;return c;
+  }),catalog:Array.from({length:10000},(_,i)=>({id:'entry-'+i,kind:'skill',title:'技能'+i,rank:'精通',text:'合成说明。'.repeat(60),common:false,tags:[i%2?'探索':'战斗'],world:'测试世界'}))});
+  await measure('validate',()=>validateLibrary(library));
+  const before=createHash('sha256').update(JSON.stringify(library)).digest('hex');
+  const index=await measure('search_index',()=>buildSearchIndex(library));
+  const hits=await measure('search_query',()=>searchDocuments(index,'回声'));
+  assert(hits.length===500,'Search lost characters');
+  const rows=await measure('catalog_filter',()=>filterCatalog(library.catalog,{...emptyFilter('skill'),tags:['探索']}));
+  assert(rows.length===5000&&paginate(rows.length,100,50).end===5000,'Paging/filter mismatch');
+  const inventory=Array.from({length:1040},(_,i)=>({name:'fixture-'+i+'.png',bytes:image.length}));
+  const health=await measure('health_inventory',()=>inspectLibraryHealth(library,inventory));
+  assert(health.missing.length===0&&health.unreferenced.length===1000,'Health report mismatch');
+  const database=await db();
+  await measure('fixture_images_to_memory',async()=>{for(let i=0;i<40;i++)await database.put('assets',image,'fixture-'+i+'.png');});
+  const zip=await measure('export_full_zip',()=>exportBackup(library));
+  const restored=await measure('parse_full_zip',()=>parseBackup(zip));
+  assert(Object.keys(restored.assets).length===40,'Images missing from backup');
+  const imageHash=createHash('sha256').update(image).digest('hex');
+  for(const bytes of Object.values(restored.assets)) assert(createHash('sha256').update(bytes).digest('hex')===imageHash,'Backup changed image bytes');
+  assert(createHash('sha256').update(JSON.stringify(restored.library)).digest('hex')===before,'Backup roundtrip changed library');
+  assert(createHash('sha256').update(JSON.stringify(library)).digest('hex')===before,'Checks modified library');
+  database.close();
+  console.log(JSON.stringify({runtime:process.version,platform:process.platform,fixture:{characters:500,versions:1500,catalog:10000,actual_png_files:40,actual_png_mib:+(image.length*40/1048576).toFixed(1),inventory_only_extra_files:1000},zip_mib:+(zip.length/1048576).toFixed(1),roundtrip_unchanged:true,timings,limits:'Synthetic Node workload with memory IndexedDB; not native SQLite, UI rendering, disk throughput or a sustained-load SLA.'},null,2));
+})().catch(error=>{console.error(error);process.exitCode=1;});
+`;
+await build({ stdin: { contents: source, resolveDir: root, loader: "ts" }, bundle: true, platform: "node", format: "cjs", outfile: output, logLevel: "silent" });
+const run = spawnSync(process.execPath, [output, root], { encoding: "utf8", maxBuffer: 1024 * 1024, timeout: 180000 });
+if (run.status !== 0) throw new Error(run.stderr || String(run.error || "Scale check failed"));
+process.stdout.write(run.stdout);
+const destination = process.argv[2];
+if (destination) await writeFile(destination, run.stdout);

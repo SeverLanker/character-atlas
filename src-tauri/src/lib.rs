@@ -348,6 +348,7 @@ pub fn run() {
             load_library,
             snapshots::list_snapshots,
             snapshots::read_snapshot,
+            snapshots::list_asset_files,
             save_library,
             write_asset,
             read_asset,

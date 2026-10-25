@@ -4,7 +4,7 @@ import { CatalogTransfer } from "./CatalogTransfer";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useCatalogDraft } from "../hooks/useCatalogDraft";
 import { emptyFilter, filterCatalog, isFiltered, pageItems, paginate, PAGE_SIZES, quickTags, readCatalogPrefs, scopeEntries, tagCounts, toggle, writeCatalogPrefs, type CatalogFilter, type CatalogSort } from "../catalog-filter";
-import { uid, type CatalogEntry, type CatalogKind, type Overrides, type Profile } from "../model";
+import { uid, validateLibrary, type CatalogEntry, type CatalogKind, type Overrides, type Profile } from "../model";
 
 const labels: Record<CatalogKind, string> = { skill: "技能", spell: "法术", specialty: "专长", item: "物品" };
 export function CatalogPanel({ entries, onChange, profile, onPatch, historyAction }: {
@@ -103,6 +103,8 @@ export function CatalogPanel({ entries, onChange, profile, onPatch, historyActio
       if (!saved.source) delete saved.source;
       if (!saved.sourceId) delete saved.sourceId;
       const next = entries.some((item) => item.id === saved.id) ? entries.map((item) => item.id === saved.id ? saved : item) : [...entries, saved];
+      try { validateLibrary({ schemaVersion: 2, characters: [], catalog: next }); }
+      catch (error) { setMessage(`模板尚未保存，草稿已保留：${error instanceof Error ? error.message : String(error)}`); return; }
       onChange(next);
       const targetFilter = { ...emptyFilter(saved.kind), sort: "name" as const };
       const index = filterCatalog(next, targetFilter).findIndex(row => row.id === saved.id);

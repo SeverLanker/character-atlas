@@ -48,3 +48,12 @@ it("本机存储写入失败时保留内存草稿并阻挡关闭，取消后解�
   const second = renderHook(() => useCatalogDraft([])); expect(second.result.current.pending?.entry.id).toBe("draft");
   act(() => second.result.current.setDraft(null)); expect(catalogDraftNeedsAttention()).toBe(false);
 });
+it("资料库容量校验未通过时保留草稿，不向应用提交非法条目库", () => {
+  const entries = Array.from({ length: 10000 }, (_, i) => entry(`e${i}`)), change = vi.fn();
+  render(<CatalogPanel entries={entries} onChange={change}/>);
+  fireEvent.click(screen.getByRole("button", { name: "新建技能模板" }));
+  fireEvent.change(screen.getByLabelText("模板名称"), { target: { value: "超出容量的模板" } });
+  fireEvent.click(screen.getByRole("button", { name: "保存模板" }));
+  expect(change).not.toHaveBeenCalled(); expect(screen.getByText(/模板尚未保存，草稿已保留/)).toBeTruthy();
+  expect(JSON.parse(localStorage.getItem(CATALOG_DRAFT_KEY)!).entry.title).toBe("超出容量的模板");
+});

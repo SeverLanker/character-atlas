@@ -16,6 +16,9 @@ import "./styles/themes/night.css";
 import "./styles/themes/xuan.css";
 import "./styles/themes/bureau.css";
 import "./styles/markdown-export.css";
+import "./styles/lanyard.css";
+import { applyReduceMotion, readReduceMotion } from "./motion";
+applyReduceMotion(readReduceMotion());
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

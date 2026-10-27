@@ -1,0 +1,38 @@
+/* Hanging identity card. Ideas from xu-yaoting/hanging-pass (MIT): strap from the top edge,
+   clip + ring hardware, swing/drag, light follows the card. Own CSS, no code copied. */
+.modal.identity-card-modal:has(.lanyard-surface) { overflow: visible; }
+.identity-card-modal .identity-surface.lanyard-surface { position: relative; animation: none; --swing: 0deg; --hinge: 0deg; --drop: 0px; --flip: 0deg; --holo: 0; }
+.lanyard-swing { position: relative; transform-origin: 50% calc(-1 * var(--strap)); transform: rotate(var(--swing)); will-change: transform; }
+.lanyard-strap { position: absolute; top: calc(-1 * var(--strap)); left: 50%; margin-left: -30px; overflow: visible; pointer-events: none; }
+.lanyard-band { fill: none; stroke: color-mix(in srgb, var(--book-accent) 82%, #101820); stroke-width: 18; stroke-linecap: butt; filter: drop-shadow(2px 3px 2px #0005); }
+.lanyard-stitch { fill: none; stroke: color-mix(in srgb, var(--book-paper) 55%, transparent); stroke-width: 14; stroke-dasharray: 1.5 3.5; opacity: .45; }
+.lanyard-line { fill: none; stroke: none; }
+.lanyard-print { fill: color-mix(in srgb, var(--book-paper) 88%, white); font: 700 8.5px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: 2px; dominant-baseline: central; }
+.lanyard-clip { position: absolute; left: 50%; top: calc(var(--drop) - 30px); width: 34px; height: 26px; margin-left: -17px; z-index: 3; pointer-events: none; border-radius: 4px 4px 7px 7px;
+  background: linear-gradient(90deg, #6d7377, #e9edf0 30%, #9aa1a6 55%, #f4f6f7 75%, #7b8186); box-shadow: 0 2px 3px #0006, inset 0 -3px 0 #0002; }
+.lanyard-clip::before { content: ''; position: absolute; left: 6px; right: 6px; top: 6px; height: 4px; border-radius: 2px; background: #2b3034; box-shadow: inset 0 1px 1px #000a; }
+.lanyard-clip span { position: absolute; left: 50%; bottom: -14px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; border: 3px solid #b9c0c5; border-bottom-color: #747b80; box-shadow: 0 1px 2px #0005; }
+.lanyard-card { position: relative; transform-origin: 50% 0; touch-action: none; cursor: grab; will-change: transform;
+  transform: translateY(var(--drop)) rotate(var(--hinge)) perspective(1200px) rotateX(var(--card-rx)) rotateY(calc(var(--card-ry) + var(--flip))); }
+.lanyard-surface.is-dragging .lanyard-card { cursor: grabbing; }
+.identity-card-modal .lanyard-card .id-card { transform: none; transition: box-shadow 240ms ease; }
+/* Punched slot the ring goes through. */
+.lanyard-card::before { content: ''; position: absolute; z-index: 3; top: 7px; left: 50%; width: 30px; height: 6px; margin-left: -15px; border-radius: 3px; background: #0d151c99; box-shadow: inset 0 1px 2px #000c, 0 1px 0 #ffffff60; pointer-events: none; }
+.identity-card-modal .lanyard-card .id-top { padding-top: 10px; }
+/* Holographic foil: follows the light and grows with tilt and swing. */
+.lanyard-holo { position: absolute; inset: 0; z-index: 2; border-radius: 17px; pointer-events: none; mix-blend-mode: soft-light; opacity: calc(.18 + var(--holo) * .55);
+  background: radial-gradient(circle at var(--light-x) var(--light-y), #ffffffb0 0, #ffffff00 38%),
+    linear-gradient(calc(105deg + var(--card-ry) * 3), #ff9ad500 20%, #ff9ad560 34%, #9be7ff70 46%, #c8ff9d60 58%, #ffe39a50 68%, #ffe39a00 80%); }
+.identity-card-modal [data-side="secret"] .lanyard-holo { mix-blend-mode: overlay; }
+.lanyard-surface[data-motion="still"] .lanyard-swing, .lanyard-surface[data-motion="still"] .lanyard-card { transform: none; will-change: auto; }
+.lanyard-surface[data-motion="still"] .lanyard-card { cursor: default; touch-action: auto; }
+.lanyard-surface[data-motion="still"] .lanyard-clip { top: -30px; }
+@media (max-width: 600px) { .lanyard-band { stroke-width: 14; } .lanyard-stitch { stroke-width: 10; } .lanyard-print { font-size: 6.5px; } }
+@media (prefers-reduced-motion: reduce) { .lanyard-swing, .lanyard-card { transform: none !important; } }
+/* 「减少动态效果」 setting: same as the system preference, app-wide. */
+:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+:root[data-motion="reduce"] .id-card-glint { display: none !important; }
+:root[data-motion="reduce"] .lanyard-swing, :root[data-motion="reduce"] .lanyard-card { transform: none !important; }
+.motion-toggle { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); }
+.motion-toggle span { display: grid; gap: 2px; }
+.motion-toggle small { color: var(--muted); }

@@ -9,6 +9,7 @@ import { RecoveryPanel } from "../components/RecoveryPanel";
 import { ImportPanel } from "../components/ImportPanel";
 import { Modal } from "./Modal";
 import { ThemePicker } from "../components/ThemePicker";
+import { MotionToggle } from "../components/MotionToggle";
 import { AgentAuditToggle } from "../components/AgentAuditToggle";
 import { OperationHistory } from "../components/OperationHistory";
 import { LibraryHealth } from "../components/LibraryHealth";
@@ -163,6 +164,7 @@ export function LibrarySettingsModal({
             备份包含秘密档案，请妥善保管。
           </p>
           {themePref && onThemeChange && <ThemePicker value={themePref} onChange={onThemeChange} />}
+          <MotionToggle />
           {history && <OperationHistory history={history} disabled={busy} />}
           <LibraryHealth library={library} disabled={busy} />
           <RecoveryPanel key={backupRevision} onApply={applyRecoveredLibrary} beforeApply={beforeRecovery} />

@@ -2,6 +2,7 @@ import { zipSync, strToU8 } from "fflate";
 import { basicLabels, defaultVersion, effectiveProfile, visibleBasic, type Basics, type Character, type Library, type Profile, type Version } from "../model";
 import { characteristicLabels, derivedValues, isSelectedSkill, skillValue, thresholds, type Characteristic } from "../coc";
 import { bodyTypeLabels } from "../body";
+import { documentTemplates, documentLabel, type DocumentField } from "../documents";
 
 export type LinkStyle = "none" | "relative" | "wikilink";
 export interface MarkdownOptions {
@@ -85,6 +86,11 @@ function sectionList(library: Library, o: MarkdownOptions): Section[] {
     return rows.length ? `${h} ${title}\n\n` + rows.map((e) => `- **${escapeInline(e.title.trim() || "未命名")}**${e.text.trim() ? "  \n  " + escapeBlock(e.text).replace(/\n/g, "\n  ") : ""}`).join("\n") + "\n" : "";
   } });
   return [
+    { key: "documents", render: (p, h) => p.documents?.length ? `${h} 证件夹\n\n` + p.documents.map(doc => {
+      const photo = image(doc.portrait, doc.title || documentTemplates[doc.type].name, o);
+      const fields = [...documentTemplates[doc.type].fields, 'notes' as const].filter(key => doc.fields[key]?.trim());
+      return `${h}# ${escapeInline(doc.title || documentTemplates[doc.type].name)}\n\n类型：${documentTemplates[doc.type].name}\n\n${photo ? photo + '\n\n' : ''}` + (fields.length ? '| 项目 | 内容 |\n| --- | --- |\n' + fields.map(key => `| ${documentLabel(doc.type, key as DocumentField)} | ${escapeCell(doc.fields[key]!)} |`).join('\n') + '\n' : '');
+    }).join('\n') : "" },
     { key: "basics", render: (p, h) => {
       const keys = (Object.keys(basicLabels) as (keyof Basics)[]).filter((k) => visibleBasic(p, k));
       const portrait = image(p.portrait, "头像", o);

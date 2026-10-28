@@ -1,82 +1,75 @@
-/* Shared document layout for shelf cards and the standalone identity overlay. */
-.identity-surface .id-card {
+/* Shelf cards are concise character summaries, separate from personal documents. */
+.character-open .shelf-identity-card {
+  padding: 20px;
+  border-radius: 8px;
+  min-height: 206px;
+  background:
+    linear-gradient(
+      125deg,
+      color-mix(in srgb, var(--book-accent) 4%, transparent),
+      transparent 60%
+    ),
+    var(--book-paper);
+  box-shadow:
+    inset 0 0 0 4px var(--book-paper),
+    inset 0 0 0 5px var(--book-line);
+}
+.shelf-identity-card .id-top {
+  gap: 9px;
+}
+.shelf-identity-card .id-top > span {
+  line-height: 1.6;
+}
+.shelf-identity-card .id-main {
+  align-items: center;
+  gap: 18px;
+}
+.shelf-identity-card .id-photo {
+  width: 86px;
+  min-width: 86px;
+  height: 112px;
+  padding: 3px;
+  background: var(--book-paper);
+  box-shadow: 0 3px 8px #13262315;
+}
+.shelf-identity-card .id-name {
+  color: var(--book-ink);
+  line-height: 1.4;
+  font-size: 25px;
+}
+.shelf-identity-card .id-fields {
   display: flex;
-  flex-direction: column;
-  text-align: left;
-  isolation: isolate;
+  gap: 8px 16px;
+  line-height: 1.7;
+  font-size: 11px;
 }
-.character-open .id-card {
-  padding: 22px;
-  border-radius: 10px;
-  background: linear-gradient(125deg, color-mix(in srgb, var(--book-accent) 5%, transparent), transparent 60%), var(--book-paper);
-  box-shadow: inset 0 0 0 4px var(--book-paper), inset 0 0 0 5px var(--book-line), 0 4px 12px #13262308;
+.shelf-identity-card .id-fields > span,
+.shelf-identity-card .id-number {
+  overflow-wrap: anywhere;
 }
-.character-open .id-card::after { opacity: .5; width: 190px; height: 190px; right: -100px; bottom: -100px; }
-.identity-surface .id-top { gap: 10px; padding-bottom: 13px; }
-.identity-surface .id-top > svg { flex-shrink: 0; }
-.identity-surface .id-top > span:first-of-type { line-height: 1.7; overflow-wrap: anywhere; }
-.identity-surface .id-top > span:last-child { flex-shrink: 0; font-size: 10px; letter-spacing: 2px; }
-.character-open .id-top > span:last-child { padding: 4px 7px; background: color-mix(in srgb, var(--book-accent) 8%, transparent); border: 1px solid var(--book-line); border-radius: 3px; }
-.identity-surface .id-main { align-items: flex-start; gap: 20px; padding: 20px 0; }
-.identity-surface .id-photo { flex-shrink: 0; background: var(--book-paper); padding: 4px; border-radius: 4px; box-shadow: 0 3px 8px #13262315; }
-.identity-surface .id-photo img, .identity-surface .id-photo .builtin-art { border-radius: 2px; }
-.identity-surface .id-section-label { display: block; font-size: 8px; letter-spacing: 1.3px; line-height: 1.6; color: var(--book-muted); margin-bottom: 4px; }
-.identity-surface .id-name { color: var(--book-ink); font-size: 27px; letter-spacing: 2px; line-height: 1.35; }
-.identity-surface .id-alias { color: var(--book-ink); font-size: 11px; line-height: 1.6; margin-top: 5px; overflow-wrap: anywhere; }
-.identity-surface .id-alias > span { color: var(--book-muted); margin-right: 6px; }
-.identity-surface .id-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin-top: 15px; font-size: 11px; }
-.identity-surface .id-fields > span { display: grid; gap: 3px; min-width: 0; }
-.identity-surface .id-fields > span > span { font-size: 10px; color: var(--book-muted); }
-.identity-surface .id-fields b { margin: 0; font-weight: 500; overflow-wrap: anywhere; line-height: 1.6; }
-.identity-surface .id-register { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 22px; padding: 4px 0 12px; border-top: 1px solid var(--book-line); }
-.id-register > div { display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 8px 0; border-bottom: 1px dotted var(--book-line); font-size: 11px; line-height: 1.65; }
-.id-register > .id-register-wide { grid-column: 1 / -1; }
-.id-register > div > span { color: var(--book-muted); font-size: 10px; }
-.id-register b { color: var(--book-ink); font-weight: 500; overflow-wrap: anywhere; white-space: pre-wrap; }
-.identity-surface .id-footer { display: flex; align-items: center; gap: 16px; margin-top: auto; padding-top: 10px; }
-.id-registration { flex: 1; min-width: 0; }
-.identity-surface .id-number { display: grid; gap: 5px; margin: 0; letter-spacing: 1px; }
-.id-number > span { font-size: 8px; color: var(--book-muted); letter-spacing: 1.2px; }
-.id-number > b { font-family: var(--font-number, monospace); font-size: 12px; font-weight: 500; line-height: 1.6; overflow-wrap: anywhere; }
-.identity-surface .id-security { display: flex; align-items: center; gap: 7px; margin-top: 10px; color: var(--book-muted); font-size: 6px; letter-spacing: 1px; padding: 0; }
-.identity-surface .id-chip { width: 20px; height: 15px; }
-.identity-surface .barcode { flex-shrink: 0; width: 55px; height: 23px; margin: 0; opacity: .45; }
-.identity-surface .id-emblem { display: flex; position: static; flex-shrink: 0; padding: 8px; border: 1px solid var(--book-line); border-radius: 50%; opacity: .8; }
-.identity-surface .id-emblem svg { width: 27px; height: 27px; }
-.identity-surface button.id-name:hover { color: var(--book-accent); }
-.identity-surface button.id-name:focus-visible, .identity-surface button.id-emblem:focus-visible, .identity-surface button.id-photo:focus-visible { outline: 2px solid var(--book-accent); outline-offset: 4px; }
-.identity-card-caption { align-items: center; padding: 17px 3px 3px; }
-.identity-card-caption small { letter-spacing: 1px; }
-.character-card .card-favorite { bottom: 22px; }
-.character-open:focus-visible { outline: 2px solid var(--book-accent); outline-offset: -3px; }
-.character-grid .new-character-card { background: linear-gradient(135deg, var(--paper), var(--c-sunken, #edf1e5)); }
-.character-grid .new-character-card > span { box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 4%, transparent); }
-.character-list .character-open .id-card { flex-basis: 560px; }
-.identity-overlay { overflow-y: auto; align-items: flex-start; padding: 48px 18px; }
-.modal.identity-card-modal { width: min(680px, 100%); max-height: none; margin: auto; flex-shrink: 0; }
-.identity-card-modal .id-main { padding: 24px 0; gap: 26px; }
-.identity-card-modal .id-card::before { opacity: .14; }
-.identity-card-modal .id-name { font-size: 34px; }
-.identity-card-modal .id-fields { font-size: 13px; }
-.identity-card-modal .id-register > div { padding: 10px 0; font-size: 13px; }
-.identity-card-modal .id-register > div > span { font-size: 11px; }
-.identity-card-modal .id-footer { padding-top: 16px; }
-.identity-card-modal .identity-dismiss, .identity-card-modal .identity-dismiss:focus-visible { position: sticky; top: 0; margin: 0 0 10px auto; width: 30px; height: 30px; display: grid; place-items: center; clip-path: none; border: 1px solid #ffffff60; border-radius: 50%; color: #fff; background: #192923; overflow: visible; }
-.identity-surface.theme-prison .id-top > span:last-child { border: 2px solid var(--book-accent); border-radius: 0; transform: rotate(-5deg); font-weight: 700; }
-.identity-surface.theme-prison .id-register { border-top: 2px solid var(--book-accent); }
-.identity-surface.theme-clinical .id-register { background: color-mix(in srgb, var(--book-accent) 4%, transparent); }
+.shelf-identity-card .id-number {
+  color: var(--book-muted);
+  font-size: 10px;
+  letter-spacing: 1px;
+  margin-top: 11px;
+}
+.character-open:focus-visible {
+  outline: 2px solid var(--book-accent);
+  outline-offset: -3px;
+}
 @media (max-width: 600px) {
-  .identity-surface .id-main, .identity-card-modal .id-main { gap: 15px; }
-  .character-open .id-card { padding: 17px; }
-  .identity-surface .id-name { font-size: 24px; }
-  .identity-surface .id-register { column-gap: 14px; }
-  .id-register > div { grid-template-columns: 1fr; gap: 3px; }
-  .id-register > .id-register-wide { grid-template-columns: 58px minmax(0, 1fr); }
-  .identity-surface .id-fields { column-gap: 10px; }
-  .identity-surface .barcode { display: none; }
-  .identity-surface .id-photo { width: 82px; min-width: 82px; height: 112px; }
-  .identity-surface .id-footer { gap: 10px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .character-card, .new-character-card { animation: none; transition: none; }
+  .character-open .shelf-identity-card {
+    padding: 16px;
+  }
+  .shelf-identity-card .id-photo {
+    width: 70px;
+    min-width: 70px;
+    height: 94px;
+  }
+  .shelf-identity-card .id-name {
+    font-size: 22px;
+  }
+  .shelf-identity-card .id-main {
+    gap: 12px;
+  }
 }

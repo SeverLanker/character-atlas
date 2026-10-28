@@ -107,8 +107,8 @@ describe("本地实际存储与编辑流程", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "打开外界姓名的档案" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "身份卡" }));
-    const card = screen.getByRole("dialog", { name: "身份卡" });
+    fireEvent.click(screen.getByRole("button", { name: "证件夹" }));
+    const card = screen.getByRole("dialog", { name: "证件夹" });
     fireEvent.click(within(card).getByRole("button", { name: "外界姓名" }));
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: "隐藏姓名" })).toBeTruthy(),
@@ -118,7 +118,7 @@ describe("本地实际存储与编辑流程", () => {
         .getByRole("button", { name: /人员档案/ })
         .classList.contains("active"),
     ).toBe(true);
-    expect(screen.getByRole("dialog", { name: "身份卡" })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "证件夹" })).toBeTruthy();
     expect(document.querySelector(".book-shell.theme-prison")).toBeTruthy();
     fireEvent.click(within(card).getByRole("button", { name: "关闭窗口" }));
     fireEvent.change(screen.getByRole("combobox", { name: "当前剧情版本" }), {

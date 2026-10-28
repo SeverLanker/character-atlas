@@ -1,5 +1,6 @@
 import { useAgentBridge } from "./hooks/useAgentBridge";
-import { IdentityDisplay } from "./components/IdentityDisplay";
+import { DocumentWallet } from "./components/DocumentWallet";
+import { profileDocuments, type CharacterDocument } from "./documents";
 import {
   useCallback,
   useEffect,
@@ -74,7 +75,7 @@ import {
 import { mergeCoc, blankCoc, type CocPatch } from "./coc";
 import { useLibraryHistory } from "./useLibraryHistory";
 import { catalogDraftNeedsAttention } from "./hooks/useCatalogDraft";
-import { BookPages, IdentityCard } from "./components/BookPages";
+import { BookPages } from "./components/BookPages";
 import { Editor } from "./components/Editor";
 import { CatalogPanel } from "./components/CatalogPanel";
 import { RecoveryPanel } from "./components/RecoveryPanel";
@@ -282,7 +283,7 @@ export default function App() {
       checkpoint,
     );
   }
-  function updateVersion(updater: (version: Version) => Version) {
+  function updateVersion(updater: (version: Version) => Version, checkpoint = false) {
     if (!c || !v) return;
     setLibrary((lib) =>
       lib
@@ -303,7 +304,17 @@ export default function App() {
             ),
           }
         : lib,
+      checkpoint,
     );
+  }
+  function updateDocuments(update: (docs: CharacterDocument[]) => CharacterDocument[], checkpoint = false) {
+    updateVersion(ver => {
+      const current = effectiveProfile(hidden ? { ...ver, secret: { ...ver.secret, enabled: true } } : ver, hidden);
+      const documents = update(profileDocuments(current));
+      return hidden
+        ? { ...ver, secret: { ...ver.secret, overrides: { ...ver.secret.overrides, documents } } }
+        : { ...ver, profile: { ...ver.profile, documents } };
+    }, checkpoint);
   }
   function patchProfile(patch: Overrides) {
     updateVersion((ver) => {
@@ -347,12 +358,12 @@ export default function App() {
       };
     });
   }
-  function inherit(keys: (keyof Profile)[]) {
+  function inherit(keys: (keyof Profile)[], checkpoint = false) {
     updateVersion((ver) => {
       const overrides = { ...ver.secret.overrides };
       keys.forEach((k) => delete overrides[k]);
       return { ...ver, secret: { ...ver.secret, overrides } };
-    });
+    }, checkpoint);
   }
   function basicInherit(key: keyof Basics) {
     updateVersion((ver) => {
@@ -834,6 +845,7 @@ export default function App() {
               onSearchHit={(hit) => {
                 setActiveId(hit.characterId); setVersionId(hit.versionId); setPage(hit.page);
                 setHidden(hit.hidden); setShelf(false); closePanels(); setEditing(false); setSearchHit(hit);
+                if (hit.field === "证件") setModal("identity");
               }}
             />
           ) : c && v && p ? (
@@ -873,7 +885,7 @@ export default function App() {
                     onClick={() => setModal("identity")}
                   >
                     <ContactRound size={15} />
-                    身份卡
+                    证件夹
                   </button>
                   <button className="button small" onClick={() => setMarkdownScope({ kind: "character", character: c, versionId: v.id })}>导出 Markdown</button>
                   <button className="button small" aria-expanded={comparing} onClick={() => setComparing(!comparing)}>版本对比</button>
@@ -1141,7 +1153,7 @@ export default function App() {
                           } as const
                         )[v.secret.trigger]
                       }
-                      中，也许藏着另一段故事。可在身份卡中触发，或点击详细档案的姓名。
+                      中，也许藏着另一段故事。可在证件夹中触发，或点击详细档案的姓名。
                     </>
                   ) : (
                     <>
@@ -1164,33 +1176,10 @@ export default function App() {
         </main>
       </div>
       {modal === "identity" && c && v && p && (
-        <Modal
-          title="身份卡"
-          className="identity-card-modal"
-          bare
-          onClose={() => setModal(null)}
-        >
-          <IdentityDisplay hidden={hidden} theme={v.secret.theme}>
-            <IdentityCard
-              profile={p}
-              hidden={hidden}
-              onPortrait={
-                v.secret.enabled && v.secret.trigger === "portrait"
-                  ? reveal
-                  : undefined
-              }
-              onName={
-                v.secret.enabled && v.secret.trigger === "name"
-                  ? reveal
-                  : undefined
-              }
-              onEmblem={
-                v.secret.enabled && v.secret.trigger === "emblem"
-                  ? reveal
-                  : undefined
-              }
-            />
-          </IdentityDisplay>
+        <Modal title="证件夹" className="document-wallet-modal" onClose={() => setModal(null)}>
+          <DocumentWallet key={`${c.id}/${v.id}/${hidden}`} profile={p} secret={v.secret} hidden={hidden}
+            context={`${c.name} · ${v.name}`} onChange={updateDocuments} onInherit={() => inherit(['documents'], true)}
+            onReveal={reveal} onUpload={putImage} undo={undo} redo={redo} canUndo={canUndo} canRedo={canRedo} />
         </Modal>
       )}
       {modal === "copyVersion" && v && (

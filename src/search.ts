@@ -1,5 +1,6 @@
 import { basicLabels, type Library, type Page, type Overrides } from "./model";
 import { characteristicLabels, isSelectedSkill } from "./coc";
+import { documentTemplates } from "./documents";
 
 export interface SearchDocument { characterId: string; name: string; versionId: string; versionName: string; page: Page; hidden: boolean; field: string; text: string }
 export interface SearchHit extends SearchDocument { snippet: string }
@@ -12,6 +13,7 @@ export function buildSearchIndex(library: Library, includeSecret = false): Searc
         if (typeof text === "string" && text.trim()) docs.push({ characterId: character.id, name: character.name, versionId: version.id, versionName: version.name, page, hidden, field, text });
       }
       function profileDocs(profile: Overrides, hidden: boolean) {
+        for (const doc of profile.documents ?? []) add([doc.title, documentTemplates[doc.type].name, ...documentTemplates[doc.type].fields.map(key => doc.fields[key]), doc.fields.notes].filter(Boolean).join(' · '), '证件', 'archive', hidden);
         for (const relation of profile.relationships ?? []) {
           if (relation.targetCharacterId) add(names.get(relation.targetCharacterId), '关联角色', 'archive', hidden);
         }

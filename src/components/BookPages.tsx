@@ -5,7 +5,6 @@ import type { Character } from "../model";
 import {
   ArrowUpRight,
   Bookmark,
-  Fingerprint,
   Flower2,
   HeartPulse,
   Package,
@@ -51,86 +50,21 @@ function SectionHeading({
     </div>
   );
 }
-export function IdentityCard({
-  profile,
-  hidden,
-  onPortrait,
-  onName,
-  onEmblem,
-}: {
-  profile: Profile;
-  hidden: boolean;
-  onPortrait?: () => void;
-  onName?: () => void;
-  onEmblem?: () => void;
-}) {
-  const primaryFields = (["age", "gender", "birthday", "blood"] as const)
-    .filter(key => visibleBasic(profile, key));
-  const registerFields = (["occupation", "affiliation", "species", "height", "weight", "birthplace", "residence"] as const)
-    .filter(key => visibleBasic(profile, key));
-  return (
-    <div className={"id-card " + (hidden ? "restricted-card" : "")}>
-      <span className="id-card-glint" aria-hidden="true" />
-      <div className="id-top">
-        <Flower2 size={15} />
-        <span>
-          {hidden ? "RESTRICTED PERSONNEL RECORD" : "PERSONAL IDENTIFICATION"}
-        </span>
-        <span>{hidden ? "机密" : "身份卡"}</span>
-      </div>
-      <div className="id-main">
-        <Portrait
-          image={profile.portrait}
-          className="id-photo"
-          onClick={onPortrait}
-          label="切换身份档案"
-        />
-        <div className="id-copy">
-          <span className="id-section-label" aria-hidden="true">{hidden ? "人员识别 / PERSONNEL" : "持有人 / CARDHOLDER"}</span>
-          {visibleBasic(profile, "name") &&
-            (onName ? (
-              <button className="id-name text-button" onClick={onName}>
-                {profile.basics.name || "未命名"}
-              </button>
-            ) : (
-              <span className="id-name">{profile.basics.name || "未命名"}</span>
-            ))}
-          {visibleBasic(profile, "alias") && <div className="id-alias"><span>别名</span> {dash(profile.basics.alias)}</div>}
-          {primaryFields.length > 0 && (
-            <div className="id-fields">
-              {primaryFields.map(key => <span key={key}><span>{basicLabels[key]}</span><b>{dash(profile.basics[key])}</b></span>)}
-            </div>
-          )}
-        </div>
-      </div>
-      {registerFields.length > 0 && <div className="id-register">
-        {registerFields.map(key => <div key={key} className={key === "residence" || key === "birthplace" ? "id-register-wide" : undefined}>
-          <span>{basicLabels[key]}</span><b>{dash(profile.basics[key] ?? "")}</b>
-        </div>)}
-      </div>}
-      <div className="id-footer">
-        <div className="id-registration">
-          {visibleBasic(profile, "code") && <div className="id-number"><span>身份编号 / ID NO.</span><b>{dash(profile.basics.code)}</b></div>}
-          <div className="id-security" aria-hidden="true"><i className="id-chip" /><span>{hidden ? 'RESTRICTED / PERSONNEL ARCHIVE' : 'PERSONAL / CHARACTER ARCHIVE'}</span></div>
-        </div>
-        <div className="barcode" aria-hidden="true" />
-        {onEmblem ? (
-          <button
-            className="id-emblem"
-            onClick={onEmblem}
-            aria-label="切换身份档案"
-          >
-            <Fingerprint size={34} strokeWidth={1} />
-          </button>
-        ) : (
-          <span className="id-emblem">
-            <Fingerprint size={34} strokeWidth={1} />
-          </span>
-        )}
+/** Shelf summary only; detailed independent documents live in DocumentWallet. */
+export function IdentityCard({ profile, hidden }: { profile: Profile; hidden: boolean }) {
+  return <div className="id-card shelf-identity-card">
+    <div className="id-top"><Flower2 size={15} /><span>CHARACTER ATLAS</span><span>{hidden ? '秘密身份' : '角色身份'}</span></div>
+    <div className="id-main">
+      <Portrait image={profile.portrait} className="id-photo" />
+      <div className="id-copy">
+        {visibleBasic(profile, 'name') && <span className="id-name">{profile.basics.name || '未命名'}</span>}
+        <div className="id-fields">{(['age', 'gender', 'occupation'] as const).filter(key => visibleBasic(profile, key)).map(key => <span key={key}>{key === 'occupation' ? '身份' : basicLabels[key]} <b>{dash(profile.basics[key])}</b></span>)}</div>
+        {visibleBasic(profile, 'code') && <div className="id-number">{dash(profile.basics.code)}</div>}
       </div>
     </div>
-  );
+  </div>;
 }
+
 function Archive({ p, hidden, characters, currentId, onOpenCharacter, onPreview, onToggleSecret }: { p: Profile; hidden: boolean; characters: Character[]; currentId: string; onOpenCharacter?: (c: Character) => void; onPreview: (ref: string, caption: string) => void; onToggleSecret?: () => void }) {
   return (
     <>

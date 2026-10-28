@@ -84,7 +84,9 @@ it("在真实应用中添加同类证件、独立编辑、复制、秘密覆盖�
       wallet.getByRole("navigation", { name: "角色证件列表" }),
     ).getAllByRole("button"),
   ).toHaveLength(3);
-  fireEvent.click(wallet.getByRole("button", { name: "切换秘密身份" }));
+  fireEvent.click(wallet.getAllByRole("button", { name: "切换身份档案" })[0]);
+  expect(wallet.queryByRole("button", { name: "切换秘密身份" })).toBeNull();
+  expect(wallet.getByRole("button", { name: "返回公开身份" })).toBeTruthy();
   fireEvent.click(wallet.getByRole("button", { name: "编辑证件" }));
   editor = within(wallet.getByRole("region", { name: "编辑证件资料" }));
   fireEvent.change(editor.getByLabelText("学号"), {

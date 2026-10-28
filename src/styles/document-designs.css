@@ -1,0 +1,907 @@
+/*
+ * Document faces. Each type has its own layout, palette, type and security motifs; all marks are
+ * fictional (no real state emblems). Colours live only in the per-type variable blocks below, so
+ * the secret themes and app themes override variables, not individual rules.
+ */
+.document-face {
+  --d-paper: #f7f6ef;
+  --d-paper-2: #ecebdf;
+  --d-ink: #2f342f;
+  --d-muted: #6d7268;
+  --d-accent: #50684f;
+  --d-accent-2: #b39a5d;
+  --d-line: color-mix(in srgb, var(--d-ink) 16%, transparent);
+  --d-pattern: color-mix(in srgb, var(--d-accent) 18%, transparent);
+  --d-title: "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif;
+  --d-data: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --d-radius: 14px;
+  --d-width: 600px;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 100%;
+  max-width: var(--d-width);
+  margin: 0 auto;
+  display: grid;
+  grid-template-areas: "mast" "body" "notes" "foot" "mrz" "base";
+  color: var(--d-ink);
+  background: linear-gradient(160deg, var(--d-paper), var(--d-paper-2));
+  border: 1px solid color-mix(in srgb, var(--d-ink) 22%, transparent);
+  border-radius: var(--d-radius);
+  box-shadow:
+    0 18px 40px #0b120d2e,
+    0 3px 8px #0b120d1f,
+    inset 0 1px 0 #ffffff70;
+}
+.document-face > * {
+  position: relative;
+  z-index: 1;
+}
+.doc-pattern {
+  position: absolute !important;
+  inset: 0;
+  z-index: 0 !important;
+  pointer-events: none;
+  opacity: 0.9;
+}
+.doc-micro {
+  position: absolute !important;
+  z-index: 0 !important;
+  left: 0;
+  right: 0;
+  bottom: 30px;
+  overflow: hidden;
+  white-space: nowrap;
+  font: 4.5px/1 var(--d-data);
+  letter-spacing: 0.6px;
+  color: color-mix(in srgb, var(--d-accent) 55%, transparent);
+  pointer-events: none;
+}
+.document-masthead {
+  grid-area: mast;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 22px;
+  padding: 18px 0 12px;
+  border-bottom: 1px solid var(--d-line);
+  color: var(--d-accent);
+}
+.document-masthead > div {
+  display: grid;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.document-masthead small {
+  font: 600 8px/1 var(--d-data);
+  letter-spacing: 2.4px;
+  color: var(--d-muted);
+}
+.document-masthead h2 {
+  margin: 0;
+  font: 600 22px/1.15 var(--d-title);
+  letter-spacing: 2px;
+  color: var(--d-ink);
+  overflow-wrap: anywhere;
+}
+.document-edition {
+  font: 700 11px/1 var(--d-data);
+  letter-spacing: 1px;
+  padding: 6px 7px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+}
+.doc-primary {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: var(--d-paper);
+  background: var(--d-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--d-accent-2) 70%, transparent);
+  white-space: nowrap;
+}
+.document-body {
+  grid-area: body;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  padding: 18px 22px 14px;
+}
+.doc-photo-frame {
+  position: relative !important;
+}
+.document-photo {
+  width: 112px;
+  height: 144px;
+  padding: 4px;
+  border-radius: 6px;
+  background: var(--d-paper);
+  box-shadow:
+    0 0 0 1px var(--d-line),
+    0 3px 8px #0002;
+  overflow: hidden;
+}
+.document-photo img,
+.document-photo > * {
+  border-radius: 3px;
+}
+.doc-holo {
+  position: absolute;
+  right: -10px;
+  bottom: -8px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: 0.75;
+  background: conic-gradient(
+    from 30deg,
+    #ff9fd655,
+    #9ee9ff66,
+    #c9ff9e55,
+    #ffe49b66,
+    #ff9fd655
+  );
+  box-shadow: inset 0 0 0 1px #fff8;
+}
+.doc-holo::after {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--d-accent) 60%, transparent);
+}
+.document-holder {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.document-holder > small {
+  font: 600 8px/1 var(--d-data);
+  letter-spacing: 1.6px;
+  color: var(--d-muted);
+}
+.document-holder > h3,
+.document-holder > button {
+  margin: 0;
+  padding: 0;
+  font: 500 26px/1.2 var(--d-title);
+  letter-spacing: 3px;
+  color: var(--d-ink);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.document-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 16px;
+  margin-top: 8px;
+}
+.document-fields > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.document-fields span,
+.document-notes > span,
+.document-footer small {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--d-muted);
+}
+.document-fields b {
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.document-wide {
+  grid-column: 1 / -1;
+}
+.document-notes {
+  grid-area: notes;
+  margin: 0 22px 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  border-left: 2px solid var(--d-accent);
+  background: color-mix(in srgb, var(--d-paper) 70%, transparent);
+  overflow-wrap: anywhere;
+}
+.document-notes > span {
+  display: block;
+  margin-bottom: 3px;
+}
+.document-footer {
+  grid-area: foot;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 22px;
+  padding: 12px 0 14px;
+  border-top: 1px solid var(--d-line);
+}
+.document-footer > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.document-footer strong {
+  font: 600 16px/1.1 var(--d-data);
+  letter-spacing: 2.5px;
+  overflow-wrap: anywhere;
+}
+.doc-barcode {
+  width: 132px;
+  height: 26px;
+  fill: var(--d-ink);
+  flex-shrink: 0;
+}
+.document-seal {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: var(--d-accent);
+  border: 1px solid color-mix(in srgb, var(--d-accent) 45%, transparent);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--d-accent-2) 22%, transparent),
+    transparent 70%
+  );
+}
+button.document-seal {
+  cursor: pointer;
+}
+.document-baseline {
+  grid-area: base;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 22px;
+  font: 600 6.5px/1 var(--d-data);
+  letter-spacing: 2px;
+  color: var(--d-muted);
+  background: color-mix(in srgb, var(--d-accent) 9%, transparent);
+}
+.document-face button:focus-visible {
+  outline: 2px solid var(--d-accent);
+  outline-offset: 3px;
+}
+.doc-mrz {
+  grid-area: mrz;
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 10px 22px;
+  background: color-mix(in srgb, white 70%, var(--d-paper));
+  border-top: 1px solid var(--d-line);
+}
+.doc-mrz code {
+  font:
+    600 12.5px/1.25 "OCR B",
+    "OCR-B",
+    ui-monospace,
+    Consolas,
+    monospace;
+  letter-spacing: 1.9px;
+  color: #1c1f24;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: clip;
+}
+.doc-spine {
+  display: none;
+}
+
+/* 身份证 · primary: ID-1 landscape, teal + gold, rosette guilloche, holo over the photo, chip. */
+.document-identity {
+  --d-paper: #f4f7f1;
+  --d-paper-2: #dfeae4;
+  --d-ink: #23332e;
+  --d-muted: #5d716a;
+  --d-accent: #2f6b5d;
+  --d-accent-2: #c2a25b;
+  --d-width: 640px;
+  --d-radius: 16px;
+}
+.document-identity .doc-pattern {
+  background:
+    repeating-radial-gradient(
+      circle at 88% 30%,
+      transparent 0 7px,
+      var(--d-pattern) 7.5px 8px,
+      transparent 8.5px 12px
+    ),
+    repeating-radial-gradient(
+      circle at 8% 118%,
+      transparent 0 9px,
+      color-mix(in srgb, var(--d-accent-2) 22%, transparent) 9.5px 10px,
+      transparent 10.5px 15px
+    );
+}
+.document-identity .document-footer > div::before {
+  content: "";
+  width: 30px;
+  height: 22px;
+  margin-bottom: 6px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--d-accent-2) 80%, black 10%);
+  background:
+    linear-gradient(
+      90deg,
+      transparent 33%,
+      #0002 34% 36%,
+      transparent 37% 63%,
+      #0002 64% 66%,
+      transparent 67%
+    ),
+    linear-gradient(transparent 45%, #0002 46% 54%, transparent 55%),
+    linear-gradient(135deg, #f3e6b3, var(--d-accent-2) 50%, #efe0a6);
+}
+.document-identity .document-footer strong {
+  font-size: 19px;
+  letter-spacing: 3.5px;
+}
+.document-identity.is-primary {
+  box-shadow:
+    0 24px 54px #0b120d3d,
+    0 0 0 3px color-mix(in srgb, var(--d-accent-2) 55%, transparent);
+}
+
+/* 驾驶证: landscape, coloured header band, diagonal line ground, class boxes, photo on the right, barcode. */
+.document-driver {
+  --d-paper: #fbf6ec;
+  --d-paper-2: #f1e5cf;
+  --d-ink: #33281d;
+  --d-muted: #7a6650;
+  --d-accent: #b0442c;
+  --d-accent-2: #e0a640;
+  --d-title: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --d-radius: 12px;
+}
+.document-driver .doc-pattern {
+  background: repeating-linear-gradient(
+    -35deg,
+    transparent 0 9px,
+    var(--d-pattern) 9px 10px
+  );
+}
+.document-driver .document-masthead {
+  margin: 0;
+  padding: 14px 22px;
+  border: 0;
+  color: var(--d-paper);
+  background: linear-gradient(
+    90deg,
+    var(--d-accent),
+    color-mix(in srgb, var(--d-accent) 70%, var(--d-accent-2))
+  );
+}
+.document-driver .document-masthead small,
+.document-driver .document-masthead h2 {
+  color: var(--d-paper);
+}
+.document-driver .document-masthead h2 {
+  font-weight: 800;
+  letter-spacing: 4px;
+}
+.document-driver .document-body {
+  grid-template-columns: minmax(0, 1fr) 106px;
+}
+.document-driver .doc-photo-frame {
+  order: 2;
+}
+.document-driver .doc-class {
+  grid-column: 1 / -1;
+}
+.document-driver .doc-class b {
+  display: inline-block;
+  justify-self: start;
+  padding: 5px 12px;
+  font: 800 18px/1 var(--d-data);
+  letter-spacing: 3px;
+  color: var(--d-accent);
+  border: 2px solid var(--d-accent);
+  border-radius: 5px;
+}
+.document-driver .document-holder > h3,
+.document-driver .document-holder > button {
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* 护照: booklet data page; spine, wave guilloche, roman-name line, MRZ band. */
+.document-passport {
+  --d-paper: #f3f1f8;
+  --d-paper-2: #e3e6f1;
+  --d-ink: #1f2540;
+  --d-muted: #5c6283;
+  --d-accent: #2c3a75;
+  --d-accent-2: #9b2f4f;
+  --d-width: 660px;
+  --d-radius: 6px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-areas: "spine mast" "spine body" "spine notes" "spine foot" "mrz mrz" "base base";
+}
+.document-passport .doc-pattern {
+  background: repeating-radial-gradient(
+    ellipse 140% 60% at 50% 120%,
+    transparent 0 6px,
+    var(--d-pattern) 6.5px 7px,
+    transparent 7.5px 11px
+  );
+}
+.document-passport .doc-spine {
+  grid-area: spine;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--d-accent) 92%, black),
+    var(--d-accent)
+  );
+  color: color-mix(in srgb, var(--d-accent-2) 40%, #f0d9a0);
+  box-shadow: inset -6px 0 8px #0004;
+}
+.document-passport .doc-spine span {
+  writing-mode: vertical-rl;
+  font: 700 9px/1 var(--d-data);
+  letter-spacing: 4px;
+}
+.document-passport .document-masthead h2 {
+  font-size: 20px;
+  letter-spacing: 6px;
+}
+.document-passport .document-photo {
+  width: 104px;
+  height: 138px;
+  border-radius: 2px;
+  filter: saturate(0.85);
+}
+.document-passport .document-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.document-passport .document-seal {
+  border-style: dashed;
+}
+
+/* 学生证: portrait card, bright campus header with a slanted stripe, centred photo, barcode. */
+.document-student {
+  --d-paper: #fffdf6;
+  --d-paper-2: #eef5ff;
+  --d-ink: #1d2c46;
+  --d-muted: #5b6b86;
+  --d-accent: #2c64c4;
+  --d-accent-2: #f2b632;
+  --d-title: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --d-width: 360px;
+  --d-radius: 18px;
+}
+.document-student .doc-pattern {
+  background:
+    linear-gradient(175deg, var(--d-accent) 0 96px, transparent 96px),
+    linear-gradient(
+      175deg,
+      transparent 0 96px,
+      var(--d-accent-2) 96px 104px,
+      transparent 104px
+    ),
+    radial-gradient(
+        circle at 20% 80%,
+        var(--d-pattern) 0 2px,
+        transparent 2.5px
+      )
+      0 0 / 14px 14px;
+}
+.document-student .document-masthead {
+  border: 0;
+  color: var(--d-paper);
+}
+.document-student .document-masthead small,
+.document-student .document-masthead h2 {
+  color: var(--d-paper);
+}
+.document-student .document-body {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+  padding-top: 22px;
+}
+.document-student .document-photo {
+  width: 120px;
+  height: 150px;
+  border-radius: 50% 50% 10px 10px;
+  box-shadow:
+    0 0 0 4px var(--d-paper),
+    0 0 0 6px var(--d-accent-2);
+}
+.document-student .document-holder {
+  justify-items: center;
+}
+.document-student .document-holder > h3,
+.document-student .document-holder > button {
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+.document-student .document-fields {
+  grid-template-columns: 1fr 1fr;
+  text-align: left;
+  width: 100%;
+}
+.document-student .document-footer {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.document-student .document-seal {
+  display: none;
+}
+.document-student .doc-barcode {
+  width: 100%;
+  height: 30px;
+}
+
+/* 工作证: vertical badge, punched slot, department colour bar, bold uppercase name, barcode. */
+.document-work {
+  --d-paper: #ffffff;
+  --d-paper-2: #f1f2f3;
+  --d-ink: #1e2226;
+  --d-muted: #5f666d;
+  --d-accent: #14806b;
+  --d-accent-2: #1e2226;
+  --d-title: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --d-width: 340px;
+  --d-radius: 12px;
+  padding-top: 26px;
+  border-left: 12px solid var(--d-accent);
+}
+.document-work::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 50%;
+  width: 46px;
+  height: 8px;
+  margin-left: -23px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--d-ink) 70%, transparent);
+  box-shadow: inset 0 1px 2px #000a;
+}
+.document-work .doc-pattern {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0 3px,
+    color-mix(in srgb, var(--d-ink) 4%, transparent) 3px 4px
+  );
+}
+.document-work .document-masthead {
+  border-bottom: 3px solid var(--d-accent);
+}
+.document-work .document-body {
+  grid-template-columns: 1fr;
+}
+.document-work .document-photo {
+  width: 100%;
+  max-width: 150px;
+  height: 170px;
+  border-radius: 4px;
+  justify-self: start;
+}
+.document-work .document-holder > h3,
+.document-work .document-holder > button {
+  font-weight: 900;
+  font-size: 28px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.document-work .document-fields {
+  grid-template-columns: 1fr;
+}
+.document-work .document-footer {
+  flex-wrap: wrap;
+}
+.document-work .doc-barcode {
+  width: 100%;
+}
+
+/* 警官证: dark leather warrant wallet, gold foil text, rosette seal (abstract), inset data panel. */
+.document-police {
+  --d-paper: #1b2436;
+  --d-paper-2: #121927;
+  --d-ink: #f1ead6;
+  --d-muted: #c3b892;
+  --d-accent: #d6b25e;
+  --d-accent-2: #8d6f2c;
+  --d-line: color-mix(in srgb, var(--d-accent) 35%, transparent);
+  --d-pattern: color-mix(in srgb, var(--d-accent) 10%, transparent);
+  --d-width: 660px;
+  --d-radius: 10px;
+  grid-template-columns: 150px minmax(0, 1fr);
+  grid-template-areas: "spine mast" "spine body" "spine notes" "spine foot" "base base";
+}
+.document-police .doc-pattern {
+  background:
+    radial-gradient(circle at 30% 20%, #ffffff0d, transparent 50%),
+    repeating-linear-gradient(45deg, transparent 0 2px, #0000001a 2px 3px);
+}
+.document-police .doc-spine {
+  grid-area: spine;
+  display: grid;
+  place-items: center;
+  margin: 14px 0 14px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--d-line);
+  background:
+    repeating-conic-gradient(
+      from 0deg at 50% 46%,
+      var(--d-pattern) 0 6deg,
+      transparent 6deg 12deg
+    ),
+    radial-gradient(
+      circle at 50% 46%,
+      color-mix(in srgb, var(--d-accent) 35%, transparent) 0 30px,
+      transparent 31px 40px,
+      var(--d-line) 41px 42px,
+      transparent 43px
+    );
+}
+.document-police .doc-spine span {
+  align-self: end;
+  margin-bottom: 14px;
+  font: 700 8px/1 var(--d-data);
+  letter-spacing: 3px;
+  color: var(--d-accent);
+}
+.document-police .document-masthead {
+  color: var(--d-accent);
+}
+.document-police .document-masthead h2 {
+  color: var(--d-accent);
+  letter-spacing: 6px;
+  text-shadow: 0 1px 0 #0008;
+}
+.document-police .document-photo {
+  background: var(--d-paper-2);
+  box-shadow: 0 0 0 1px var(--d-line);
+}
+.document-police .document-seal {
+  border: 2px double var(--d-accent);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--d-accent) 25%, transparent),
+    transparent 70%
+  );
+}
+.document-police .doc-micro {
+  color: color-mix(in srgb, var(--d-accent) 40%, transparent);
+}
+
+/* 自定义证件: parchment, dashed double border, microtext frame, rotated red stamp. */
+.document-other {
+  --d-paper: #f7f0de;
+  --d-paper-2: #ece0c3;
+  --d-ink: #3a2f22;
+  --d-muted: #7d6b52;
+  --d-accent: #7b5a2e;
+  --d-accent-2: #b23a2a;
+  --d-radius: 4px;
+  outline: 1px dashed color-mix(in srgb, var(--d-accent) 55%, transparent);
+  outline-offset: -8px;
+}
+.document-other .doc-pattern {
+  background:
+    radial-gradient(circle at 20% 15%, #fff6, transparent 45%),
+    radial-gradient(circle at 85% 90%, #0000000f, transparent 50%);
+}
+.document-other .doc-micro {
+  top: 2px;
+  bottom: auto;
+}
+.document-other .document-seal {
+  width: 64px;
+  height: 64px;
+  transform: rotate(-14deg);
+  color: var(--d-accent-2);
+  border: 2px solid var(--d-accent-2);
+  box-shadow:
+    inset 0 0 0 3px var(--d-paper),
+    inset 0 0 0 4px var(--d-accent-2);
+  background: none;
+  opacity: 0.85;
+}
+
+/* Secret identity themes recolour any document through the same variables. */
+.wallet-secret .document-face::after {
+  content: "机密 · RESTRICTED";
+  position: absolute;
+  z-index: 0;
+  inset: 40% -10% auto;
+  text-align: center;
+  transform: rotate(-18deg);
+  font: 800 30px/1 var(--d-data);
+  letter-spacing: 8px;
+  color: color-mix(in srgb, var(--d-accent) 13%, transparent);
+  pointer-events: none;
+}
+.secret-theme-prison .document-face {
+  --d-paper: #e8e7e0;
+  --d-paper-2: #d6d6cd;
+  --d-ink: #2d3330;
+  --d-muted: #666c64;
+  --d-accent: #8a4b41;
+  --d-accent-2: #6d6f66;
+  filter: saturate(0.75);
+}
+.secret-theme-prison .document-face .doc-pattern {
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 22px,
+    #00000012 22px 25px
+  );
+}
+.secret-theme-noir .document-face {
+  --d-paper: #262d29;
+  --d-paper-2: #191e1b;
+  --d-ink: #ece7d8;
+  --d-muted: #b8b9a6;
+  --d-accent: #c9b27c;
+  --d-accent-2: #7c6c45;
+  --d-line: #ece7d826;
+}
+.secret-theme-noir .document-face .doc-pattern {
+  background:
+    radial-gradient(circle at 70% 0%, #ffffff12, transparent 55%),
+    repeating-linear-gradient(115deg, transparent 0 14px, #ffffff08 14px 15px);
+}
+.secret-theme-noir .doc-mrz {
+  background: #ece7d8;
+}
+.secret-theme-clinical .document-face {
+  --d-paper: #f1f7f7;
+  --d-paper-2: #dbeced;
+  --d-ink: #26404a;
+  --d-muted: #5f7f88;
+  --d-accent: #3a8191;
+  --d-accent-2: #87b9c1;
+}
+.secret-theme-clinical .document-face .doc-pattern {
+  background:
+    linear-gradient(#3a819114 1px, transparent 1px) 0 0 / 100% 12px,
+    linear-gradient(90deg, #3a819114 1px, transparent 1px) 0 0 / 12px 100%;
+}
+
+/* App themes: faces are physical objects and keep their own palette; dim slightly at night. */
+[data-theme="night"] .document-face {
+  box-shadow:
+    0 18px 44px #000a,
+    0 0 0 1px #ffffff14;
+  filter: brightness(0.93);
+}
+[data-theme="night"] .secret-theme-prison .document-face {
+  filter: brightness(0.93) saturate(0.75);
+}
+
+/* Wallet: primary card first and in front of a small stack. */
+.wallet-stack {
+  position: relative;
+  padding: 0 0 14px;
+}
+.wallet-stack.has-stack::before,
+.wallet-stack.has-stack::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: min(100%, 600px);
+  height: calc(100% - 30px);
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--c-sunken-tint, #e9eddf);
+  pointer-events: none;
+}
+.wallet-stack.has-stack::before {
+  top: 14px;
+  transform: translateX(-50%) rotate(2.2deg) translateX(18px);
+  opacity: 0.65;
+}
+.wallet-stack.has-stack[data-behind="2"]::after {
+  top: 8px;
+  transform: translateX(-50%) rotate(-1.6deg) translateX(-14px);
+  opacity: 0.45;
+}
+.wallet-stack.has-stack[data-behind="1"]::after {
+  display: none;
+}
+.wallet-stack > .document-face {
+  z-index: 1;
+}
+.wallet-stack.shows-primary > .document-face {
+  transform: translateY(-2px);
+}
+.document-list > button.is-primary {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+.document-list > button.is-primary strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+.document-list em {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: var(--paper);
+  background: var(--accent);
+  white-space: nowrap;
+}
+.wallet-inherit-note {
+  padding: 8px 10px;
+  border-left: 3px solid var(--accent);
+  background: var(--c-sunken-tint, #e9eddf77);
+}
+
+@media (max-width: 600px) {
+  .document-body {
+    grid-template-columns: 78px minmax(0, 1fr);
+    gap: 14px;
+    padding: 14px 16px;
+  }
+  .document-photo {
+    width: 78px;
+    height: 104px;
+  }
+  .document-masthead,
+  .document-footer,
+  .document-notes {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+  .document-masthead h2 {
+    font-size: 18px;
+    letter-spacing: 1px;
+  }
+  .document-holder > h3,
+  .document-holder > button {
+    font-size: 21px;
+    letter-spacing: 1px;
+  }
+  .document-fields,
+  .document-passport .document-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .document-passport {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+  .document-police {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "mast" "body" "notes" "foot" "base";
+  }
+  .document-police .doc-spine {
+    display: none;
+  }
+  .doc-mrz code {
+    font-size: 8px;
+    letter-spacing: 0.6px;
+  }
+  .doc-barcode {
+    width: 96px;
+  }
+  .document-driver .document-body {
+    grid-template-columns: minmax(0, 1fr) 78px;
+  }
+  .document-student .document-body,
+  .document-work .document-body {
+    grid-template-columns: 1fr;
+  }
+}

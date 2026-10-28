@@ -16,6 +16,9 @@ import "./styles/themes/night.css";
 import "./styles/themes/xuan.css";
 import "./styles/themes/bureau.css";
 import "./styles/markdown-export.css";
+import "./styles/identity-detail.css";
+import "./styles/documents.css";
+import "./styles/document-designs.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

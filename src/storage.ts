@@ -326,6 +326,8 @@ export async function copyIncomingAssets(library: Library, assets: Record<string
           if (map.has(i.image)) i.image = map.get(i.image)!;
         for (const i of profile.gallery ?? [])
           if (map.has(i.image)) i.image = map.get(i.image)!;
+        for (const doc of profile.documents ?? [])
+          if (map.has(doc.portrait)) doc.portrait = map.get(doc.portrait)!;
         if (profile.body) {
           if (map.has(profile.body.front)) profile.body.front = map.get(profile.body.front)!;
           if (map.has(profile.body.back)) profile.body.back = map.get(profile.body.back)!;

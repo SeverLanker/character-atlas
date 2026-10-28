@@ -1,17 +1,19 @@
 import { basicLabels, type Library, type Page, type Overrides } from "./model";
 import { characteristicLabels, isSelectedSkill } from "./coc";
+import { documentTemplates } from "./documents";
 
-export interface SearchDocument { characterId: string; name: string; versionId: string; versionName: string; page: Page; hidden: boolean; field: string; text: string }
+export interface SearchDocument { characterId: string; name: string; versionId: string; versionName: string; page: Page; hidden: boolean; field: string; text: string; /** Document id for 证件 hits. */ ref?: string }
 export interface SearchHit extends SearchDocument { snippet: string }
 export function buildSearchIndex(library: Library, includeSecret = false): SearchDocument[] {
   const docs: SearchDocument[] = [];
   const names = new Map(library.characters.map(c => [c.id, c.name]));
   for (const character of library.characters) {
     for (const version of character.versions) {
-      function add(text: unknown, field: string, page: Page, hidden: boolean) {
-        if (typeof text === "string" && text.trim()) docs.push({ characterId: character.id, name: character.name, versionId: version.id, versionName: version.name, page, hidden, field, text });
+      function add(text: unknown, field: string, page: Page, hidden: boolean, ref?: string) {
+        if (typeof text === "string" && text.trim()) docs.push({ characterId: character.id, name: character.name, versionId: version.id, versionName: version.name, page, hidden, field, text, ...(ref ? { ref } : {}) });
       }
       function profileDocs(profile: Overrides, hidden: boolean) {
+        for (const doc of profile.documents ?? []) add([doc.title, documentTemplates[doc.type].name, ...documentTemplates[doc.type].fields.map(key => doc.fields[key]), doc.fields.notes].filter(Boolean).join(' · '), '证件', 'archive', hidden, doc.id);
         for (const relation of profile.relationships ?? []) {
           if (relation.targetCharacterId) add(names.get(relation.targetCharacterId), '关联角色', 'archive', hidden);
         }

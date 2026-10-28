@@ -1,5 +1,7 @@
 # 叙册 · Character Atlas
 
+开发分支的多类型证件夹用法见 [DOCUMENTS.md](DOCUMENTS.md)（未发布）。
+
 本轮资料保护、操作历史、健康检查与模板草稿的入口和验证边界见 [IMPROVEMENTS.md](IMPROVEMENTS.md)。源码中的未发布功能不等同于已有安装包。
 
 Windows 本地优先的私人原创角色设定集。界面为精致画册，数据结构为「角色 → 完整剧情版本 → 通用表层 / 可选秘密档案」。无需账号、无需云端服务。

@@ -454,7 +454,7 @@ export function Editor(props: EditorProps) {
                       自动隐藏未填写字段
                     </label>
                     <p className="editor-help">
-                      取消勾选的字段在身份卡和详细档案中隐藏，原有内容仍保留。
+                      取消勾选的字段在书架身份卡和详细档案中隐藏，原有内容仍保留。已保存的证件独立管理，请在证件夹中编辑。
                     </p>
                     <div className="visibility-options">
                       {(Object.keys(basicLabels) as (keyof Basics)[]).map(
@@ -860,7 +860,7 @@ export function Editor(props: EditorProps) {
                   </label>
                   <section className="edit-section" aria-label="秘密身份照片">
                     <h3>秘密身份照片</h3>
-                    <p className="editor-help">切换身份时，详细档案与身份卡同步使用这张照片。未单独设置时沿用公开照片；移除后秘密身份不显示照片。</p>
+                    <p className="editor-help">切换身份时，详细档案使用这张照片。未单独设置时沿用公开照片；移除后秘密身份不显示照片。已保存证件的照片在证件夹中独立修改。</p>
                     <ImageInput value={v.secret.overrides.portrait ?? v.profile.portrait} onChange={(portrait) => props.onSecret({ overrides: { ...v.secret.overrides, portrait } })} onUpload={props.onUpload}/>
                     {v.secret.overrides.portrait !== undefined && <button className="text-button" onClick={() => props.onInherit(['portrait'])}>照片恢复沿用公开档案</button>}
                   </section>

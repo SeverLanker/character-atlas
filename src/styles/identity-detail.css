@@ -1,0 +1,75 @@
+/* Shelf cards are concise character summaries, separate from personal documents. */
+.character-open .shelf-identity-card {
+  padding: 20px;
+  border-radius: 8px;
+  min-height: 206px;
+  background:
+    linear-gradient(
+      125deg,
+      color-mix(in srgb, var(--book-accent) 4%, transparent),
+      transparent 60%
+    ),
+    var(--book-paper);
+  box-shadow:
+    inset 0 0 0 4px var(--book-paper),
+    inset 0 0 0 5px var(--book-line);
+}
+.shelf-identity-card .id-top {
+  gap: 9px;
+}
+.shelf-identity-card .id-top > span {
+  line-height: 1.6;
+}
+.shelf-identity-card .id-main {
+  align-items: center;
+  gap: 18px;
+}
+.shelf-identity-card .id-photo {
+  width: 86px;
+  min-width: 86px;
+  height: 112px;
+  padding: 3px;
+  background: var(--book-paper);
+  box-shadow: 0 3px 8px #13262315;
+}
+.shelf-identity-card .id-name {
+  color: var(--book-ink);
+  line-height: 1.4;
+  font-size: 25px;
+}
+.shelf-identity-card .id-fields {
+  display: flex;
+  gap: 8px 16px;
+  line-height: 1.7;
+  font-size: 11px;
+}
+.shelf-identity-card .id-fields > span,
+.shelf-identity-card .id-number {
+  overflow-wrap: anywhere;
+}
+.shelf-identity-card .id-number {
+  color: var(--book-muted);
+  font-size: 10px;
+  letter-spacing: 1px;
+  margin-top: 11px;
+}
+.character-open:focus-visible {
+  outline: 2px solid var(--book-accent);
+  outline-offset: -3px;
+}
+@media (max-width: 600px) {
+  .character-open .shelf-identity-card {
+    padding: 16px;
+  }
+  .shelf-identity-card .id-photo {
+    width: 70px;
+    min-width: 70px;
+    height: 94px;
+  }
+  .shelf-identity-card .id-name {
+    font-size: 22px;
+  }
+  .shelf-identity-card .id-main {
+    gap: 12px;
+  }
+}

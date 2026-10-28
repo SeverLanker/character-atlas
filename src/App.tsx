@@ -1,5 +1,15 @@
 import { useAgentBridge } from "./hooks/useAgentBridge";
-import { IdentityDisplay } from "./components/IdentityDisplay";
+import { DocumentWallet } from "./components/DocumentWallet";
+import { profileDocuments, secretDocumentView, type CharacterDocument } from "./documents";
+
+/** What the wallet shows for one side of a version. A secret side that inherits public documents sees them under the secret name and number. */
+function walletDocuments(ver: Version, hidden: boolean): { documents: CharacterDocument[]; inherited: boolean } {
+  if (!hidden) return { documents: profileDocuments(ver.profile), inherited: false };
+  const secretProfile = effectiveProfile({ ...ver, secret: { ...ver.secret, enabled: true } }, true);
+  const inherited = ver.secret.overrides.documents === undefined;
+  const base = profileDocuments(secretProfile);
+  return { documents: inherited && ver.profile.documents !== undefined ? secretDocumentView(base, ver.profile, secretProfile) : base, inherited };
+}
 import {
   useCallback,
   useEffect,
@@ -74,7 +84,7 @@ import {
 import { mergeCoc, blankCoc, type CocPatch } from "./coc";
 import { useLibraryHistory } from "./useLibraryHistory";
 import { catalogDraftNeedsAttention } from "./hooks/useCatalogDraft";
-import { BookPages, IdentityCard } from "./components/BookPages";
+import { BookPages } from "./components/BookPages";
 import { Editor } from "./components/Editor";
 import { CatalogPanel } from "./components/CatalogPanel";
 import { RecoveryPanel } from "./components/RecoveryPanel";
@@ -143,6 +153,7 @@ export default function App() {
   const [comparing, setComparing] = useState(false);
   const [relationTrail, setRelationTrail] = useState<{ characterId: string; versionId: string; page: Page; hidden: boolean }[]>([]);
   const [searchHit, setSearchHit] = useState<SearchHit | null>(null);
+  const [walletFocus, setWalletFocus] = useState<string | null>(null);
   const [newName, setNewName] = useState(""),
     [newCollection, setNewCollection] = useState(""),
     [busy, setBusy] = useState(false),
@@ -282,7 +293,7 @@ export default function App() {
       checkpoint,
     );
   }
-  function updateVersion(updater: (version: Version) => Version) {
+  function updateVersion(updater: (version: Version) => Version, checkpoint = false) {
     if (!c || !v) return;
     setLibrary((lib) =>
       lib
@@ -303,7 +314,17 @@ export default function App() {
             ),
           }
         : lib,
+      checkpoint,
     );
+  }
+  function updateDocuments(update: (docs: CharacterDocument[]) => CharacterDocument[], checkpoint = false) {
+    updateVersion(ver => {
+      // The first secret edit saves exactly what was shown, i.e. the secret view of the public documents.
+      const documents = update(walletDocuments(ver, hidden).documents);
+      return hidden
+        ? { ...ver, secret: { ...ver.secret, overrides: { ...ver.secret.overrides, documents } } }
+        : { ...ver, profile: { ...ver.profile, documents } };
+    }, checkpoint);
   }
   function patchProfile(patch: Overrides) {
     updateVersion((ver) => {
@@ -347,12 +368,12 @@ export default function App() {
       };
     });
   }
-  function inherit(keys: (keyof Profile)[]) {
+  function inherit(keys: (keyof Profile)[], checkpoint = false) {
     updateVersion((ver) => {
       const overrides = { ...ver.secret.overrides };
       keys.forEach((k) => delete overrides[k]);
       return { ...ver, secret: { ...ver.secret, overrides } };
-    });
+    }, checkpoint);
   }
   function basicInherit(key: keyof Basics) {
     updateVersion((ver) => {
@@ -834,6 +855,7 @@ export default function App() {
               onSearchHit={(hit) => {
                 setActiveId(hit.characterId); setVersionId(hit.versionId); setPage(hit.page);
                 setHidden(hit.hidden); setShelf(false); closePanels(); setEditing(false); setSearchHit(hit);
+                if (hit.field === "证件") { setWalletFocus(hit.ref ?? null); setModal("identity"); } else setWalletFocus(null);
               }}
             />
           ) : c && v && p ? (
@@ -873,7 +895,7 @@ export default function App() {
                     onClick={() => setModal("identity")}
                   >
                     <ContactRound size={15} />
-                    身份卡
+                    证件夹
                   </button>
                   <button className="button small" onClick={() => setMarkdownScope({ kind: "character", character: c, versionId: v.id })}>导出 Markdown</button>
                   <button className="button small" aria-expanded={comparing} onClick={() => setComparing(!comparing)}>版本对比</button>
@@ -1141,7 +1163,7 @@ export default function App() {
                           } as const
                         )[v.secret.trigger]
                       }
-                      中，也许藏着另一段故事。可在身份卡中触发，或点击详细档案的姓名。
+                      中，也许藏着另一段故事。可在证件夹中触发，或点击详细档案的姓名。
                     </>
                   ) : (
                     <>
@@ -1164,33 +1186,10 @@ export default function App() {
         </main>
       </div>
       {modal === "identity" && c && v && p && (
-        <Modal
-          title="身份卡"
-          className="identity-card-modal"
-          bare
-          onClose={() => setModal(null)}
-        >
-          <IdentityDisplay hidden={hidden} theme={v.secret.theme}>
-            <IdentityCard
-              profile={p}
-              hidden={hidden}
-              onPortrait={
-                v.secret.enabled && v.secret.trigger === "portrait"
-                  ? reveal
-                  : undefined
-              }
-              onName={
-                v.secret.enabled && v.secret.trigger === "name"
-                  ? reveal
-                  : undefined
-              }
-              onEmblem={
-                v.secret.enabled && v.secret.trigger === "emblem"
-                  ? reveal
-                  : undefined
-              }
-            />
-          </IdentityDisplay>
+        <Modal title="证件夹" className="document-wallet-modal" onClose={() => setModal(null)}>
+          <DocumentWallet key={`${c.id}/${v.id}/${hidden}`} {...walletDocuments(v, hidden)} initialId={walletFocus ?? undefined} profile={p} secret={v.secret} hidden={hidden}
+            context={`${c.name} · ${v.name}`} onChange={updateDocuments} onInherit={() => inherit(['documents'], true)}
+            onReveal={reveal} onUpload={putImage} undo={undo} redo={redo} canUndo={canUndo} canRedo={canRedo} />
         </Modal>
       )}
       {modal === "copyVersion" && v && (

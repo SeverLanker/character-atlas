@@ -145,9 +145,9 @@ it("详细档案照片可预览，名字双向切换秘密资料且不改变剧�
   expect(screen.getByRole("dialog",{name:"秘密真名的照片"})).toBeTruthy();
   expect(container.querySelector('.preview-image .builtin-art')?.getAttribute('style')).toContain('50%');
   fireEvent.click(screen.getByRole("button",{name:"关闭窗口"}));
-  fireEvent.click(screen.getByRole("button",{name:"身份卡"}));
-  const identity = screen.getByRole("dialog",{name:"身份卡"});
-  expect(identity.querySelector('.id-photo .builtin-art')?.getAttribute('style')).toContain('50%');
+  fireEvent.click(screen.getByRole("button",{name:"证件夹"}));
+  const identity = screen.getByRole("dialog",{name:"证件夹"});
+  expect(identity.querySelector('.document-photo .builtin-art')?.getAttribute('style')).toContain('50%');
   expect(within(identity).getByText('秘密真名')).toBeTruthy();
   fireEvent.click(within(identity).getByRole("button",{name:"关闭窗口"}));
   fireEvent.click(screen.getByRole("button",{name:"秘密真名 · 返回公开档案"}));

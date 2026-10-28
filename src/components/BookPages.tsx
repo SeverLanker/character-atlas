@@ -64,6 +64,10 @@ export function IdentityCard({
   onName?: () => void;
   onEmblem?: () => void;
 }) {
+  const primaryFields = (["age", "gender", "birthday", "blood"] as const)
+    .filter(key => visibleBasic(profile, key));
+  const registerFields = (["occupation", "affiliation", "species", "height", "weight", "birthplace", "residence"] as const)
+    .filter(key => visibleBasic(profile, key));
   return (
     <div className={"id-card " + (hidden ? "restricted-card" : "")}>
       <span className="id-card-glint" aria-hidden="true" />
@@ -82,6 +86,7 @@ export function IdentityCard({
           label="切换身份档案"
         />
         <div className="id-copy">
+          <span className="id-section-label" aria-hidden="true">{hidden ? "人员识别 / PERSONNEL" : "持有人 / CARDHOLDER"}</span>
           {visibleBasic(profile, "name") &&
             (onName ? (
               <button className="id-name text-button" onClick={onName}>
@@ -90,29 +95,25 @@ export function IdentityCard({
             ) : (
               <span className="id-name">{profile.basics.name || "未命名"}</span>
             ))}
-          <div className="id-fields">
-            {(
-              [
-                ["age", "年龄"],
-                ["gender", "性别"],
-                ["occupation", "身份"],
-              ] as const
-            )
-              .filter(([key]) => visibleBasic(profile, key))
-              .map(([key, label]) => (
-                <span key={key}>
-                  {label} <b>{dash(profile.basics[key])}</b>
-                </span>
-              ))}
-          </div>
-          {visibleBasic(profile, "code") && (
-            <div className="id-number">
-              {profile.basics.code || "NO RECORD"}
+          {visibleBasic(profile, "alias") && <div className="id-alias"><span>别名</span> {dash(profile.basics.alias)}</div>}
+          {primaryFields.length > 0 && (
+            <div className="id-fields">
+              {primaryFields.map(key => <span key={key}><span>{basicLabels[key]}</span><b>{dash(profile.basics[key])}</b></span>)}
             </div>
           )}
-          <div className="barcode" />
+        </div>
+      </div>
+      {registerFields.length > 0 && <div className="id-register">
+        {registerFields.map(key => <div key={key} className={key === "residence" || key === "birthplace" ? "id-register-wide" : undefined}>
+          <span>{basicLabels[key]}</span><b>{dash(profile.basics[key] ?? "")}</b>
+        </div>)}
+      </div>}
+      <div className="id-footer">
+        <div className="id-registration">
+          {visibleBasic(profile, "code") && <div className="id-number"><span>身份编号 / ID NO.</span><b>{dash(profile.basics.code)}</b></div>}
           <div className="id-security" aria-hidden="true"><i className="id-chip" /><span>{hidden ? 'RESTRICTED / PERSONNEL ARCHIVE' : 'PERSONAL / CHARACTER ARCHIVE'}</span></div>
         </div>
+        <div className="barcode" aria-hidden="true" />
         {onEmblem ? (
           <button
             className="id-emblem"

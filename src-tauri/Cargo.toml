@@ -1,6 +1,6 @@
 [package]
 name = "character-atlas"
-version = "0.5.6"
+version = "0.5.7"
 description = "叙册 · 本地私人角色设定集"
 authors = ["Character Atlas"]
 edition = "2021"

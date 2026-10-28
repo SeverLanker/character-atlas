@@ -1,6 +1,15 @@
 import { useAgentBridge } from "./hooks/useAgentBridge";
 import { DocumentWallet } from "./components/DocumentWallet";
-import { profileDocuments, type CharacterDocument } from "./documents";
+import { profileDocuments, secretDocumentView, type CharacterDocument } from "./documents";
+
+/** What the wallet shows for one side of a version. A secret side that inherits public documents sees them under the secret name and number. */
+function walletDocuments(ver: Version, hidden: boolean): { documents: CharacterDocument[]; inherited: boolean } {
+  if (!hidden) return { documents: profileDocuments(ver.profile), inherited: false };
+  const secretProfile = effectiveProfile({ ...ver, secret: { ...ver.secret, enabled: true } }, true);
+  const inherited = ver.secret.overrides.documents === undefined;
+  const base = profileDocuments(secretProfile);
+  return { documents: inherited && ver.profile.documents !== undefined ? secretDocumentView(base, ver.profile, secretProfile) : base, inherited };
+}
 import {
   useCallback,
   useEffect,
@@ -144,6 +153,7 @@ export default function App() {
   const [comparing, setComparing] = useState(false);
   const [relationTrail, setRelationTrail] = useState<{ characterId: string; versionId: string; page: Page; hidden: boolean }[]>([]);
   const [searchHit, setSearchHit] = useState<SearchHit | null>(null);
+  const [walletFocus, setWalletFocus] = useState<string | null>(null);
   const [newName, setNewName] = useState(""),
     [newCollection, setNewCollection] = useState(""),
     [busy, setBusy] = useState(false),
@@ -309,8 +319,8 @@ export default function App() {
   }
   function updateDocuments(update: (docs: CharacterDocument[]) => CharacterDocument[], checkpoint = false) {
     updateVersion(ver => {
-      const current = effectiveProfile(hidden ? { ...ver, secret: { ...ver.secret, enabled: true } } : ver, hidden);
-      const documents = update(profileDocuments(current));
+      // The first secret edit saves exactly what was shown, i.e. the secret view of the public documents.
+      const documents = update(walletDocuments(ver, hidden).documents);
       return hidden
         ? { ...ver, secret: { ...ver.secret, overrides: { ...ver.secret.overrides, documents } } }
         : { ...ver, profile: { ...ver.profile, documents } };
@@ -845,7 +855,7 @@ export default function App() {
               onSearchHit={(hit) => {
                 setActiveId(hit.characterId); setVersionId(hit.versionId); setPage(hit.page);
                 setHidden(hit.hidden); setShelf(false); closePanels(); setEditing(false); setSearchHit(hit);
-                if (hit.field === "证件") setModal("identity");
+                if (hit.field === "证件") { setWalletFocus(hit.ref ?? null); setModal("identity"); } else setWalletFocus(null);
               }}
             />
           ) : c && v && p ? (
@@ -1177,7 +1187,7 @@ export default function App() {
       </div>
       {modal === "identity" && c && v && p && (
         <Modal title="证件夹" className="document-wallet-modal" onClose={() => setModal(null)}>
-          <DocumentWallet key={`${c.id}/${v.id}/${hidden}`} profile={p} secret={v.secret} hidden={hidden}
+          <DocumentWallet key={`${c.id}/${v.id}/${hidden}`} {...walletDocuments(v, hidden)} initialId={walletFocus ?? undefined} profile={p} secret={v.secret} hidden={hidden}
             context={`${c.name} · ${v.name}`} onChange={updateDocuments} onInherit={() => inherit(['documents'], true)}
             onReveal={reveal} onUpload={putImage} undo={undo} redo={redo} canUndo={canUndo} canRedo={canRedo} />
         </Modal>

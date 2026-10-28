@@ -154,6 +154,8 @@ export interface CharacterDocument {
   fields: Partial<Record<DocumentField, string>>;
 }
 export const MAX_DOCUMENTS = 100;
+export const MAX_TITLE = 120;
+export const MAX_FIELD = 2000;
 export function documentLabel(
   type: DocumentType,
   field: DocumentField,
@@ -231,7 +233,7 @@ export function validateDocuments(
       "未知证件类型",
     );
     check(
-      typeof doc.title === "string" && doc.title.length <= 120,
+      typeof doc.title === "string" && doc.title.length <= MAX_TITLE,
       "名称必须是 120 字以内的文字",
     );
     check(
@@ -245,9 +247,77 @@ export function validateDocuments(
       object(doc.fields) &&
         Object.entries(doc.fields).every(
           ([key, text]) =>
-            Object.hasOwn(documentFieldLabels, key) && typeof text === "string",
+            Object.hasOwn(documentFieldLabels, key) && typeof text === "string" && text.length <= MAX_FIELD,
         ),
-      "字段必须是已知的文字字段",
+      `字段必须是已知的文字字段，每项最多 ${MAX_FIELD} 字`,
     );
   }
+}
+
+/** The identity card is the primary document; without one, the first document stands in. */
+export function primaryDocument(docs: readonly CharacterDocument[]): CharacterDocument | undefined {
+  return docs.find((doc) => doc.type === "identity") ?? docs[0];
+}
+/** Display order: primary first, the rest in saved order. Storage order is never changed. */
+export function orderDocuments(docs: readonly CharacterDocument[]): CharacterDocument[] {
+  const primary = primaryDocument(docs);
+  return primary ? [primary, ...docs.filter((doc) => doc !== primary)] : [];
+}
+/**
+ * Secret identity that still inherits the public documents: show them under the secret
+ * holder name, identity number and portrait. Only identity cards take the identity number,
+ * as in createDocument. Fields the secret profile hides or leaves empty keep the public value.
+ */
+export function secretDocumentView(docs: readonly CharacterDocument[], publicProfile: Profile, secretProfile: Profile): CharacterDocument[] {
+  const value = (profile: Profile, key: keyof Basics) =>
+    profile.display?.hiddenBasics.includes(key) ? "" : (profile.basics[key] ?? "").trim();
+  const name = value(secretProfile, "name"), code = value(secretProfile, "code");
+  return docs.map((doc) => {
+    const fields = { ...doc.fields };
+    if (name) fields.holder = name;
+    if (code && doc.type === "identity") fields.number = code;
+    const portrait = doc.portrait === publicProfile.portrait && secretProfile.portrait !== publicProfile.portrait ? secretProfile.portrait : doc.portrait;
+    return { ...doc, fields, portrait };
+  });
+}
+
+const MRZ_LENGTH = 44;
+const mrzText = (value: string) => value.normalize("NFKD").toUpperCase().replace(/[^A-Z0-9 <]/g, "").trim().replace(/\s+/g, "<");
+const mrzDigit = (value: string) => {
+  const weights = [7, 3, 1];
+  let sum = 0;
+  [...value].forEach((char, i) => {
+    const n = char === "<" ? 0 : /\d/.test(char) ? Number(char) : char.charCodeAt(0) - 55;
+    sum += n * weights[i % 3]!;
+  });
+  return String(sum % 10);
+};
+const mrzDate = (value = "") => {
+  const digits = value.match(/\d+/g) ?? [];
+  const [year = "", month = "", day = ""] = digits;
+  if (year.length === 4 && month && day) return year.slice(2) + month.padStart(2, "0").slice(-2) + day.padStart(2, "0").slice(-2);
+  return "<<<<<<";
+};
+/**
+ * Two 44-character machine-readable lines for the passport data page, ICAO 9303 style with
+ * check digits. The issuing code "ATL" is fictional (Character Atlas), never a real state.
+ */
+export function mrzLines(doc: CharacterDocument): [string, string] {
+  const roman = mrzText(doc.fields.romanName ?? "") || mrzText(doc.fields.holder ?? "") || "HOLDER";
+  const [surname, ...given] = roman.split("<").filter(Boolean);
+  const name = `${surname}<<${given.join("<")}`;
+  const line1 = `P<ATL${name}`.padEnd(MRZ_LENGTH, "<").slice(0, MRZ_LENGTH);
+  const number = (mrzText(doc.fields.number ?? "").replace(/</g, "") || "000000000").padEnd(9, "<").slice(0, 9);
+  const birth = mrzDate(doc.fields.birthday), expiry = mrzDate(doc.fields.expires);
+  const sex = /女|F/i.test(doc.fields.gender ?? "") ? "F" : /男|M/i.test(doc.fields.gender ?? "") ? "M" : "<";
+  const body = `${number}${mrzDigit(number)}ATL${birth}${mrzDigit(birth)}${sex}${expiry}${mrzDigit(expiry)}`;
+  const optional = "<".repeat(MRZ_LENGTH - body.length - 2);
+  const line2 = `${body}${optional}${mrzDigit(optional)}${mrzDigit(body + optional)}`;
+  return [line1, line2];
+}
+/** Deterministic decorative barcode widths (1–3) from any text; not a real symbology. */
+export function barcodeBars(text: string, count = 42): number[] {
+  let hash = 2166136261;
+  for (const char of text || "ATLAS") hash = Math.imul(hash ^ char.codePointAt(0)!, 16777619) >>> 0;
+  return Array.from({ length: count }, () => { hash = Math.imul(hash ^ (hash >>> 13), 2246822519) >>> 0; return 1 + (hash % 3); });
 }

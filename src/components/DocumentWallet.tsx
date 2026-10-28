@@ -22,8 +22,13 @@ import {
   documentFieldLabels,
   documentLabel,
   documentTemplates,
+  barcodeBars,
   MAX_DOCUMENTS,
-  profileDocuments,
+  MAX_FIELD,
+  MAX_TITLE,
+  mrzLines,
+  orderDocuments,
+  primaryDocument,
   type CharacterDocument,
   type DocumentField,
   type DocumentType,
@@ -41,14 +46,27 @@ const icons = {
   other: BadgeCheck,
 };
 
+/** Short design notes per type; each face has its own layout, palette and security motifs (all fictional). */
+const editions: Record<DocumentType, string> = { identity: "ID", driver: "DL", passport: "P", student: "ST", work: "STAFF", police: "WC", other: "DOC" };
+const microtext = "CHARACTER ATLAS · FICTIONAL DOCUMENT · 叙册 · ";
+
+function Barcode({ text }: { text: string }) {
+  const bars = barcodeBars(text);
+  let x = 0;
+  const rects = bars.map((width, i) => { const rect = i % 2 === 0 ? <rect key={i} x={x} y={0} width={width} height={20} /> : null; x += width; return rect; });
+  return <svg className="doc-barcode" viewBox={`0 0 ${x} 20`} preserveAspectRatio="none" aria-hidden="true" focusable="false">{rects}</svg>;
+}
+
 export function DocumentFace({
   document: doc,
   secret,
   onReveal,
+  primary = false,
 }: {
   document: CharacterDocument;
   secret?: Secret;
   onReveal?: () => void;
+  primary?: boolean;
 }) {
   const template = documentTemplates[doc.type],
     Icon = icons[doc.type];
@@ -56,28 +74,33 @@ export function DocumentFace({
     (key) => key !== "holder" && key !== "number" && doc.fields[key]?.trim(),
   );
   const trigger = secret?.enabled ? secret.trigger : undefined;
+  const title = doc.title || template.name;
   return (
     <article
-      className={`document-face document-${doc.type}`}
-      aria-label={`${doc.title || template.name}预览`}
+      className={`document-face document-${doc.type}${primary ? " is-primary" : ""}`}
+      aria-label={`${title}预览${primary ? "（主证件）" : ""}`}
     >
+      <span className="doc-pattern" aria-hidden="true" />
+      <span className="doc-micro" aria-hidden="true">{microtext.repeat(6)}</span>
+      {(doc.type === "passport" || doc.type === "police") && <span className="doc-spine" aria-hidden="true"><span>{doc.type === "passport" ? "PASSPORT · 护照" : "WARRANT CARD"}</span></span>}
       <header className="document-masthead">
-        <Icon size={27} strokeWidth={1.4} />
+        <Icon size={27} strokeWidth={1.4} aria-hidden="true" />
         <div>
           <small>{template.en}</small>
-          <h2>{doc.title || template.name}</h2>
+          <h2>{title}</h2>
         </div>
-        <span className="document-edition" aria-hidden="true">
-          {doc.type === "passport" ? "P" : "档"}
-        </span>
+        {primary ? <span className="doc-primary">主证件</span> : <span className="document-edition" aria-hidden="true">{editions[doc.type]}</span>}
       </header>
       <div className="document-body">
-        <Portrait
-          image={doc.portrait}
-          className="document-photo"
-          onClick={trigger === "portrait" ? onReveal : undefined}
-          label="切换身份档案"
-        />
+        <div className="doc-photo-frame">
+          <Portrait
+            image={doc.portrait}
+            className="document-photo"
+            onClick={trigger === "portrait" ? onReveal : undefined}
+            label="切换身份档案"
+          />
+          {(doc.type === "identity" || doc.type === "driver" || doc.type === "passport") && <span className="doc-holo" aria-hidden="true" />}
+        </div>
         <div className="document-holder">
           <small>姓名 / NAME</small>
           {trigger === "name" ? (
@@ -92,15 +115,9 @@ export function DocumentFace({
               <div
                 key={key}
                 className={
-                  [
-                    "address",
-                    "issuer",
-                    "organization",
-                    "school",
-                    "birthplace",
-                  ].includes(key)
+                  ["address", "issuer", "organization", "school", "birthplace"].includes(key)
                     ? "document-wide"
-                    : undefined
+                    : key === "vehicleClass" ? "doc-class" : undefined
                 }
               >
                 <span>{documentLabel(doc.type, key)}</span>
@@ -121,12 +138,9 @@ export function DocumentFace({
           <small>{template.numberLabel}</small>
           <strong>{doc.fields.number || "尚未填写"}</strong>
         </div>
+        {(doc.type === "student" || doc.type === "work" || doc.type === "driver") && <Barcode text={`${doc.id}${doc.fields.number ?? ""}`} />}
         {trigger === "emblem" ? (
-          <button
-            className="document-seal"
-            aria-label="切换身份档案"
-            onClick={onReveal}
-          >
+          <button className="document-seal" aria-label="切换身份档案" onClick={onReveal}>
             <Fingerprint size={32} strokeWidth={1} />
           </button>
         ) : (
@@ -135,8 +149,13 @@ export function DocumentFace({
           </span>
         )}
       </footer>
+      {doc.type === "passport" && (
+        <div className="doc-mrz" aria-label="机读码（虚构）">
+          {mrzLines(doc).map((line, i) => <code key={i}>{line}</code>)}
+        </div>
+      )}
       <div className="document-baseline" aria-hidden="true">
-        <span>CHARACTER ATLAS</span>
+        <span>CHARACTER ATLAS · FICTIONAL</span>
         <span>{template.en}</span>
       </div>
     </article>
@@ -159,6 +178,12 @@ interface Props {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  /** Documents to show: saved ones, the legacy preview, or the secret view of inherited public ones. */
+  documents: CharacterDocument[];
+  /** True while a secret identity shows the public documents under its own name and number. */
+  inherited: boolean;
+  /** Select this document first (search hits). */
+  initialId?: string;
 }
 export function DocumentWallet({
   profile,
@@ -173,9 +198,12 @@ export function DocumentWallet({
   redo,
   canUndo,
   canRedo,
+  documents,
+  inherited,
+  initialId,
 }: Props) {
-  const docs = profileDocuments(profile);
-  const [selectedId, setSelectedId] = useState(docs[0]?.id ?? "");
+  const docs = orderDocuments(documents), primary = primaryDocument(documents);
+  const [selectedId, setSelectedId] = useState(initialId && docs.some(doc => doc.id === initialId) ? initialId : primary?.id ?? "");
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<
@@ -212,9 +240,8 @@ export function DocumentWallet({
       ),
     );
   }
-  const inherited = hidden && secret.overrides.documents === undefined;
   return (
-    <div className={`document-wallet ${hidden ? "wallet-secret" : ""}`}>
+    <div className={`document-wallet ${hidden ? `wallet-secret secret-theme-${secret.theme}` : ""}`}>
       <div className="wallet-context">
         <span>{context}</span>
         <b>{hidden ? "秘密证件" : "公开证件"}</b>
@@ -248,9 +275,10 @@ export function DocumentWallet({
             <Redo2 size={16} />
           </button>
         </div>
-        {secret.enabled && (
+        {/* Only offered once the secret side is already open, so it never reveals that one exists. */}
+        {hidden && (
           <button className="button small" onClick={onReveal}>
-            {hidden ? "返回公开身份" : "切换秘密身份"}
+            返回公开身份
           </button>
         )}
       </div>
@@ -271,7 +299,7 @@ export function DocumentWallet({
       {hidden && (
         <p className="wallet-hint">
           {inherited
-            ? "当前沿用公开证件，修改后保存为独立的秘密证件组。"
+            ? "沿用公开证件：姓名、身份号码与照片按秘密档案显示。修改任意内容后，将另存为独立的秘密证件组。"
             : "此组证件仅用于当前剧情版本的秘密身份。"}
           {!inherited && (
             <button
@@ -324,6 +352,7 @@ export function DocumentWallet({
               return (
                 <button
                   key={doc.id}
+                  className={doc === primary ? "is-primary" : undefined}
                   aria-pressed={doc.id === selected.id}
                   onClick={() => {
                     setSelectedId(doc.id);
@@ -341,17 +370,20 @@ export function DocumentWallet({
                       {doc.fields.number || "未填写编号"}
                     </small>
                   </span>
-                  <i>{String(i + 1).padStart(2, "0")}</i>
+                  {doc === primary ? <em>主证件</em> : <i>{String(i + 1).padStart(2, "0")}</i>}
                 </button>
               );
             })}
           </nav>
           <section className="wallet-content">
-            <DocumentFace
-              document={selected}
-              secret={secret}
-              onReveal={onReveal}
-            />
+            <div className={`wallet-stack${docs.length > 1 ? " has-stack" : ""}${selected === primary ? " shows-primary" : ""}`} data-behind={Math.min(docs.length - 1, 2)}>
+              <DocumentFace
+                document={selected}
+                secret={secret}
+                onReveal={onReveal}
+                primary={selected === primary}
+              />
+            </div>
             <div className="document-actions">
               <button
                 className="button"
@@ -407,6 +439,9 @@ export function DocumentWallet({
                 role="region"
                 aria-label="编辑证件资料"
               >
+                {inherited && <p className="wallet-hint wallet-inherit-note" role="note">
+                  正在沿用公开证件。下面显示的是秘密身份下的样子；保存任何修改都会把整组复制为秘密证件组，公开证件不受影响。
+                </p>}
                 <p className="wallet-hint">
                   修改自动保存。证件上的姓名、编号与照片独立于角色档案；可填写伪装身份。同类证件也可添加多张。
                 </p>
@@ -414,7 +449,7 @@ export function DocumentWallet({
                   <label className="field">
                     <span>证件名称</span>
                     <input
-                      maxLength={120}
+                      maxLength={MAX_TITLE}
                       value={selected.title}
                       onChange={(e) => patch({ title: e.target.value })}
                     />
@@ -478,14 +513,14 @@ export function DocumentWallet({
                       <span>{documentLabel(selected.type, key)}</span>
                       {key === "notes" || key === "address" ? (
                         <textarea
-                          maxLength={2000}
+                          maxLength={MAX_FIELD}
                           rows={3}
                           value={selected.fields[key] ?? ""}
                           onChange={(e) => field(key, e.target.value)}
                         />
                       ) : (
                         <input
-                          maxLength={2000}
+                          maxLength={MAX_FIELD}
                           value={selected.fields[key] ?? ""}
                           onChange={(e) => field(key, e.target.value)}
                           placeholder={
@@ -510,7 +545,7 @@ export function DocumentWallet({
         <div className="wallet-empty">
           <IdCard size={42} strokeWidth={1} />
           <h3>还没有证件</h3>
-          <p>为这个身份添加第一张证件。</p>
+          <p>为这个身份添加第一张证件。{hidden && " 也可以用上方「返回公开身份」回到公开证件。"}</p>
           <button className="button" onClick={() => setAdding(true)}>
             <Plus size={15} />
             选择证件类型

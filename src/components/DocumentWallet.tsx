@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { reducedMotion } from "../motion";
+import { TypeReveal } from "./TypeReveal";
 import {
   BadgeCheck,
   BookOpen,
@@ -62,11 +64,19 @@ export function DocumentFace({
   secret,
   onReveal,
   primary = false,
+  hidden = false,
+  stamp = false,
+  onStamped,
 }: {
   document: CharacterDocument;
   secret?: Secret;
   onReveal?: () => void;
   primary?: boolean;
+  /** Showing the secret identity: archive text types in on first display. */
+  hidden?: boolean;
+  /** Just issued: play the stamp once. */
+  stamp?: boolean;
+  onStamped?: () => void;
 }) {
   const template = documentTemplates[doc.type],
     Icon = icons[doc.type];
@@ -75,6 +85,9 @@ export function DocumentFace({
   );
   const trigger = secret?.enabled ? secret.trigger : undefined;
   const title = doc.title || template.name;
+  const clinical = hidden && secret?.theme === "clinical";
+  const typedText = (key: string, text: string, on: boolean) =>
+    on ? <TypeReveal id={`${doc.id}:${key}:${hidden ? "s" : "p"}`} text={text} /> : text;
   return (
     <article
       className={`document-face document-${doc.type}${primary ? " is-primary" : ""}`}
@@ -105,10 +118,10 @@ export function DocumentFace({
           <small>姓名 / NAME</small>
           {trigger === "name" ? (
             <button className="text-button" onClick={onReveal}>
-              {doc.fields.holder || "姓名未填写"}
+              {typedText("holder", doc.fields.holder || "姓名未填写", hidden)}
             </button>
           ) : (
-            <h3>{doc.fields.holder || "姓名未填写"}</h3>
+            <h3>{typedText("holder", doc.fields.holder || "姓名未填写", hidden)}</h3>
           )}
           <div className="document-fields">
             {fields.map((key) => (
@@ -121,7 +134,7 @@ export function DocumentFace({
                 }
               >
                 <span>{documentLabel(doc.type, key)}</span>
-                <b>{doc.fields[key]}</b>
+                <b>{typedText(key, doc.fields[key] ?? "", clinical)}</b>
               </div>
             ))}
           </div>
@@ -130,13 +143,13 @@ export function DocumentFace({
       {doc.fields.notes?.trim() && (
         <p className="document-notes">
           <span>备注</span>
-          {doc.fields.notes}
+          {typedText("notes", doc.fields.notes, clinical)}
         </p>
       )}
       <footer className="document-footer">
         <div>
           <small>{template.numberLabel}</small>
-          <strong>{doc.fields.number || "尚未填写"}</strong>
+          <strong>{doc.fields.number ? typedText("number", doc.fields.number, hidden || doc.type === "police") : "尚未填写"}</strong>
         </div>
         {(doc.type === "student" || doc.type === "work" || doc.type === "driver") && <Barcode text={`${doc.id}${doc.fields.number ?? ""}`} />}
         {trigger === "emblem" ? (
@@ -153,6 +166,12 @@ export function DocumentFace({
         <div className="doc-mrz" aria-label="机读码（虚构）">
           {mrzLines(doc).map((line, i) => <code key={i}>{line}</code>)}
         </div>
+      )}
+      {stamp && (
+        <span className="doc-issue-stamp" aria-hidden="true" onAnimationEnd={onStamped}>
+          <b>{doc.type === "police" || doc.type === "work" ? "核发" : "签发"}</b>
+          <small>ISSUED</small>
+        </span>
       )}
       <div className="document-baseline" aria-hidden="true">
         <span>CHARACTER ATLAS · FICTIONAL</span>
@@ -184,6 +203,8 @@ interface Props {
   inherited: boolean;
   /** Select this document first (search hits). */
   initialId?: string;
+  /** Just switched between public and secret identity. */
+  glitch?: boolean;
 }
 export function DocumentWallet({
   profile,
@@ -201,10 +222,14 @@ export function DocumentWallet({
   documents,
   inherited,
   initialId,
+  glitch = false,
 }: Props) {
   const docs = orderDocuments(documents), primary = primaryDocument(documents);
   const [selectedId, setSelectedId] = useState(initialId && docs.some(doc => doc.id === initialId) ? initialId : primary?.id ?? "");
   const [adding, setAdding] = useState(false);
+  const [stampId, setStampId] = useState<string | null>(null);
+  // Fallback when animationend never fires (e.g. hidden tab): drop the stamp anyway.
+  useEffect(() => { if (!stampId) return; const t = setTimeout(() => setStampId(null), 2400); return () => clearTimeout(t); }, [stampId]);
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<
     { kind: "delete"; id: string; title: string } | { kind: "inherit" } | null
@@ -218,6 +243,7 @@ export function DocumentWallet({
       true,
     );
     setSelectedId(doc.id);
+    if (!reducedMotion()) setStampId(doc.id);
     setEditing(true);
     setAdding(false);
     setConfirm(null);
@@ -241,7 +267,7 @@ export function DocumentWallet({
     );
   }
   return (
-    <div className={`document-wallet ${hidden ? `wallet-secret secret-theme-${secret.theme}` : ""}`}>
+    <div className={`document-wallet ${hidden ? `wallet-secret secret-theme-${secret.theme}` : ""}${glitch ? " identity-glitch" : ""}`}>
       <div className="wallet-context">
         <span>{context}</span>
         <b>{hidden ? "秘密证件" : "公开证件"}</b>
@@ -382,6 +408,9 @@ export function DocumentWallet({
                 secret={secret}
                 onReveal={onReveal}
                 primary={selected === primary}
+                hidden={hidden}
+                stamp={stampId === selected.id}
+                onStamped={() => setStampId(null)}
               />
             </div>
             <div className="document-actions">

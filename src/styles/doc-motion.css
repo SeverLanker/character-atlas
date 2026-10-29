@@ -1,0 +1,83 @@
+/* Document motion: identity-switch glitch, typewriter caret, issue stamp.
+   Disabled by prefers-reduced-motion or html[data-reduce-motion="true"]. */
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* G2-style signal glitch: red/blue split and horizontal tears, ~420 ms. */
+.identity-glitch { position: relative; animation: id-glitch-shift 420ms steps(1, end) both; }
+.identity-glitch::before,
+.identity-glitch::after {
+  content: ""; position: absolute; inset: 0; z-index: 30; pointer-events: none;
+  mix-blend-mode: screen; opacity: 0;
+  animation: id-glitch-tear 420ms steps(1, end) both;
+}
+.identity-glitch::before { background: rgb(255 40 60 / .24); }
+.identity-glitch::after { background: rgb(0 210 255 / .24); animation-direction: reverse; }
+@keyframes id-glitch-shift {
+  0%, 100% { transform: none; filter: none; }
+  12% { transform: translateX(-5px); filter: drop-shadow(4px 0 0 rgb(255 30 60 / .75)) drop-shadow(-4px 0 0 rgb(0 210 255 / .75)); }
+  30% { transform: translateX(4px) skewX(-2deg); filter: drop-shadow(-3px 0 0 rgb(255 30 60 / .7)) drop-shadow(3px 0 0 rgb(0 210 255 / .7)); }
+  48% { transform: translateX(-2px); filter: none; }
+  66% { transform: translateX(3px); filter: drop-shadow(2px 0 0 rgb(255 30 60 / .6)) drop-shadow(-2px 0 0 rgb(0 210 255 / .6)); }
+  84% { transform: none; filter: none; }
+}
+@keyframes id-glitch-tear {
+  0% { opacity: 1; clip-path: inset(8% 0 78% 0); transform: translateX(-14px); }
+  20% { opacity: 1; clip-path: inset(42% 0 44% 0); transform: translateX(18px); }
+  40% { opacity: 1; clip-path: inset(70% 0 18% 0); transform: translateX(-10px); }
+  60% { opacity: 1; clip-path: inset(22% 0 66% 0); transform: translateX(8px); }
+  80% { opacity: 1; clip-path: inset(88% 0 4% 0); transform: translateX(-6px); }
+  100% { opacity: 0; clip-path: inset(0 0 100% 0); transform: none; }
+}
+
+/* A2-style typewriter caret. */
+.type-reveal { white-space: pre-wrap; }
+.type-caret {
+  display: inline-block; width: .55ch; height: 1em; margin-left: 1px;
+  vertical-align: -.12em; background: currentColor;
+  animation: type-caret-blink 480ms steps(1, end) infinite;
+}
+@keyframes type-caret-blink { 50% { opacity: 0; } }
+
+/* L29-style issue stamp: slam in with overshoot, halftone ring, then fade. */
+.document-face > .doc-issue-stamp {
+  position: absolute; right: 9%; top: 34%; z-index: 6; pointer-events: none;
+  display: grid; place-items: center; width: 92px; height: 92px; border-radius: 50%;
+  color: #b3262d; border: 3px double currentColor;
+  font-family: var(--font-display, serif); line-height: 1.05; text-align: center;
+  mix-blend-mode: multiply;
+  background: radial-gradient(circle, transparent 54%, rgb(179 38 45 / .28) 55% 58%, transparent 59%);
+  animation: doc-stamp 1700ms cubic-bezier(.2, .9, .3, 1.25) both;
+}
+.doc-issue-stamp::before {
+  content: ""; position: absolute; inset: -12px; border-radius: 50%; z-index: -1;
+  background: radial-gradient(circle, currentColor 1.1px, transparent 1.6px) 0 0 / 6px 6px;
+  -webkit-mask: radial-gradient(circle, transparent 48%, #000 52% 66%, transparent 72%);
+  mask: radial-gradient(circle, transparent 48%, #000 52% 66%, transparent 72%);
+  opacity: .5;
+}
+.doc-issue-stamp b { font-size: 1.45rem; letter-spacing: .12em; }
+.doc-issue-stamp small { font-size: .58rem; letter-spacing: .3em; }
+@keyframes doc-stamp {
+  0% { opacity: 0; transform: scale(1.6) rotate(-22deg); }
+  14% { opacity: 1; transform: scale(.92) rotate(-11deg); }
+  24% { transform: scale(1.04) rotate(-13deg); }
+  32%, 78% { opacity: .92; transform: scale(1) rotate(-12deg); }
+  100% { opacity: 0; transform: scale(1) rotate(-12deg); }
+}
+.secret-theme-noir .doc-issue-stamp, [data-theme="night"] .doc-issue-stamp { color: #e0454b; mix-blend-mode: normal; }
+
+@media (prefers-reduced-motion: reduce) {
+  .identity-glitch, .identity-glitch::before, .identity-glitch::after { animation: none; }
+  .identity-glitch::before, .identity-glitch::after { content: none; }
+  .type-caret { animation: none; }
+  .doc-issue-stamp { display: none; }
+}
+html[data-reduce-motion="true"] .identity-glitch,
+html[data-reduce-motion="true"] .identity-glitch::before,
+html[data-reduce-motion="true"] .identity-glitch::after { animation: none; content: none; }
+html[data-reduce-motion="true"] .type-caret { animation: none; }
+html[data-reduce-motion="true"] .doc-issue-stamp { display: none; }

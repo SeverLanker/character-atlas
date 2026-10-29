@@ -1,5 +1,6 @@
 import { useAgentBridge } from "./hooks/useAgentBridge";
 import { DocumentWallet } from "./components/DocumentWallet";
+import { reducedMotion } from "./motion";
 import { profileDocuments, secretDocumentView, type CharacterDocument } from "./documents";
 
 /** What the wallet shows for one side of a version. A secret side that inherits public documents sees them under the secret name and number. */
@@ -132,6 +133,8 @@ export default function App() {
     [versionId, setVersionId] = useState(""),
     [page, setPage] = useState<Page>("archive"),
     [hidden, setHidden] = useState(false),
+    // Bumped on each identity switch; drives the brief glitch, cleared after it plays.
+    [glitch, setGlitch] = useState(0),
     [catalogOpen, setCatalogOpen] = useState(false),
     [graphOpen, setGraphOpen] = useState(false),
     [shelf, setShelf] = useState(true),
@@ -176,6 +179,11 @@ export default function App() {
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(""), 4200);
   }, []);
+  useEffect(() => {
+    if (!glitch) return;
+    const timer = setTimeout(() => setGlitch(0), 450);
+    return () => clearTimeout(timer);
+  }, [glitch]);
   useEffect(() => {
     let live = true;
     loadLibrary()
@@ -419,6 +427,7 @@ export default function App() {
   function reveal() {
     if (!v?.secret.enabled) return;
     setHidden((value) => !value);
+    if (!reducedMotion()) setGlitch((n) => n + 1);
   }
   async function runExport() {
     if (!library) return;
@@ -970,7 +979,8 @@ export default function App() {
               <div
                 className={
                   "book-shell " +
-                  (hidden ? "theme-" + v.secret.theme : "theme-ivory")
+                  (hidden ? "theme-" + v.secret.theme : "theme-ivory") +
+                  (glitch ? " identity-glitch" : "")
                 }
               >
                 <nav className="book-tabs" aria-label="档案目录">
@@ -1189,7 +1199,7 @@ export default function App() {
         <Modal title="证件夹" className="document-wallet-modal" onClose={() => setModal(null)}>
           <DocumentWallet key={`${c.id}/${v.id}/${hidden}`} {...walletDocuments(v, hidden)} initialId={walletFocus ?? undefined} profile={p} secret={v.secret} hidden={hidden}
             context={`${c.name} · ${v.name}`} onChange={updateDocuments} onInherit={() => inherit(['documents'], true)}
-            onReveal={reveal} onUpload={putImage} undo={undo} redo={redo} canUndo={canUndo} canRedo={canRedo} />
+            glitch={!!glitch} onReveal={reveal} onUpload={putImage} undo={undo} redo={redo} canUndo={canUndo} canRedo={canRedo} />
         </Modal>
       )}
       {modal === "copyVersion" && v && (

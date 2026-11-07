@@ -80,18 +80,41 @@ fn store_map(file: &Path, map: &BTreeMap<String, String>) -> AppResult<()> {
     atomic_write(file, serde_json::to_string_pretty(&body).map_err(err)?.as_bytes())
 }
 
+/// `canonicalize` on Windows returns `\\?\C:\...`. That is a local disk path, not a share.
+/// Bindings store the plain form so the next lookup is not rejected as UNC.
+fn local_disk_path(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        use std::path::{Component, Prefix};
+        let mut parts = path.components();
+        if let Some(Component::Prefix(prefix)) = parts.next() {
+            if let Prefix::VerbatimDisk(disk) = prefix.kind() {
+                let mut plain = PathBuf::from(format!("{}:", disk as char));
+                plain.push(parts.as_path());
+                return plain;
+            }
+        }
+    }
+    path.to_path_buf()
+}
+
 pub fn canonicalize_dir(path: &Path) -> AppResult<PathBuf> {
+    let path = local_disk_path(path);
     if is_unc_or_device(&path.to_string_lossy()) {
         return Err("不支持网络共享或设备路径".into());
     }
-    let meta = fs::symlink_metadata(path).map_err(|_| "根目录不存在".to_string())?;
+    let meta = fs::symlink_metadata(&path).map_err(|_| "根目录不存在".to_string())?;
     if meta.file_type().is_symlink() {
         return Err("根目录不能是符号链接".into());
     }
     if !meta.is_dir() {
         return Err("根目录必须是文件夹".into());
     }
-    path.canonicalize().map_err(|_| "根目录无法访问".to_string())
+    let canonical = local_disk_path(&path.canonicalize().map_err(|_| "根目录无法访问".to_string())?);
+    if is_unc_or_device(&canonical.to_string_lossy()) {
+        return Err("不支持网络共享或设备路径".into());
+    }
+    Ok(canonical)
 }
 
 pub fn save_root(file: &Path, root_id: &str, absolute: &Path) -> AppResult<()> {
@@ -110,7 +133,7 @@ pub fn relative_of(root: &Path, file: &Path) -> AppResult<String> {
     if meta.file_type().is_symlink() || !meta.is_file() {
         return Err("请选择根目录内的普通文件".into());
     }
-    let file = file.canonicalize().map_err(|_| "找不到所选文件".to_string())?;
+    let file = local_disk_path(&file.canonicalize().map_err(|_| "找不到所选文件".to_string())?);
     let relative = file.strip_prefix(&root).map_err(|_| "文件不在所选根目录内".to_string())?;
     let text = relative
         .components()
@@ -154,7 +177,7 @@ fn resolve_file(bindings: &Path, root_id: &str, relative: &str) -> AppResult<Res
         Err(_) => return Ok(Err(ArchiveProbe { status: "missing".into(), detail: "本机映射处找不到文件，可以重新选择".into() })),
     };
     if meta.file_type().is_symlink() {
-        let canon = path.canonicalize().map_err(|_| "文件无法读取，或引用离开了根目录".to_string())?;
+        let canon = local_disk_path(&path.canonicalize().map_err(|_| "文件无法读取，或引用离开了根目录".to_string())?);
         if !canon.starts_with(&root) {
             return Ok(Err(ArchiveProbe { status: "unreadable".into(), detail: "文件无法读取，或引用离开了根目录".into() }));
         }
@@ -340,9 +363,14 @@ mod tests {
         drop(db);
         let stored = fs::read(library.join("library.sqlite")).unwrap();
         let stored = String::from_utf8_lossy(&stored);
+        let canonical = canonicalize_dir(&vault).unwrap();
+        let encoded = serde_json::to_string(&canonical.to_string_lossy().to_string()).unwrap();
+        let encoded = encoded.trim_matches('"');
         let absolute = fs::read_to_string(&bindings).unwrap();
-        assert!(absolute.contains(&vault.canonicalize().unwrap().to_string_lossy().to_string()));
-        assert!(!stored.contains(&vault.canonicalize().unwrap().to_string_lossy().to_string()));
+        assert!(absolute.contains(encoded), "{absolute}");
+        assert!(!absolute.contains('?'), "{absolute}");
+        assert!(!stored.contains(encoded));
+        assert!(!stored.contains(canonical.to_string_lossy().as_ref()));
         assert!(stored.contains("notes/a.md"));
         fs::remove_dir_all(data).unwrap();
     }

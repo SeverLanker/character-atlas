@@ -32,6 +32,7 @@ import {
   ChevronRight,
   CircleAlert,
   Clock3,
+  Globe,
   HardDrive,
   Info,
   LibraryBig,
@@ -97,6 +98,8 @@ import { Modal, type Confirm } from "./views/Modal";
 import { ShelfView } from "./views/ShelfView";
 import { ExportMarkdownModal, type MarkdownScope } from "./views/ExportMarkdownModal";
 import { RelationshipGraphView } from "./views/RelationshipGraphView";
+import { WorldOverview } from "./views/WorldOverview";
+import type { WorldScope } from "./worlds";
 import { LibrarySettingsModal } from "./views/LibrarySettingsModal";
 import { useAppKeyboard } from "./hooks/useAppKeyboard";
 import { queueSave, useAutosave } from "./hooks/useAutosave";
@@ -137,6 +140,9 @@ export default function App() {
     [glitch, setGlitch] = useState(0),
     [catalogOpen, setCatalogOpen] = useState(false),
     [graphOpen, setGraphOpen] = useState(false),
+    [worldOpen, setWorldOpen] = useState(false),
+    [openWorldId, setOpenWorldId] = useState<string | null>(null),
+    [worldScope, setWorldScope] = useState<WorldScope>("owner"),
     [shelf, setShelf] = useState(true),
     [editing, setEditing] = useState(false);
   const [filter, setFilter] = useState("全部角色"),
@@ -162,7 +168,7 @@ export default function App() {
     [busy, setBusy] = useState(false),
     [toast, setToast] = useState(""),
     [location, setLocation] = useState("");
-  const shelfVisible = shelf && !catalogOpen && !graphOpen;
+  const shelfVisible = shelf && !catalogOpen && !graphOpen && !worldOpen;
   const selection = useShelfSelection(
     shelfVisible ? filterCharacters(library, filter, search, sort).map((x) => x.id) : [],
   );
@@ -173,6 +179,16 @@ export default function App() {
   function closePanels() {
     setCatalogOpen(false);
     setGraphOpen(false);
+    setWorldOpen(false);
+  }
+  function openWorlds() {
+    setShelf(true);
+    setCatalogOpen(false);
+    setGraphOpen(false);
+    setWorldOpen(true);
+    setOpenWorldId(null);
+    setEditing(false);
+    setHidden(false);
   }
   const notify = useCallback((text: string) => {
     setToast(text);
@@ -671,7 +687,7 @@ export default function App() {
         <div className="sidebar-section-label">我的创作空间</div>
         <button
           className={
-            "sidebar-link " + (!catalogOpen && !graphOpen && shelf && filter === "全部角色" ? "active" : "")
+            "sidebar-link " + (!catalogOpen && !graphOpen && !worldOpen && shelf && filter === "全部角色" ? "active" : "")
           }
           onClick={() => {
             setShelf(true);
@@ -686,7 +702,7 @@ export default function App() {
         </button>
         <button
           className={
-            "sidebar-link " + (!catalogOpen && !graphOpen && shelf && filter === "特别收藏" ? "active" : "")
+            "sidebar-link " + (!catalogOpen && !graphOpen && !worldOpen && shelf && filter === "特别收藏" ? "active" : "")
           }
           onClick={() => {
             setShelf(true);
@@ -699,20 +715,23 @@ export default function App() {
           <span>特别收藏</span>
         </button>
         <button className={"sidebar-link " + (catalogOpen ? "active" : "")} onClick={() => {
-          setShelf(true); setGraphOpen(false); setCatalogOpen(true); setEditing(false); setHidden(false);
+          setShelf(true); setGraphOpen(false); setWorldOpen(false); setCatalogOpen(true); setEditing(false); setHidden(false);
         }}><LibraryBig size={18} /><span>条目库管理</span><small>{library.catalog?.length ?? 0}</small></button>
         <button className={"sidebar-link " + (graphOpen ? "active" : "")} onClick={() => {
-          setShelf(true); setCatalogOpen(false); setGraphOpen(true); setEditing(false); setHidden(false);
+          setShelf(true); setCatalogOpen(false); setGraphOpen(true); setWorldOpen(false); setEditing(false); setHidden(false);
         }}><Network size={18} /><span>关系图</span></button>
+        <button className={"sidebar-link " + (worldOpen && !catalogOpen && !graphOpen ? "active" : "")} aria-label={`世界，${(library.worlds ?? []).length} 个`} onClick={openWorlds}>
+          <Globe size={18} /><span>世界</span><small>{(library.worlds ?? []).length.toString().padStart(2, "0")}</small>
+        </button>
         <div className="sidebar-section-label series-label">
-          故事与世界<span>{groups.length}</span>
+          分组<span>{groups.length}</span>
         </div>
         {groups.map((group) => (
           <button
             key={group}
             className={
               "sidebar-link series-link " +
-              (!catalogOpen && !graphOpen && shelf && filter === group ? "active" : "")
+              (!catalogOpen && !graphOpen && !worldOpen && shelf && filter === group ? "active" : "")
             }
             onClick={() => {
               setShelf(true);
@@ -777,7 +796,7 @@ export default function App() {
           <div className="breadcrumb">
             <span>私人设定集</span>
             <ChevronRight size={13} />
-            <strong>{catalogOpen ? "条目库管理" : graphOpen ? "关系图" : shelf ? "角色书架" : c?.name}</strong>
+            <strong>{catalogOpen ? "条目库管理" : graphOpen ? "关系图" : worldOpen ? "世界概览" : shelf ? "角色书架" : c?.name}</strong>
             {!shelf && (
               <>
                 <ChevronRight size={13} />
@@ -832,6 +851,21 @@ export default function App() {
               </div>
               <CatalogPanel historyAction={lastAction} entries={library.catalog ?? []} onChange={(catalog) => setLibrary((lib) => lib ? { ...lib, catalog } : lib, true)} />
             </section>
+          ) : worldOpen ? (
+            <WorldOverview
+              library={library}
+              scope={worldScope}
+              onScope={setWorldScope}
+              openWorldId={openWorldId}
+              onOpenWorld={setOpenWorldId}
+              onBack={() => setOpenWorldId(null)}
+              onChange={(next) => setLibrary(next, true)}
+              onEnterCharacter={enter}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              undo={undo}
+              redo={redo}
+            />
           ) : graphOpen ? (
             <section className="graph-page">
               <div className="shelf-heading">
@@ -846,7 +880,8 @@ export default function App() {
               layout={layout} setLayout={setLayout}
               canUndo={canUndo} canRedo={canRedo} undo={undo} redo={redo}
               onNewCharacter={() => setModal("new")}
-              onOpenGraph={() => { setCatalogOpen(false); setGraphOpen(true); }}
+              onOpenGraph={() => { setCatalogOpen(false); setWorldOpen(false); setGraphOpen(true); }}
+              onOpenWorlds={openWorlds}
               enter={(character) => { selection.exit(); enter(character); }} toggleFavorite={toggleFavorite}
               selecting={selection.selecting} selectedIds={selection.selectedIds}
               onToggleSelecting={selection.toggleMode} onCardSelect={selection.select}

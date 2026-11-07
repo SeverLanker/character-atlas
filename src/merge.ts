@@ -5,6 +5,17 @@ export type ImportChoices = Record<string, ImportChoice>;
 export function defaultImportChoice(current: Library, character: Character): ImportChoice {
   return current.characters.some((row) => row.id === character.id) ? "skip" : "copy";
 }
+function appendById<T extends { id: string }>(current: T[] | undefined, incoming: T[] | undefined): T[] | undefined {
+  if (!incoming?.length) return current;
+  const rows = current ? [...current] : [];
+  const seen = new Set(rows.map((item) => item.id));
+  for (const item of incoming) {
+    if (seen.has(item.id)) continue;
+    rows.push(structuredClone(item));
+    seen.add(item.id);
+  }
+  return rows;
+}
 function freshCharacter(source: Character): Character {
   const clone = structuredClone(source);
   clone.id = uid();
@@ -45,6 +56,9 @@ export function mergeLibraries(current: Library, incoming: Library, choices: Imp
     if (choice === "replace" && index >= 0) result.characters[index] = prepared.get(character.id)!;
     else result.characters.push(prepared.get(character.id)!);
   }
+  result.worlds = appendById(result.worlds, incoming.worlds);
+  result.archiveRoots = appendById(result.archiveRoots, incoming.archiveRoots);
+  result.externalArchives = appendById(result.externalArchives, incoming.externalArchives);
   if (incoming.catalog?.length) {
     result.catalog ??= [];
     for (const entry of incoming.catalog) {

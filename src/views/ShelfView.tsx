@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import {
-  ArrowRight, Network, ArrowUpFromLine, BookMarked, BookOpen, Grid2X2, List, Plus, Redo2,
+  ArrowRight, Network, ArrowUpFromLine, BookMarked, BookOpen, Globe, Grid2X2, List, Plus, Redo2,
   Search, SlidersHorizontal, Star, Undo2, X, ListChecks, Check,
 } from "lucide-react";
 import type { MouseEvent } from "react";
@@ -26,6 +26,7 @@ export interface ShelfViewProps {
   redo: () => void;
   onNewCharacter: () => void;
   onOpenGraph?: () => void;
+  onOpenWorlds?: () => void;
   enter: (character: Character) => void;
   toggleFavorite: (character: Character) => void;
   onSearchHit: (hit: SearchHit) => void;
@@ -42,7 +43,7 @@ export interface ShelfViewProps {
 /** 角色书架。状态仍由 App 持有，以便在书架与档案之间切换时保留搜索、排序与布局。 */
 export function ShelfView({
   library, filter, filtered, search, setSearch, sort, setSort, layout, setLayout,
-  canUndo, canRedo, undo, redo, onNewCharacter, onOpenGraph, enter, toggleFavorite, onSearchHit,
+  canUndo, canRedo, undo, redo, onNewCharacter, onOpenGraph, onOpenWorlds, enter, toggleFavorite, onSearchHit,
   selecting = false, selectedIds = [], onToggleSelecting, onCardSelect, onSelectAll, onClearSelection, batch,
 }: ShelfViewProps) {
   const selected = new Set(selectedIds);
@@ -64,6 +65,7 @@ export function ShelfView({
                   <p>收藏每一个灵魂，记录每一种可能。</p>
                 </div>
                 <div className="coc-edit-actions">
+                  {onOpenWorlds && <button className="button" onClick={onOpenWorlds}><Globe size={16} />世界概览</button>}
                   {onOpenGraph && <button className="button" onClick={onOpenGraph}><Network size={16} />关系图</button>}
                   <button
                     className="button primary"
@@ -90,7 +92,7 @@ export function ShelfView({
                   <div className="shelf-metrics" aria-label="资料库概览">
                     <span><b>{library.characters.length}</b>位角色</span>
                     <span><b>{library.characters.reduce((sum, role) => sum + role.versions.length, 0)}</b>段篇章</span>
-                    <span><b>{new Set(library.characters.map(role => role.collection).filter(Boolean)).size}</b>个世界</span>
+                    <span><b>{new Set(library.characters.map(role => role.collection).filter(Boolean)).size}</b>个分组</span>
                   </div>
                 </div>
                 <div className="banner-art" aria-hidden="true">

@@ -7,6 +7,7 @@ import {
 } from "./coc.ts";
 import { validateBody, type BodyProfile } from "./body.ts";
 import { validateDocuments, type CharacterDocument } from "./documents.ts";
+import { isSafeRelativePath, isStableId } from "./external-archives.ts";
 export type Page = "archive" | "skills" | "collection" | "status";
 export type Theme = "prison" | "noir" | "clinical";
 export interface Basics {
@@ -127,10 +128,52 @@ export interface Version {
   createdAt: string;
   updatedAt: string;
 }
+export type Visibility = "private" | "public";
+/** Explicit cross-world pointer. The target may be missing; it is never resolved by name. */
+export interface WorldLink {
+  id: string;
+  targetWorldId: string;
+  note: string;
+}
+/** A world is its id. `name` is a label and may duplicate another world's name. */
+export interface World {
+  id: string;
+  name: string;
+  summary: string;
+  visibility: Visibility;
+  links: WorldLink[];
+  createdAt: string;
+  updatedAt: string;
+}
+/** Relocatable root. The absolute directory is not stored here. */
+export interface ArchiveRoot {
+  id: string;
+  label: string;
+  createdAt: string;
+  updatedAt: string;
+}
+/**
+ * Read-only pointer to a file the user selected under an `ArchiveRoot`.
+ * `relativePath` is not an absolute path and is not updated when the file moves.
+ */
+export interface ExternalArchiveRef {
+  id: string;
+  title: string;
+  rootId: string;
+  relativePath: string;
+  worldId?: string;
+  visibility: Visibility;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+}
 export interface Character {
   id: string;
   name: string;
+  /** Shelf group, kept verbatim. Not a world id; equal strings are not merged into one world. */
   collection: string;
+  /** Explicit world assignment. Absent means unassigned, even when `collection` matches a world name. */
+  worldId?: string;
   favorite: boolean;
   accent: string;
   versions: Version[];
@@ -142,6 +185,10 @@ export interface Library {
   catalog?: CatalogEntry[];
   schemaVersion: 1 | 2;
   characters: Character[];
+  /** Omitted on old libraries. Treat absence as an empty list; do not invent worlds from `collection`. */
+  worlds?: World[];
+  archiveRoots?: ArchiveRoot[];
+  externalArchives?: ExternalArchiveRef[];
 }
 export const uid = () => crypto.randomUUID();
 export const now = () => new Date().toISOString();
@@ -388,6 +435,52 @@ function validatePartialProfile(v: unknown, partial = false): void {
       );
 }
 const forbiddenKeys = new Set(["__proto__", "constructor", "prototype"]);
+const validStamp = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
+function validateAtlasLayer(value: Record<string, unknown>) {
+  if (value.worlds !== undefined) {
+    check(Array.isArray(value.worlds) && value.worlds.length <= 2000, "世界数量过多");
+    const ids = new Set<string>();
+    for (const world of value.worlds) {
+      check(isObject(world) && isStableId(world.id) && !ids.has(world.id), "世界编号无效或重复");
+      ids.add(world.id);
+      check(typeof world.name === "string" && world.name.length <= 200, "世界名称无效");
+      check(typeof world.summary === "string" && world.summary.length <= 20000, "世界简介无效");
+      check(world.visibility === "private" || world.visibility === "public", "世界公开范围无效");
+      check(validStamp(world.createdAt) && validStamp(world.updatedAt), "世界时间无效");
+      check(Array.isArray(world.links) && world.links.length <= 50, "世界引用无效");
+      const linkIds = new Set<string>();
+      for (const link of world.links) {
+        check(isObject(link) && isStableId(link.id) && !linkIds.has(link.id) && isStableId(link.targetWorldId), "世界引用编号无效或重复");
+        linkIds.add(link.id);
+        check(typeof link.note === "string" && link.note.length <= 500, "世界引用说明无效");
+      }
+    }
+  }
+  if (value.archiveRoots !== undefined) {
+    check(Array.isArray(value.archiveRoots) && value.archiveRoots.length <= 200, "外部根目录过多");
+    const ids = new Set<string>();
+    for (const root of value.archiveRoots) {
+      check(isObject(root) && isStableId(root.id) && !ids.has(root.id), "外部根目录编号无效或重复");
+      ids.add(root.id);
+      check(typeof root.label === "string" && root.label.trim().length > 0 && root.label.length <= 200, "外部根目录名称无效");
+      check(validStamp(root.createdAt) && validStamp(root.updatedAt), "外部根目录时间无效");
+    }
+  }
+  if (value.externalArchives !== undefined) {
+    check(Array.isArray(value.externalArchives) && value.externalArchives.length <= 2000, "外部档案过多");
+    const ids = new Set<string>();
+    for (const ref of value.externalArchives) {
+      check(isObject(ref) && isStableId(ref.id) && !ids.has(ref.id), "外部档案编号无效或重复");
+      ids.add(ref.id);
+      check(typeof ref.title === "string" && ref.title.trim().length > 0 && ref.title.length <= 300, "外部档案标题无效");
+      check(isStableId(ref.rootId) && isSafeRelativePath(ref.relativePath), "外部档案路径无效");
+      check(ref.worldId === undefined || isStableId(ref.worldId), "外部档案所属世界无效");
+      check(ref.visibility === "private" || ref.visibility === "public", "外部档案公开范围无效");
+      check(typeof ref.note === "string" && ref.note.length <= 2000, "外部档案附注无效");
+      check(validStamp(ref.createdAt) && validStamp(ref.updatedAt), "外部档案时间无效");
+    }
+  }
+}
 export function validateLibrary(value: unknown): asserts value is Library {
   check(
     isObject(value) &&
@@ -429,6 +522,7 @@ export function validateLibrary(value: unknown): asserts value is Library {
         typeof c.updatedAt === "string",
       "角色信息无效",
     );
+    check(c.worldId === undefined || isStableId(c.worldId), "角色所属世界无效");
     check(
       Array.isArray(c.versions) && c.versions.length > 0,
       "角色必须有一个版本",
@@ -463,6 +557,7 @@ export function validateLibrary(value: unknown): asserts value is Library {
       catch (error) { throw new Error(context + "秘密档案 / " + (error instanceof Error ? error.message : String(error))); }
     }
   }
+  validateAtlasLayer(value);
 }
 
 export function defaultVersion(character: Character): Version {
@@ -475,6 +570,7 @@ export function migrateLibrary(value: unknown): Library {
   validateLibrary(value);
   const result = structuredClone(value);
   result.schemaVersion = 2;
+  // Absent world and archive lists stay absent. collection strings are not turned into worlds.
   const names: Record<string, keyof CocSheet["characteristics"]> = {
     力量: "STR",
     体质: "CON",

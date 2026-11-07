@@ -14,6 +14,14 @@ export function describeChange(before: Library | null, after: Library): string {
     return `条目库变动：新增 ${[...nextIds].filter(id => !oldIds.has(id)).length}、移除 ${[...oldIds].filter(id => !nextIds.has(id)).length}、更新内容`;
   }
   const changed = after.characters.filter((c, i) => c !== before.characters[i]);
+  if (changed.length === 0 && before.characters.length === after.characters.length) {
+    const worlds = JSON.stringify(before.worlds ?? []) !== JSON.stringify(after.worlds ?? []);
+    const archives = JSON.stringify(before.externalArchives ?? []) !== JSON.stringify(after.externalArchives ?? [])
+      || JSON.stringify(before.archiveRoots ?? []) !== JSON.stringify(after.archiveRoots ?? []);
+    if (worlds && archives) return "世界与外部档案引用变动";
+    if (worlds) return "世界资料变动";
+    if (archives) return "外部档案引用变动";
+  }
   return changed.length === 1 ? `编辑角色「${changed[0].name}」` : "更新角色资料";
 }
 export function markOperation(after: Library, before: Library | null, source: OperationInfo["source"], at: number) {

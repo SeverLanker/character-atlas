@@ -197,7 +197,7 @@ export async function exportBackup(library: Library): Promise<Uint8Array> {
   const files: Record<string, Uint8Array> = {
     "library.json": strToU8(JSON.stringify(library, null, 2)),
     "README.txt": strToU8(
-      `叙册完整备份\n资料格式 schemaVersion: ${library.schemaVersion}\nlibrary.json: 角色、剧情版本、明档、秘密档案和共享 catalog 条目库。\nassets/: 图片字节；JSON 中的图片字段引用此目录下的文件名。builtin:0–2 为应用内置图片。\n可在“恢复备份”中替换整库，或在“追加导入角色”中选择冲突处理后合并。\n秘密档案不是加密，备份包含秘密内容。\n完整字段类型、必填性与枚举见源码仓库 SCHEMA.md。`,
+      `叙册完整备份\n资料格式 schemaVersion: ${library.schemaVersion}\nlibrary.json: 角色、剧情版本、明档、秘密档案、分组原文字符串、世界、外部档案引用和共享 catalog 条目库。\n外部档案只保存稳定引用、根目录编号和相对路径，不保存本机绝对路径，也不复制 Obsidian 正文。\nassets/: 图片字节；JSON 中的图片字段引用此目录下的文件名。builtin:0–2 为应用内置图片。\n可在“恢复备份”中替换整库，或在“追加导入角色”中按编号合并。追加导入不按同名合并世界。\n秘密档案不是加密，备份包含秘密内容。\n0.5.7 及更早的安装包不保证识别世界和外部档案；回到旧版本请使用升级前导出的完整备份。\n完整字段类型、必填性与枚举见源码仓库 SCHEMA.md。`,
     ),
   };
   checkBackupEntrySize("library.json", files["library.json"]);

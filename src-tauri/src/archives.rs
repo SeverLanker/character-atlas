@@ -347,6 +347,7 @@ mod tests {
         fs::remove_dir_all(data).unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn symlink_root_and_escaping_link_are_refused() {
         let data = temp();

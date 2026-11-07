@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import type { MouseEvent } from "react";
 import { BatchBar, type BatchActions } from "../components/BatchBar";
-import { defaultVersion, type Character, type Library } from "../model";
+import { defaultVersion, visibleBasic, type Character, type Library } from "../model";
 import { IdentityCard } from "../components/BookPages";
 import { LibrarySearch } from "../components/LibrarySearch";
 import type { SearchHit } from "../search";
@@ -214,7 +214,11 @@ export function ShelfView({
                   (selecting ? " selecting" : "")
                 }
               >
-                {filtered.map((character, i) => (
+                {filtered.map((character, i) => {
+                  const version = defaultVersion(character);
+                  // 证件已画出姓名时，下半部不再重复。证件隐藏姓名或空姓名不显示时，保留管理名，避免卡片完全没有可见姓名。
+                  const captionName = visibleBasic(version.profile, "name") ? "" : (character.name.trim() || "未命名");
+                  return (
                   <article
                     className={"character-card" + (selected.has(character.id) ? " selected" : "")}
                     key={character.id}
@@ -232,16 +236,16 @@ export function ShelfView({
                       onClick={(e) => openOrSelect(character, e)}
                     >
                       <IdentityCard
-                        profile={defaultVersion(character).profile}
+                        profile={version.profile}
                         hidden={false}
                       />
                       <div className="identity-card-caption">
                         <div>
                           <small>{character.collection}</small>
-                          <strong>{character.name}</strong>
+                          {captionName && <strong>{captionName}</strong>}
                         </div>
                         <span>
-                          {defaultVersion(character).name} ·{" "}
+                          {version.name} ·{" "}
                           {character.versions.length} 个版本{" "}
                           <ArrowUpFromLine size={12} />
                         </span>
@@ -265,7 +269,8 @@ export function ShelfView({
                       />
                     </button>
                   </article>
-                ))}
+                  );
+                })}
                 {!selecting && <button
                   className="new-character-card"
                   onClick={onNewCharacter}

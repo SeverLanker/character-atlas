@@ -18,11 +18,15 @@ interface Library {
   schemaVersion: 1 | 2;
   characters: Character[]; // 最多 10000 个，角色 ID 不可重复
   catalog?: CatalogEntry[]; // 最多 10000 项，模板 ID 不可重复
+  worlds?: World[]; // 省略表示没有世界；迁移不生成记录，也不改 collection
+  archiveRoots?: ArchiveRoot[];
+  externalArchives?: ExternalArchiveRef[];
 }
 interface Character {
   id: string;
   name: string; // 管理名，与档案姓名分别维护
-  collection: string; // 世界观或分组
+  collection: string; // 分组原文字符串，不是世界 id；同名不合并
+  worldId?: string; // 显式世界 id；省略表示未编入，不会按 collection 推断
   favorite: boolean;
   accent: string; // 建议使用 #RRGGBB
   versions: Version[]; // 至少一个，角色内的版本 ID 不可重复
@@ -43,6 +47,51 @@ interface Version {
 ```
 
 版本是完整快照，编辑某个版本不会自动更新其他版本。`name` 与 `date` 不负责排序或唯一性。
+
+`collection` 继续是角色上的分组原文字符串。改分组、分组重名、空字符串分组，都不会创建、改名或合并世界。关系图里的「世界观」筛选、Markdown 前言里的 `world` / `group`、条目的 `world` 字段、Agent 角色列表里的 `collection`，说的仍是这个字符串或条目自由文本，不是下面的世界实体。
+
+## 世界与外部档案（可选，schemaVersion 仍为 2）
+
+旧资料没有这些字段。缺省保持省略，界面按空列表处理，不按分组名称生成世界，也不改写 `collection`。只有真正新增世界或档案时，保存才会写入对应数组。0.5.7 及更早的安装包不保证识别这些字段；回到旧版本要用升级前导出的完整 ZIP，不能指望旧安装包直接理解新字段。
+
+```ts
+interface World {
+  id: string; // 稳定 id，1–80 位字母、数字、下划线或连字符
+  name: string; // 可空，可与其他世界重名；重名不合并
+  summary: string; // 简介，最长 20000，按空行分段阅读
+  visibility: "private" | "public"; // 缺省不允许；新建默认 private
+  links: { id: string; targetWorldId: string; note: string }[]; // 目标可以缺失，不按名称猜测
+  createdAt: string;
+  updatedAt: string;
+}
+interface ArchiveRoot {
+  id: string;
+  label: string; // 用户起的根目录名，不是绝对路径
+  createdAt: string;
+  updatedAt: string;
+}
+interface ExternalArchiveRef {
+  id: string; // 重新选择文件或根目录时保持不变
+  title: string;
+  rootId: string; // 根目录记录缺失时保留，供重新定位
+  relativePath: string; // 相对根目录，用 / 分隔；拒绝绝对路径、盘符和 ..
+  worldId?: string; // 显式归入某个世界；省略或目标缺失都不按标题猜测
+  visibility: "private" | "public";
+  note: string; // 来源维护附注，不进入正文
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+- 世界可以没有角色、没有档案。未填写 `worldId` 的角色留在「未编入世界」，书架分组照常显示。
+- 同一 `collection` 的多个角色不会合成一个世界。两个世界可以同名，界面用 id 前八位区分。
+- 一个角色可以编入世界 B，同时分组文字仍是 A。这不是合并。
+- 外部档案默认不复制正文、不双写、不自动同步。资料库只保存上面的引用。本机绝对路径写在桌面应用数据目录的 `archive-roots.json`，不在 `library.sqlite`，也不在 ZIP 里。换电脑或恢复备份后要重新选择根目录；文件被移动不会自动跟上。
+- 网页预览不能核对、阅读或打开本机文件，只能编辑引用记录。
+- 公开范围、检索、关系图、Markdown、操作记录和 Agent 不输出私有世界的名称与简介，也不输出任何外部档案的标题、相对路径、根目录名或附注。Agent `GET /backup` 因此不再保证与界面完整 ZIP 字节相同：没有私有世界且没有外部档案时仍相同；否则 Agent 备份会去掉这些记录。恢复外部档案要用界面导出的完整 ZIP。
+- 秘密身份仍不是加密。完整 ZIP 继续包含秘密覆盖。
+
+条目库的 `world` 字符串不参与世界合并。追加导入按稳定 id 带上新的世界、根目录和档案引用；id 已存在则保留当前记录，不按名称覆盖。
 
 ## 基础身份 Basics
 

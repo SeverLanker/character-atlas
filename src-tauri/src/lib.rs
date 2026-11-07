@@ -12,6 +12,7 @@ use tauri_plugin_dialog::DialogExt;
 
 mod native_write;
 mod agent;
+mod archives;
 mod snapshots;
 use native_write::{check_size, suggested_file_name, validate_target, WriteKind};
 
@@ -356,7 +357,16 @@ pub fn run() {
             save_export,
             library_location,
             open_library_folder,
-            relocate_library
+            relocate_library,
+            archives::archive_bindings,
+            archives::archive_bind_root,
+            archives::archive_relative,
+            archives::archive_bind_parent,
+            archives::archive_probe,
+            archives::archive_read,
+            archives::archive_open,
+            archives::archive_pick_file,
+            archives::archive_pick_root
         ])
         .build(tauri::generate_context!())
         .expect("无法启动叙册，请检查资料库路径及文件权限")

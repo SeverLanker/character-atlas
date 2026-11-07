@@ -6,6 +6,7 @@ import { markOperation } from "./history-labels";
 import { characterChoices, decodeBase64, parseCharacterJson, parseCharacterZip, type ParsedCharacters } from "./character-import";
 import { mergeLibraries } from "./merge";
 import { duplicateGroups, field, fields, lightEntry, queryIsEmpty, readQuery, selectCatalog, tagList, worldCounts } from "./agent-catalog";
+import { agentVisibleLibrary } from "./worlds";
 
 export interface AgentReply {
   status: number; body: string; content_type: string;
@@ -28,7 +29,11 @@ export interface AgentContext {
   commit: (request: AgentRequest, previous: Library, next: Library, record: AgentRecord) => Promise<void>;
   /** Writes incoming images under fresh names and rewrites refs in `library` in place (UI append-import pipeline). */
   importAssets?: (library: Library, assets: Record<string, Uint8Array>) => Promise<void>;
-  /** Builds the same zip as the UI full backup. */
+  /**
+   * Builds a ZIP from the library it is given.
+   * The Agent route passes `agentVisibleLibrary`, which drops private worlds and every external-archive record.
+   * The settings screen still exports the full library, including those records and secret overlays.
+   */
   backup?: (library: Library) => Promise<Uint8Array>;
 }
 /** Library states produced by agent writes in this session; /undo and /redo only move across these. */
@@ -187,7 +192,7 @@ export async function executeAgentRequest(request: AgentRequest, context: AgentC
     } else if (request.method === "GET" && path === "/backup") {
       if ([...url.searchParams.keys()].length) throw new ApiError(422, "整库备份不接受查询参数");
       if (!context.backup) throw new ApiError(501, "当前运行模式不支持整库备份");
-      const bytes = await context.backup(library);
+      const bytes = await context.backup(agentVisibleLibrary(library));
       if (bytes.length > MAX_BACKUP) throw new ApiError(413, "备份超过 48 MB，请在界面「设置 → 导出完整备份」中保存");
       reply = { status: 200, body: toBase64(bytes), content_type: "application/zip", encoding: "base64" };
     } else if (path.startsWith("/catalog/") && path.split("/").length === 3) {

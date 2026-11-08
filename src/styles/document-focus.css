@@ -1,0 +1,154 @@
+/* Wallet focus view + card flip. Disabled by prefers-reduced-motion or
+   html[data-reduce-motion="true"] (see the bottom of this file). */
+
+/* The focus layer covers the viewport so the whole picker is visually gone;
+   .wallet-main is additionally inert + aria-hidden in DocumentWallet. */
+.wallet-focus {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.wallet-focus-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(16 20 17 / .72);
+  cursor: pointer;
+}
+.wallet-focus-panel {
+  position: relative;
+  width: min(560px, 94vw);
+  max-height: 92vh;
+  overflow-y: auto;
+  animation: focus-in 300ms cubic-bezier(.2, .8, .3, 1) both;
+}
+@keyframes focus-in {
+  from { opacity: 0; transform: scale(.96) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.wallet-focus-tools {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.wallet-focus-hint {
+  text-align: center;
+  color: rgb(242 240 232 / .78);
+  font-size: 12px;
+  margin: 14px 0 0;
+}
+
+/* Flip scene. The spring tilt lives on the scene (CSS vars written by the rAF
+   loop in DocumentWallet); the 180° flip lives on the inner element. This is
+   the same 3D foundation as the secret-switch edge-on flip in doc-motion.css:
+   one flip system, two triggers with separate semantics. */
+.focus-flip-scene {
+  position: relative;
+  perspective: 1200px;
+  transform: rotateX(var(--card-rx, 0deg)) rotateY(var(--card-ry, 0deg));
+  transform-style: preserve-3d;
+}
+.focus-flip-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 600ms cubic-bezier(.34, 1.25, .5, 1);
+}
+.focus-flip-inner.is-flipped { transform: rotateY(180deg); }
+.focus-flip-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.focus-flip-back {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+}
+.focus-flip-back > .document-face { height: 100%; }
+.focus-gloss {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  border-radius: var(--d-radius, 14px);
+  background: radial-gradient(
+    240px circle at var(--light-x, 50%) var(--light-y, 40%),
+    rgb(255 255 255 / .22),
+    transparent 70%
+  );
+}
+
+/* Card back: real document fields only. Chip + magnetic stripe are CSS
+   decorations, labelled as such in the component. */
+.document-face.document-back {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.document-face.document-back > .doc-back-stripe {
+  display: block;
+  flex-shrink: 0;
+  height: 40px;
+  background: linear-gradient(#262b25, #171a16);
+}
+.document-face.document-back > .doc-back-chip {
+  display: block;
+  flex-shrink: 0;
+  width: 58px;
+  height: 42px;
+  margin: 18px 22px 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #d9b96a, #a9853c 60%, #d9b96a);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / .25), inset 0 0 0 5px rgb(255 255 255 / .18);
+}
+.doc-back-number { margin: 16px 22px 0; }
+.doc-back-number small {
+  display: block;
+  font: 600 8px/1 var(--d-data);
+  letter-spacing: 2.4px;
+  color: var(--d-muted);
+  margin-bottom: 6px;
+}
+.doc-back-number strong {
+  display: block;
+  font: 700 22px/1.3 var(--d-data);
+  letter-spacing: 3px;
+  overflow-wrap: anywhere;
+}
+.doc-back-number .doc-barcode {
+  width: 100%;
+  height: 34px;
+  margin-top: 10px;
+}
+.doc-back-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 18px;
+  margin: 18px 22px;
+}
+.doc-back-fields > div { min-width: 0; }
+.doc-back-fields dt {
+  font-size: 10px;
+  color: var(--d-muted);
+  margin-bottom: 3px;
+}
+.doc-back-fields dd {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.doc-back-note {
+  margin: auto 22px 18px;
+  font-size: 11px;
+  color: var(--d-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wallet-focus-panel { animation: none; }
+  .focus-flip-inner { transition: none; }
+}
+html[data-reduce-motion="true"] .wallet-focus-panel { animation: none; }
+html[data-reduce-motion="true"] .focus-flip-inner { transition: none; }

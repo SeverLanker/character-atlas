@@ -33,6 +33,28 @@
   100% { opacity: 0; clip-path: inset(0 0 100% 0); transform: none; }
 }
 
+/* Secret-switch edge-on flip: while the glitch tears across the wallet, the
+   face swings to 90° (edge-on, content swaps underneath) and back. Same 3D
+   flip foundation as the 180° card-back flip in document-focus.css; the
+   trigger and semantics stay separate, and reveal()/glitch counting are
+   untouched. 450 ms matches the glitch lifetime in App. */
+.identity-glitch .wallet-stack {
+  animation: wallet-secret-flip 450ms cubic-bezier(.3, .7, .3, 1) both;
+  transform-style: preserve-3d;
+}
+@keyframes wallet-secret-flip {
+  0% { transform: perspective(1100px) rotateY(0deg); }
+  50% { transform: perspective(1100px) rotateY(88deg); }
+  100% { transform: perspective(1100px) rotateY(0deg); }
+}
+
+/* The restricted ribbon slides in from the left when the secret side mounts. */
+.restricted-ribbon { animation: ribbon-slide-in 500ms cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes ribbon-slide-in {
+  from { transform: translateX(-16px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
 /* A2-style typewriter caret. */
 .type-reveal { white-space: pre-wrap; }
 .type-caret {
@@ -73,11 +95,15 @@
 @media (prefers-reduced-motion: reduce) {
   .identity-glitch, .identity-glitch::before, .identity-glitch::after { animation: none; }
   .identity-glitch::before, .identity-glitch::after { content: none; }
+  .identity-glitch .wallet-stack { animation: none; }
+  .restricted-ribbon { animation: none; }
   .type-caret { animation: none; }
   .doc-issue-stamp { display: none; }
 }
 html[data-reduce-motion="true"] .identity-glitch,
 html[data-reduce-motion="true"] .identity-glitch::before,
 html[data-reduce-motion="true"] .identity-glitch::after { animation: none; content: none; }
+html[data-reduce-motion="true"] .identity-glitch .wallet-stack { animation: none; }
+html[data-reduce-motion="true"] .restricted-ribbon { animation: none; }
 html[data-reduce-motion="true"] .type-caret { animation: none; }
 html[data-reduce-motion="true"] .doc-issue-stamp { display: none; }

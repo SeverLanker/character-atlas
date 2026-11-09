@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { reducedMotion } from "../motion";
 import {
+  bookletPages,
   canEnterFocus,
+  isBookletType,
   isFocusGuardTarget,
   springSettled,
   springStep,
   tiltFromPointer,
+  type BookletPage,
 } from "../document-motion";
 import { TypeReveal } from "./TypeReveal";
 import {
@@ -246,6 +249,64 @@ function DocumentFaceBack({
   );
 }
 
+/**
+ * One inner page of an opened booklet (passport / police). Rows come straight
+ * from bookletPages(): real filled fields only, no invented content.
+ */
+function BookletPageView({
+  document: doc,
+  page,
+}: {
+  document: CharacterDocument;
+  page: BookletPage;
+}) {
+  const template = documentTemplates[doc.type];
+  const Icon = icons[doc.type];
+  return (
+    <article
+      className={`document-face document-booklet-page document-${doc.type}`}
+      aria-label={`${doc.title || template.name} · ${page.title}`}
+    >
+      <span className="doc-pattern" aria-hidden="true" />
+      <header className="document-masthead">
+        <Icon size={27} strokeWidth={1.4} aria-hidden="true" />
+        <div>
+          <small>{template.en}</small>
+          <h2>
+            {doc.title || template.name} · {page.title}
+          </h2>
+        </div>
+      </header>
+      <div className={`doc-booklet-body${page.photo ? "" : " no-photo"}`}>
+        {page.photo && (
+          <div className="doc-photo-frame">
+            <Portrait image={doc.portrait} className="document-photo" />
+          </div>
+        )}
+        <dl className="doc-booklet-rows">
+          {page.rows.map((row) => (
+            <div key={row.label}>
+              <dt>{row.label}</dt>
+              <dd>{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      {page.mrz && (
+        <div className="doc-mrz" aria-label="机读码（虚构）">
+          {mrzLines(doc).map((line, i) => (
+            <code key={i}>{line}</code>
+          ))}
+        </div>
+      )}
+      <div className="document-baseline" aria-hidden="true">
+        <span>CHARACTER ATLAS · FICTIONAL</span>
+        <span>{template.en}</span>
+      </div>
+    </article>
+  );
+}
+
 interface Props {
   profile: Profile;
   secret: Secret;
@@ -303,6 +364,10 @@ export function DocumentWallet({
   const [focused, setFocused] = useState(false);
   /** Card back showing (180° flip inside the focus view). Independent of the secret switch. */
   const [flipped, setFlipped] = useState(false);
+  /** Booklet open (passport / police): the cover swings around the left spine. */
+  const [bookletOpen, setBookletOpen] = useState(false);
+  /** Current inner page of an opened booklet. */
+  const [bookletPage, setBookletPage] = useState(0);
   const closeFocusRef = useRef<HTMLButtonElement>(null);
   const tiltRef = useRef<HTMLDivElement>(null);
   // Spring tilt state (twoclipping-402193): pointer moves only retarget the
@@ -372,13 +437,29 @@ export function DocumentWallet({
     setEditing(false);
     setAdding(false);
     setFlipped(false);
+    setBookletOpen(false);
+    setBookletPage(0);
     setFocused(true);
   }
   function exitFocus() {
     setFocused(false);
     setFlipped(false);
+    setBookletOpen(false);
+    setBookletPage(0);
+  }
+  function toggleBooklet() {
+    if (bookletOpen) {
+      setBookletOpen(false);
+      setBookletPage(0);
+    } else {
+      setBookletOpen(true);
+    }
   }
   const selected = docs.find((doc) => doc.id === selectedId) ?? docs[0];
+  /** Booklet types open around a spine; the rest keep the 180° flip. */
+  const booklet = selected ? isBookletType(selected.type) : false;
+  const pages = selected ? bookletPages(selected) : [];
+  const bookletPageIndex = Math.min(bookletPage, Math.max(pages.length - 1, 0));
   function add(type: DocumentType) {
     const doc = createDocument(type, profile);
     onChange(
@@ -766,14 +847,25 @@ export function DocumentWallet({
           />
           <div className="wallet-focus-panel">
             <div className="wallet-focus-tools">
-              <button
-                className="button small"
-                onClick={() => setFlipped(!flipped)}
-                aria-pressed={flipped}
-              >
-                <FlipHorizontal2 size={14} />
-                {flipped ? "查看正面" : "查看背面"}
-              </button>
+              {booklet ? (
+                <button
+                  className="button small"
+                  onClick={toggleBooklet}
+                  aria-pressed={bookletOpen}
+                >
+                  <BookOpen size={14} />
+                  {bookletOpen ? "合上证件" : "打开证件"}
+                </button>
+              ) : (
+                <button
+                  className="button small"
+                  onClick={() => setFlipped(!flipped)}
+                  aria-pressed={flipped}
+                >
+                  <FlipHorizontal2 size={14} />
+                  {flipped ? "查看正面" : "查看背面"}
+                </button>
+              )}
               <button
                 ref={closeFocusRef}
                 className="icon-button wallet-focus-close"
@@ -789,24 +881,81 @@ export function DocumentWallet({
               onPointerMove={tiltMove}
               onPointerLeave={tiltReset}
             >
-              <div className={`focus-flip-inner${flipped ? " is-flipped" : ""}`}>
-                <div className="focus-flip-face" aria-hidden={flipped || undefined}>
-                  <DocumentFace
-                    document={selected}
-                    secret={secret}
-                    onReveal={onReveal}
-                    primary={selected === primary}
-                    hidden={hidden}
-                    stamp={stampId === selected.id}
-                    onStamped={() => setStampId(null)}
-                  />
+              {booklet ? (
+                <div className={`focus-booklet${bookletOpen ? " is-open" : ""}`}>
+                  {bookletOpen && pages[bookletPageIndex] && (
+                    <div
+                      className="focus-booklet-page"
+                      key={bookletPageIndex}
+                    >
+                      <BookletPageView
+                        document={selected}
+                        page={pages[bookletPageIndex]}
+                      />
+                    </div>
+                  )}
+                  <div
+                    className="focus-booklet-cover"
+                    aria-hidden={bookletOpen || undefined}
+                    inert={bookletOpen}
+                  >
+                    <DocumentFace
+                      document={selected}
+                      secret={secret}
+                      onReveal={onReveal}
+                      primary={selected === primary}
+                      hidden={hidden}
+                      stamp={stampId === selected.id}
+                      onStamped={() => setStampId(null)}
+                    />
+                  </div>
                 </div>
-                <div className="focus-flip-face focus-flip-back" aria-hidden={!flipped || undefined}>
-                  <DocumentFaceBack document={selected} />
+              ) : (
+                <div className={`focus-flip-inner${flipped ? " is-flipped" : ""}`}>
+                  <div className="focus-flip-face" aria-hidden={flipped || undefined}>
+                    <DocumentFace
+                      document={selected}
+                      secret={secret}
+                      onReveal={onReveal}
+                      primary={selected === primary}
+                      hidden={hidden}
+                      stamp={stampId === selected.id}
+                      onStamped={() => setStampId(null)}
+                    />
+                  </div>
+                  <div className="focus-flip-face focus-flip-back" aria-hidden={!flipped || undefined}>
+                    <DocumentFaceBack document={selected} />
+                  </div>
                 </div>
-              </div>
+              )}
               <span className="focus-gloss" aria-hidden="true" />
             </div>
+            {booklet && bookletOpen && pages[bookletPageIndex] && (
+              <div className="wallet-focus-pager">
+                <button
+                  className="button small"
+                  onClick={() => setBookletPage(Math.max(bookletPageIndex - 1, 0))}
+                  disabled={bookletPageIndex === 0}
+                  aria-label="上一页"
+                >
+                  上一页
+                </button>
+                <span aria-live="polite">
+                  第 {bookletPageIndex + 1} / {pages.length} 页 ·{" "}
+                  {pages[bookletPageIndex].title}
+                </span>
+                <button
+                  className="button small"
+                  onClick={() =>
+                    setBookletPage(Math.min(bookletPageIndex + 1, pages.length - 1))
+                  }
+                  disabled={bookletPageIndex >= pages.length - 1}
+                  aria-label="下一页"
+                >
+                  下一页
+                </button>
+              </div>
+            )}
             <p className="wallet-focus-hint">点击空白处返回证件列表</p>
           </div>
         </div>

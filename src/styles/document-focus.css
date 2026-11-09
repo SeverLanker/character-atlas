@@ -45,7 +45,10 @@
 /* Flip scene. The spring tilt lives on the scene (CSS vars written by the rAF
    loop in DocumentWallet); the 180° flip lives on the inner element. This is
    the same 3D foundation as the secret-switch edge-on flip in doc-motion.css:
-   one flip system, two triggers with separate semantics. */
+   one flip system, two triggers with separate semantics.
+   Both faces share one grid cell (grid-area 1/1), so the container is as tall
+   as the taller face and the back never needs its own scrollbar: the old
+   absolute inset:0 back was capped at the front's height and clipped. */
 .focus-flip-scene {
   position: relative;
   perspective: 1200px;
@@ -53,21 +56,21 @@
   transform-style: preserve-3d;
 }
 .focus-flip-inner {
-  position: relative;
+  display: grid;
   transform-style: preserve-3d;
   transition: transform 600ms cubic-bezier(.34, 1.25, .5, 1);
 }
 .focus-flip-inner.is-flipped { transform: rotateY(180deg); }
 .focus-flip-face {
+  grid-area: 1 / 1;
+  align-self: start;
+  min-width: 0;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
 .focus-flip-back {
-  position: absolute;
-  inset: 0;
   transform: rotateY(180deg);
 }
-.focus-flip-back > .document-face { height: 100%; }
 .focus-gloss {
   position: absolute;
   inset: 0;
@@ -82,7 +85,9 @@
 }
 
 /* Card back: real document fields only. Chip + magnetic stripe are CSS
-   decorations, labelled as such in the component. */
+   decorations, labelled as such in the component. overflow-y stays only as a
+   last resort for extreme small viewports; the grid-stacked flip above sizes
+   the container to the taller face, so the back normally fits whole. */
 .document-face.document-back {
   display: flex;
   flex-direction: column;
@@ -91,20 +96,20 @@
 .document-face.document-back > .doc-back-stripe {
   display: block;
   flex-shrink: 0;
-  height: 40px;
+  height: 32px;
   background: linear-gradient(#262b25, #171a16);
 }
 .document-face.document-back > .doc-back-chip {
   display: block;
   flex-shrink: 0;
   width: 58px;
-  height: 42px;
-  margin: 18px 22px 0;
+  height: 36px;
+  margin: 14px 22px 0;
   border-radius: 8px;
   background: linear-gradient(135deg, #d9b96a, #a9853c 60%, #d9b96a);
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / .25), inset 0 0 0 5px rgb(255 255 255 / .18);
 }
-.doc-back-number { margin: 16px 22px 0; }
+.doc-back-number { margin: 12px 22px 0; }
 .doc-back-number small {
   display: block;
   font: 600 8px/1 var(--d-data);
@@ -114,20 +119,20 @@
 }
 .doc-back-number strong {
   display: block;
-  font: 700 22px/1.3 var(--d-data);
+  font: 700 20px/1.3 var(--d-data);
   letter-spacing: 3px;
   overflow-wrap: anywhere;
 }
 .doc-back-number .doc-barcode {
   width: 100%;
-  height: 34px;
-  margin-top: 10px;
+  height: 28px;
+  margin-top: 8px;
 }
 .doc-back-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px 18px;
-  margin: 18px 22px;
+  gap: 10px 18px;
+  margin: 14px 22px;
 }
 .doc-back-fields > div { min-width: 0; }
 .doc-back-fields dt {
@@ -141,14 +146,86 @@
   overflow-wrap: anywhere;
 }
 .doc-back-note {
-  margin: auto 22px 18px;
+  margin: auto 22px 14px;
   font-size: 11px;
   color: var(--d-muted);
 }
 
+/* Booklet (passport / police): the cover opens around the left spine instead
+   of the 180° card flip. Cover and current page share one grid cell, so the
+   container is as tall as the taller of the two. The cover is
+   backface-hidden, so past 90° it vanishes edge-on instead of showing a
+   mirrored back — it swings left and folds behind the page. */
+.focus-booklet {
+  display: grid;
+  transform-style: preserve-3d;
+}
+.focus-booklet-page,
+.focus-booklet-cover {
+  grid-area: 1 / 1;
+  align-self: start;
+  min-width: 0;
+}
+.focus-booklet-cover {
+  transform-origin: left center;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: transform 600ms cubic-bezier(.34, 1.25, .5, 1);
+}
+.focus-booklet.is-open .focus-booklet-cover {
+  transform: rotateY(-160deg);
+}
+.focus-booklet-page {
+  animation: booklet-page-in 300ms cubic-bezier(.2, .8, .3, 1) both;
+}
+@keyframes booklet-page-in {
+  from { opacity: 0; transform: translateX(14px) rotateY(-8deg); }
+  to { opacity: 1; transform: none; }
+}
+.doc-booklet-body {
+  grid-area: body;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  padding: 18px 22px 14px;
+}
+.doc-booklet-body.no-photo { grid-template-columns: minmax(0, 1fr); }
+.doc-booklet-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 18px;
+  margin: 0;
+}
+.doc-booklet-rows > div { min-width: 0; }
+.doc-booklet-rows dt {
+  font-size: 10px;
+  color: var(--d-muted);
+  margin-bottom: 3px;
+}
+.doc-booklet-rows dd {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.wallet-focus-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  color: rgb(242 240 232 / .85);
+  font-size: 12px;
+}
+.wallet-focus-pager > span { flex: 1; text-align: center; }
+
 @media (prefers-reduced-motion: reduce) {
   .wallet-focus-panel { animation: none; }
   .focus-flip-inner { transition: none; }
+  .focus-booklet-cover { transition: none; }
+  .focus-booklet-page { animation: none; }
 }
 html[data-reduce-motion="true"] .wallet-focus-panel { animation: none; }
 html[data-reduce-motion="true"] .focus-flip-inner { transition: none; }
+html[data-reduce-motion="true"] .focus-booklet-cover { transition: none; }
+html[data-reduce-motion="true"] .focus-booklet-page { animation: none; }

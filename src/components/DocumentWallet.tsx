@@ -1,5 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { reducedMotion } from "../motion";
+import {
+  canEnterFocus,
+  isFocusGuardTarget,
+  springSettled,
+  springStep,
+  tiltFromPointer,
+} from "../document-motion";
 import { TypeReveal } from "./TypeReveal";
 import {
   BadgeCheck,
@@ -8,8 +15,10 @@ import {
   ContactRound,
   Copy,
   Fingerprint,
+  FlipHorizontal2,
   GraduationCap,
   IdCard,
+  Maximize2,
   PencilLine,
   Plus,
   RotateCcw,
@@ -17,6 +26,7 @@ import {
   Trash2,
   Undo2,
   Redo2,
+  X,
 } from "lucide-react";
 import type { Profile, Secret } from "../model";
 import {
@@ -181,6 +191,61 @@ export function DocumentFace({
   );
 }
 
+/**
+ * Card back, shown by the 180° flip in the focus view. Content is only real
+ * document fields (holder, number, the template's other filled fields) plus
+ * the type emblem; the chip and magnetic stripe are CSS decorations, marked
+ * as such — no issuing authority, expiry or other invented data.
+ */
+function DocumentFaceBack({
+  document: doc,
+}: {
+  document: CharacterDocument;
+}) {
+  const template = documentTemplates[doc.type];
+  const Icon = icons[doc.type];
+  const extra = (template.fields as readonly DocumentField[]).filter(
+    (key) =>
+      key !== "holder" && key !== "number" && doc.fields[key]?.trim(),
+  );
+  return (
+    <article
+      className={`document-face document-back document-${doc.type}`}
+      aria-label={`${doc.title || template.name}背面`}
+    >
+      <span className="doc-back-stripe" aria-hidden="true" />
+      <span className="doc-back-chip" aria-hidden="true" />
+      <header className="document-masthead">
+        <Icon size={27} strokeWidth={1.4} aria-hidden="true" />
+        <div>
+          <small>{template.en}</small>
+          <h2>{doc.title || template.name} · 背面</h2>
+        </div>
+      </header>
+      <div className="doc-back-number">
+        <small>{template.numberLabel}</small>
+        <strong>{doc.fields.number || "尚未填写"}</strong>
+        <Barcode text={`${doc.id}${doc.fields.number ?? ""}`} />
+      </div>
+      <dl className="doc-back-fields">
+        {doc.fields.holder?.trim() && (
+          <div>
+            <dt>姓名</dt>
+            <dd>{doc.fields.holder}</dd>
+          </div>
+        )}
+        {extra.map((key) => (
+          <div key={key}>
+            <dt>{documentFieldLabels[key]}</dt>
+            <dd>{doc.fields[key]}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="doc-back-note">芯片与磁条为装饰图案，不代表真实签发信息。</p>
+    </article>
+  );
+}
+
 interface Props {
   profile: Profile;
   secret: Secret;
@@ -234,6 +299,85 @@ export function DocumentWallet({
   const [confirm, setConfirm] = useState<
     { kind: "delete"; id: string; title: string } | { kind: "inherit" } | null
   >(null);
+  /** Focus view: the current card alone, enlarged, over a dim backdrop. Local UI state only; App is untouched. */
+  const [focused, setFocused] = useState(false);
+  /** Card back showing (180° flip inside the focus view). Independent of the secret switch. */
+  const [flipped, setFlipped] = useState(false);
+  const closeFocusRef = useRef<HTMLButtonElement>(null);
+  const tiltRef = useRef<HTMLDivElement>(null);
+  // Spring tilt state (twoclipping-402193): pointer moves only retarget the
+  // spring; a rAF loop integrates it and stops once settled or hidden.
+  const tiltState = useRef({
+    rx: 0, ry: 0, lx: 50, ly: 40,
+    vrx: 0, vry: 0, vlx: 0, vly: 0,
+    trx: 0, try: 0, tlx: 50, tly: 40,
+    raf: 0,
+  });
+  useEffect(() => {
+    const s = tiltState.current;
+    return () => {
+      if (s.raf) cancelAnimationFrame(s.raf);
+      s.raf = 0;
+    };
+  }, [focused]);
+  useEffect(() => {
+    if (focused) closeFocusRef.current?.focus();
+  }, [focused]);
+  function tiltTick() {
+    const s = tiltState.current;
+    const node = tiltRef.current;
+    if (!node) {
+      s.raf = 0;
+      return;
+    }
+    const nx = springStep(s.rx, s.trx, s.vrx);
+    const ny = springStep(s.ry, s.try, s.vry);
+    const nlx = springStep(s.lx, s.tlx, s.vlx);
+    const nly = springStep(s.ly, s.tly, s.vly);
+    s.rx = nx.value; s.vrx = nx.velocity;
+    s.ry = ny.value; s.vry = ny.velocity;
+    s.lx = nlx.value; s.vlx = nlx.velocity;
+    s.ly = nly.value; s.vly = nly.velocity;
+    node.style.setProperty("--card-rx", `${s.rx.toFixed(2)}deg`);
+    node.style.setProperty("--card-ry", `${s.ry.toFixed(2)}deg`);
+    node.style.setProperty("--light-x", `${s.lx.toFixed(1)}%`);
+    node.style.setProperty("--light-y", `${s.ly.toFixed(1)}%`);
+    const settled =
+      springSettled(s.rx, s.trx, s.vrx) &&
+      springSettled(s.ry, s.try, s.vry) &&
+      springSettled(s.lx, s.tlx, s.vlx) &&
+      springSettled(s.ly, s.tly, s.vly);
+    s.raf = settled ? 0 : requestAnimationFrame(tiltTick);
+  }
+  function tiltMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== "mouse" || reducedMotion()) return;
+    const node = tiltRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const t = tiltFromPointer(
+      (event.clientX - rect.left) / rect.width,
+      (event.clientY - rect.top) / rect.height,
+    );
+    const s = tiltState.current;
+    s.trx = t.rx; s.try = t.ry; s.tlx = t.lightX; s.tly = t.lightY;
+    if (!s.raf) s.raf = requestAnimationFrame(tiltTick);
+  }
+  function tiltReset() {
+    const s = tiltState.current;
+    s.trx = 0; s.try = 0; s.tlx = 50; s.tly = 40;
+    if (!s.raf) s.raf = requestAnimationFrame(tiltTick);
+  }
+  function enterFocus() {
+    if (!selected || !canEnterFocus(confirm !== null)) return;
+    setEditing(false);
+    setAdding(false);
+    setFlipped(false);
+    setFocused(true);
+  }
+  function exitFocus() {
+    setFocused(false);
+    setFlipped(false);
+  }
   const selected = docs.find((doc) => doc.id === selectedId) ?? docs[0];
   function add(type: DocumentType) {
     const doc = createDocument(type, profile);
@@ -268,6 +412,8 @@ export function DocumentWallet({
   }
   return (
     <div className={`document-wallet ${hidden ? `wallet-secret secret-theme-${secret.theme}` : ""}${glitch ? " identity-glitch" : ""}`}>
+      {/* In focus view the whole picker is inert + hidden: only the card, the flip/close tools and the hint remain. */}
+      <div className="wallet-main" inert={focused} aria-hidden={focused || undefined}>
       <div className="wallet-context">
         <span>{context}</span>
         <b>{hidden ? "秘密证件" : "公开证件"}</b>
@@ -402,7 +548,15 @@ export function DocumentWallet({
             })}
           </nav>
           <section className="wallet-content">
-            <div className={`wallet-stack${docs.length > 1 ? " has-stack" : ""}${selected === primary ? " shows-primary" : ""}`} data-behind={Math.min(docs.length - 1, 2)}>
+            <div
+              className={`wallet-stack${docs.length > 1 ? " has-stack" : ""}${selected === primary ? " shows-primary" : ""}`}
+              data-behind={Math.min(docs.length - 1, 2)}
+              onClick={(e) => {
+                // Blank face area enters focus; buttons/links/inputs and the
+                // secret triggers (all <button>s) are guarded by isFocusGuardTarget.
+                if (!isFocusGuardTarget(e.target)) enterFocus();
+              }}
+            >
               <DocumentFace
                 document={selected}
                 secret={secret}
@@ -414,6 +568,14 @@ export function DocumentWallet({
               />
             </div>
             <div className="document-actions">
+              <button
+                className="button"
+                onClick={enterFocus}
+                disabled={confirm !== null}
+              >
+                <Maximize2 size={14} />
+                聚焦查看
+              </button>
               <button
                 className="button"
                 aria-expanded={editing}
@@ -579,6 +741,74 @@ export function DocumentWallet({
             <Plus size={15} />
             选择证件类型
           </button>
+        </div>
+      )}
+      </div>
+      {focused && selected && (
+        <div
+          className="wallet-focus"
+          role="dialog"
+          aria-label="聚焦查看证件"
+          onKeyDown={(e) => {
+            // Esc exits focus only; stopPropagation keeps Modal from closing the whole wallet.
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              exitFocus();
+            }
+          }}
+        >
+          <div
+            className="wallet-focus-backdrop"
+            aria-label="点击空白处返回证件列表"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) exitFocus();
+            }}
+          />
+          <div className="wallet-focus-panel">
+            <div className="wallet-focus-tools">
+              <button
+                className="button small"
+                onClick={() => setFlipped(!flipped)}
+                aria-pressed={flipped}
+              >
+                <FlipHorizontal2 size={14} />
+                {flipped ? "查看正面" : "查看背面"}
+              </button>
+              <button
+                ref={closeFocusRef}
+                className="icon-button wallet-focus-close"
+                aria-label="关闭聚焦查看，返回证件列表"
+                onClick={exitFocus}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div
+              ref={tiltRef}
+              className="focus-flip-scene"
+              onPointerMove={tiltMove}
+              onPointerLeave={tiltReset}
+            >
+              <div className={`focus-flip-inner${flipped ? " is-flipped" : ""}`}>
+                <div className="focus-flip-face" aria-hidden={flipped || undefined}>
+                  <DocumentFace
+                    document={selected}
+                    secret={secret}
+                    onReveal={onReveal}
+                    primary={selected === primary}
+                    hidden={hidden}
+                    stamp={stampId === selected.id}
+                    onStamped={() => setStampId(null)}
+                  />
+                </div>
+                <div className="focus-flip-face focus-flip-back" aria-hidden={!flipped || undefined}>
+                  <DocumentFaceBack document={selected} />
+                </div>
+              </div>
+              <span className="focus-gloss" aria-hidden="true" />
+            </div>
+            <p className="wallet-focus-hint">点击空白处返回证件列表</p>
+          </div>
         </div>
       )}
     </div>

@@ -1,0 +1,87 @@
+/* 显示打磨：可读字号、长文本、焦点环。不改资料结构，也不动证件开合。 */
+
+.button:hover { background: var(--c-control-hover, #e8ece3); }
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--c-focus, var(--accent));
+  outline-offset: 3px;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.breadcrumb { min-width: 0; flex: 1 1 auto; }
+.breadcrumb strong {
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.back-button { color: var(--muted); }
+.back-button:hover { color: var(--ink); }
+
+.search-input input { font-size: 13px; }
+.search-input input::placeholder { color: var(--muted); }
+.sort-control,
+.sort-control select { color: var(--muted); font-size: 13px; }
+
+.recent-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.dossier-title-row > div:first-child { min-width: 0; flex: 1 1 16rem; }
+.dossier-title-row h1 { flex-wrap: wrap; align-items: baseline; row-gap: 8px; min-width: 0; }
+.dossier-name { font-weight: inherit; min-width: min(100%, 12em); text-wrap: pretty; }
+.chapter-note > span,
+.chapter-note p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+.world-list .button,
+.world-people .button,
+.archive-card .button {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+  justify-content: flex-start;
+}
+.archive-split section,
+.archive-card { overflow-wrap: anywhere; min-width: 0; }
+
+.relationship-graph.empty { opacity: 1; }
+.graph-empty-note,
+.graph-help { opacity: 1; color: var(--muted); font-size: 13px; line-height: 1.7; }
+
+@media (max-width: 760px) {
+  .breadcrumb { font-size: 12px; }
+  .save-indicator { font-size: 12px; }
+  .shelf-tools { flex-direction: column; align-items: stretch; gap: 10px; }
+  .shelf-controls {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    width: 100%;
+    gap: 8px;
+  }
+  .shelf-controls .search-input { flex: 1 1 10rem; min-width: 0; height: 36px; }
+  .shelf-controls .search-input input { width: auto; flex: 1 1 auto; min-width: 4rem; font-size: 14px; }
+  .shelf-controls .sort-control { display: flex; }
+  .shelf-controls .sort-control select { font-size: 13px; max-width: none; }
+  .dossier-heading { flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; }
+  .dossier-actions { flex-wrap: wrap; width: 100%; justify-content: flex-start; gap: 8px; }
+  .dossier-actions .button { font-size: 13px; padding: 8px 10px; }
+  .version-picker { max-width: 100%; }
+  .version-picker select { max-width: 46vw; font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button:hover { box-shadow: none; }
+}

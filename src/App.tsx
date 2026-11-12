@@ -774,7 +774,7 @@ export default function App() {
             >
               <Portrait image={defaultVersion(character).profile.portrait} />
               <span>
-                {character.name}
+                <b className="recent-name">{character.name}</b>
                 <small>
                   {defaultVersion(character).profile.basics.occupation ||
                     "故事待续"}
@@ -1016,9 +1016,11 @@ export default function App() {
                       : "A PERSONAL CHARACTER DOSSIER"}
                   </span>
                   <h1>
-                    {hidden
-                      ? v.secret.label || "秘密档案"
-                      : c.name + "的设定册"}
+                    <b className="dossier-name">
+                      {hidden
+                        ? v.secret.label || "秘密档案"
+                        : c.name + "的设定册"}
+                    </b>
                     <span>{hidden ? "RESTRICTED" : "PERSONAL ARCHIVE"}</span>
                   </h1>
                 </div>

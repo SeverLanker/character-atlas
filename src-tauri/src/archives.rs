@@ -468,9 +468,9 @@ mod tests {
         assert!(!stored.contains(&absolute));
         assert!(stored.contains("雾港"));
         restore_roots(&bindings, &removed).unwrap();
-        let restored = fs::read_to_string(&bindings).unwrap();
-        assert!(restored.contains("root-used"));
-        assert!(restored.contains(&absolute));
+        let map = load_map(&bindings).unwrap();
+        assert_eq!(map.get("root-used").map(String::as_str), Some(absolute.as_str()));
+        assert!(map.contains_key("root-spare"));
         assert_eq!(fs::read_to_string(&note).unwrap(), original);
         assert!(forget_roots(&bindings, &["../vault".into()]).is_err());
         fs::remove_dir_all(data).unwrap();

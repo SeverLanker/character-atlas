@@ -42,6 +42,41 @@ export function assignCharacterWorld(library: Library, characterId: string, worl
   return next;
 }
 
+/**
+ * Removes one world. Characters stay; their `collection` is not rewritten.
+ * Their `worldId` is cleared when it pointed here. Links that target this
+ * world are dropped. Archive refs stay, but lose this world assignment.
+ * Does not delete files.
+ */
+export function deleteWorld(library: Library, worldId: string): Library {
+  if (!isStableId(worldId)) throw new Error("世界编号无效");
+  const next = structuredClone(library);
+  const worlds = next.worlds ?? [];
+  if (!worlds.some((world) => world.id === worldId)) throw new Error("找不到世界");
+  const time = stamp();
+  const kept = worlds.filter((world) => world.id !== worldId).map((world) => {
+    const links = world.links.filter((link) => link.targetWorldId !== worldId);
+    if (links.length === world.links.length) return world;
+    return { ...world, links, updatedAt: time };
+  });
+  if (kept.length) next.worlds = kept;
+  else delete next.worlds;
+  for (const character of next.characters) {
+    if (character.worldId !== worldId) continue;
+    delete character.worldId;
+    character.updatedAt = time;
+  }
+  if (next.externalArchives?.some((ref) => ref.worldId === worldId)) {
+    next.externalArchives = next.externalArchives.map((ref) => {
+      if (ref.worldId !== worldId) return ref;
+      const detached = { ...ref, updatedAt: time };
+      delete detached.worldId;
+      return detached;
+    });
+  }
+  return next;
+}
+
 export function withWorldLink(library: Library, worldId: string, targetWorldId: string, note = ""): Library {
   if (!isStableId(worldId) || !isStableId(targetWorldId)) throw new Error("世界编号无效");
   if (worldId === targetWorldId) throw new Error("世界不能引用自己");

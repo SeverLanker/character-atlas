@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, Globe } from "lucide-react";
+import { Modal } from "./Modal";
 import {
   archiveBindings,
   bindArchiveParent,
@@ -18,6 +19,7 @@ import {
   WEB_ARCHIVE_LIMIT,
   createArchiveRef,
   createArchiveRoot,
+  deleteArchiveRef,
   readingParagraphs,
   reviseArchive,
   withArchive,
@@ -29,6 +31,7 @@ import {
   assignCharacterWorld,
   charactersInWorld,
   createWorld,
+  deleteWorld,
   looseCharacters,
   versionSummary,
   withWorld,
@@ -70,6 +73,34 @@ export function WorldOverview(props: WorldOverviewProps) {
   const visible = worldsInScope(library, scope);
   const opened = openWorldId ? (library.worlds ?? []).find((world) => world.id === openWorldId) : undefined;
   const hiddenHere = !!opened && scope === "public" && opened.visibility !== "public";
+  const [pending, setPending] = useState<
+    | { kind: "world"; id: string; label: string }
+    | { kind: "archive"; id: string; title: string }
+    | null
+  >(null);
+  const [notice, setNotice] = useState("");
+  function askWorld(id: string) {
+    setPending({ kind: "world", id, label: labels.get(id) ?? "这个世界" });
+  }
+  function askArchive(ref: ExternalArchiveRef) {
+    setPending({ kind: "archive", id: ref.id, title: ref.title });
+  }
+  function commitDelete() {
+    if (!pending || scope !== "owner") return;
+    try {
+      if (pending.kind === "world") {
+        props.onChange(deleteWorld(library, pending.id));
+        setNotice("已删除世界。角色和分组都保留，指向它的引用已卸下，档案引用改为未编入。原文件没有删除。");
+      } else {
+        props.onChange(deleteArchiveRef(library, pending.id));
+        setNotice("已删除档案引用。原文件没有删除。不再使用的本机路径映射会清掉，可以用撤销恢复。");
+      }
+      setPending(null);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "没有删除");
+      setPending(null);
+    }
+  }
   return (
     <section className="world-overview" aria-label="世界概览">
       <div className="shelf-heading">
@@ -87,21 +118,40 @@ export function WorldOverview(props: WorldOverviewProps) {
         </div>
       </div>
       {scope === "public" && <p className="world-note" role="note">公开范围只显示标为公开的世界和档案标题，不显示路径、附注或仅自己可见的条目。</p>}
+      {notice && <p className="world-note" role="status">{notice}</p>}
       {openWorldId && (!opened || hiddenHere) ? (
         <div className="world-empty">
           <p>这个世界不在当前范围内。</p>
           <button className="button" type="button" onClick={props.onBack}>返回世界列表</button>
         </div>
       ) : opened ? (
-        <WorldDetail {...props} world={opened} labels={labels} />
+        <WorldDetail {...props} world={opened} labels={labels} onDeleteWorld={askWorld} onDeleteArchive={askArchive} />
       ) : (
-        <WorldIndex {...props} visible={visible} labels={labels} />
+        <WorldIndex {...props} visible={visible} labels={labels} onDeleteWorld={askWorld} onDeleteArchive={askArchive} />
+      )}
+      {pending && scope === "owner" && (
+        <Modal title={pending.kind === "world" ? "删除这个世界？" : "删除这条档案引用？"} onClose={() => setPending(null)}>
+          <p className="confirm-message">
+            {pending.kind === "world"
+              ? `删除「${pending.label}」后，角色仍留在书架，分组文字不变，只是不再编入这个世界。其他世界指向它的引用会卸下。归在这里的档案引用改为未编入，不会删除原文件。这一步可以撤销。`
+              : `删除档案引用「${pending.title}」只会去掉资料库里的这条引用，不会删除 Obsidian 或本机上的原文件，也不会改动文件内容。若这个根目录不再被任何引用使用，这台电脑上的路径映射会清掉。可以撤销。`}
+          </p>
+          <div className="modal-actions">
+            <button className="button" type="button" onClick={() => setPending(null)}>取消</button>
+            <button className="button danger-button" type="button" onClick={commitDelete}>确认删除</button>
+          </div>
+        </Modal>
       )}
     </section>
   );
 }
 
-function WorldIndex({ library, scope, onOpenWorld, onChange, onEnterCharacter, visible, labels }: WorldOverviewProps & { visible: World[]; labels: Map<string, string> }) {
+function WorldIndex({ library, scope, onOpenWorld, onChange, onEnterCharacter, visible, labels, onDeleteWorld, onDeleteArchive }: WorldOverviewProps & {
+  visible: World[];
+  labels: Map<string, string>;
+  onDeleteWorld: (id: string) => void;
+  onDeleteArchive: (ref: ExternalArchiveRef) => void;
+}) {
   const [name, setName] = useState("");
   const [summary, setSummary] = useState("");
   const [visibility, setVisibility] = useState<Visibility>("private");
@@ -155,6 +205,7 @@ function WorldIndex({ library, scope, onOpenWorld, onChange, onEnterCharacter, v
               <button className="button" type="button" onClick={() => onOpenWorld(world.id)}>{labels.get(world.id)}</button>
               <span>{world.visibility === "public" ? "公开" : "仅自己可见"}</span>
               <span>{charactersInWorld(library, world.id).length} 位角色</span>
+              {scope === "owner" && <button className="button small" type="button" aria-label={`删除世界「${labels.get(world.id)}」`} onClick={() => onDeleteWorld(world.id)}>删除</button>}
             </li>
           ))}
         </ul>
@@ -164,6 +215,7 @@ function WorldIndex({ library, scope, onOpenWorld, onChange, onEnterCharacter, v
         scope={scope}
         archives={archivesInScope(library, scope).filter((ref) => !ref.worldId || !(library.worlds ?? []).some((world) => world.id === ref.worldId))}
         onChange={onChange}
+        onDeleteArchive={scope === "owner" ? onDeleteArchive : undefined}
       />
       <section aria-label="未编入世界">
         <h2>未编入世界</h2>
@@ -183,7 +235,7 @@ function WorldIndex({ library, scope, onOpenWorld, onChange, onEnterCharacter, v
   );
 }
 
-function WorldDetail(props: WorldOverviewProps & { world: World; labels: Map<string, string> }) {
+function WorldDetail(props: WorldOverviewProps & { world: World; labels: Map<string, string>; onDeleteWorld: (id: string) => void; onDeleteArchive: (ref: ExternalArchiveRef) => void }) {
   const { library, scope, world, labels, onChange, onEnterCharacter, onBack } = props;
   const people = charactersInWorld(library, world.id);
   const archives = archivesInScope(library, scope, world.id);
@@ -206,6 +258,7 @@ function WorldDetail(props: WorldOverviewProps & { world: World; labels: Map<str
   return (
     <div className="world-detail">
       <button className="back-button" type="button" onClick={onBack}><ArrowLeft size={16} />返回世界列表</button>
+      {scope === "owner" && <button className="button small danger-outline" type="button" aria-label={`删除此世界「${labels.get(world.id)}」`} onClick={() => props.onDeleteWorld(world.id)}>删除此世界</button>}
       <article className="world-summary" aria-label="世界简介">
         {paragraphs.length ? paragraphs.map((part, index) => <p key={index}>{part}</p>) : <p>还没有简介。</p>}
       </article>
@@ -259,18 +312,19 @@ function WorldDetail(props: WorldOverviewProps & { world: World; labels: Map<str
           })}
         </ul>
       </section>
-      <ArchiveSection library={library} scope={scope} worldId={world.id} archives={archives} onChange={onChange} />
+      <ArchiveSection library={library} scope={scope} worldId={world.id} archives={archives} onChange={onChange} onDeleteArchive={scope === "owner" ? props.onDeleteArchive : undefined} />
       {message && <p role="status">{message}</p>}
     </div>
   );
 }
 
-function ArchiveSection({ library, scope, worldId, archives, onChange }: {
+function ArchiveSection({ library, scope, worldId, archives, onChange, onDeleteArchive }: {
   library: Library;
   scope: WorldScope;
   worldId?: string;
   archives: ExternalArchiveRef[];
   onChange: (library: Library) => void;
+  onDeleteArchive?: (ref: ExternalArchiveRef) => void;
 }) {
   const roots = library.archiveRoots ?? [];
   const [title, setTitle] = useState("");
@@ -397,6 +451,7 @@ function ArchiveSection({ library, scope, worldId, archives, onChange }: {
                     {ref.note && <p>附注：{ref.note}</p>}
                     <button className="button small" type="button" disabled={!desktop} onClick={() => void openArchive(ref.rootId, ref.relativePath).catch((error) => setMessage(error instanceof Error ? error.message : "无法打开"))}>打开原文</button>
                     <button className="button small" type="button" onClick={() => { setEditingId(ref.id); setTitle(ref.title); setRootChoice(ref.rootId); setRelativePath(ref.relativePath); setNote(ref.note); setVisibility(ref.visibility); }}>重新选择</button>
+                    {onDeleteArchive && <button className="button small danger-outline" type="button" aria-label={`删除引用「${ref.title}」`} onClick={() => onDeleteArchive(ref)}>删除引用</button>}
                     {desktop && <button className="button small" type="button" onClick={() => void relocateRoot(ref.rootId)}>重新定位根目录</button>}
                   </section>
                 </div>

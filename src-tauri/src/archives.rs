@@ -1,7 +1,7 @@
 //! Machine-local Obsidian roots. Paths live in the app data directory, never in library.sqlite or the ZIP.
 use crate::native_write::is_unc_or_device;
 use crate::{atomic_write, err, AppResult, LibraryState};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs::{self, File};
@@ -33,7 +33,7 @@ pub struct ArchiveText {
     truncated: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BoundRoot {
     root_id: String,
@@ -237,6 +237,49 @@ pub fn archive_bind_root(state: State<LibraryState>, root_id: String, absolute_p
     save_root(&bindings_of(&state), &root_id, Path::new(&absolute_path))
 }
 
+/// Removes machine paths for the given root ids. Does not delete, move, or open vault files.
+pub fn forget_roots(file: &Path, root_ids: &[String]) -> AppResult<Vec<BoundRoot>> {
+    let mut map = load_map(file)?;
+    let mut removed = Vec::new();
+    for id in root_ids {
+        if !valid_root_id(id) {
+            return Err("根目录编号无效".into());
+        }
+        if let Some(path) = map.remove(id) {
+            removed.push(BoundRoot { root_id: id.clone(), absolute_path: path });
+        }
+    }
+    if !removed.is_empty() {
+        store_map(file, &map)?;
+    }
+    Ok(removed)
+}
+
+/// Writes machine paths back without opening them. Used when a deletion is undone.
+pub fn restore_roots(file: &Path, roots: &[BoundRoot]) -> AppResult<()> {
+    if roots.is_empty() {
+        return Ok(());
+    }
+    let mut map = load_map(file)?;
+    for root in roots {
+        if !valid_root_id(&root.root_id) || root.absolute_path.is_empty() || root.absolute_path.len() > 1024 || root.absolute_path.contains('\0') {
+            return Err("本机根目录映射无法恢复".into());
+        }
+        map.insert(root.root_id.clone(), root.absolute_path.clone());
+    }
+    store_map(file, &map)
+}
+
+#[tauri::command]
+pub fn archive_forget_roots(state: State<LibraryState>, root_ids: Vec<String>) -> AppResult<Vec<BoundRoot>> {
+    forget_roots(&bindings_of(&state), &root_ids)
+}
+
+#[tauri::command]
+pub fn archive_restore_roots(state: State<LibraryState>, roots: Vec<BoundRoot>) -> AppResult<()> {
+    restore_roots(&bindings_of(&state), &roots)
+}
+
 #[tauri::command]
 pub fn archive_relative(state: State<LibraryState>, root_id: String, absolute_file: String) -> AppResult<String> {
     let Some(root) = load_map(&bindings_of(&state))?.get(&root_id).cloned() else {
@@ -393,6 +436,43 @@ mod tests {
         let status = probe(&bindings, "root-1", "alias.md").unwrap();
         assert_eq!(status.status, "unreadable");
         assert!(!status.detail.contains("secret"));
+        fs::remove_dir_all(data).unwrap();
+    }
+
+    #[test]
+    fn forgetting_a_root_drops_only_the_mapping_and_leaves_the_file() {
+        let data = temp();
+        let library = data.join("library");
+        let vault = data.join("vault");
+        let note = vault.join("notes").join("a.md");
+        fs::create_dir_all(note.parent().unwrap()).unwrap();
+        let original = "不要删这篇。\n";
+        fs::write(&note, original).unwrap();
+        let bindings = bindings_file(&data);
+        save_root(&bindings, "root-used", &vault).unwrap();
+        save_root(&bindings, "root-spare", &vault).unwrap();
+        let removed = forget_roots(&bindings, &["root-used".into()]).unwrap();
+        assert_eq!(removed.len(), 1);
+        assert_eq!(removed[0].root_id, "root-used");
+        assert_eq!(fs::read_to_string(&note).unwrap(), original);
+        assert!(note.is_file());
+        let left = fs::read_to_string(&bindings).unwrap();
+        assert!(!left.contains("root-used"));
+        assert!(left.contains("root-spare"));
+        let db = prepare(&library).unwrap();
+        let payload = r#"{"schemaVersion":2,"characters":[{"id":"c1","name":"甲","collection":"雾港"}],"archiveRoots":[{"id":"root-used","label":"合成库"}]}"#;
+        db.execute("INSERT INTO library (id,data) VALUES(1,?1)", params![payload]).unwrap();
+        drop(db);
+        let stored = String::from_utf8_lossy(&fs::read(library.join("library.sqlite")).unwrap()).into_owned();
+        let absolute = removed[0].absolute_path.clone();
+        assert!(!stored.contains(&absolute));
+        assert!(stored.contains("雾港"));
+        restore_roots(&bindings, &removed).unwrap();
+        let map = load_map(&bindings).unwrap();
+        assert_eq!(map.get("root-used").map(String::as_str), Some(absolute.as_str()));
+        assert!(map.contains_key("root-spare"));
+        assert_eq!(fs::read_to_string(&note).unwrap(), original);
+        assert!(forget_roots(&bindings, &["../vault".into()]).is_err());
         fs::remove_dir_all(data).unwrap();
     }
 }

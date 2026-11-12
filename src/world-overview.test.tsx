@@ -9,6 +9,9 @@ import { loadLibrary, saveLibrary } from "./storage";
 
 afterEach(cleanup);
 
+/** Open-world buttons keep the label; delete buttons start with 删除. */
+const opensWorld = (fragment: string) => (name: string) => name.includes(fragment) && !name.startsWith("删除");
+
 it("世界概览保留分组，同名不合并，公开范围不渲染私有标题和路径", async () => {
   const first = createCharacter("甲", "雾港");
   const second = createCharacter("乙", "雾港");
@@ -29,17 +32,17 @@ it("世界概览保留分组，同名不合并，公开范围不渲染私有标�
   expect(within(overview).getByText(/网页预览不能打开/)).toBeTruthy();
 
   async function addWorld(name: string, visibility: "private" | "public") {
-    const before = within(overview).queryAllByRole("button", { name: new RegExp(name) }).length;
+    const before = within(overview).queryAllByRole("button", { name: opensWorld(name) }).length;
     fireEvent.click(within(overview).getByRole("button", { name: "新建世界" }));
     fireEvent.change(within(overview).getByLabelText("世界名称"), { target: { value: name } });
     fireEvent.change(within(overview).getByLabelText("世界公开范围"), { target: { value: visibility } });
     fireEvent.click(within(overview).getByRole("button", { name: "保存世界" }));
-    await waitFor(() => expect(within(overview).getAllByRole("button", { name: new RegExp(name) })).toHaveLength(before + 1));
+    await waitFor(() => expect(within(overview).getAllByRole("button", { name: opensWorld(name) })).toHaveLength(before + 1));
   }
   await addWorld("重名", "private");
   await addWorld("重名", "private");
-  expect(within(overview).getAllByRole("button", { name: /重名/ })).toHaveLength(2);
-  fireEvent.click(within(overview).getAllByRole("button", { name: /重名/ })[0]);
+  expect(within(overview).getAllByRole("button", { name: opensWorld("重名") })).toHaveLength(2);
+  fireEvent.click(within(overview).getAllByRole("button", { name: opensWorld("重名") })[0]);
   expect(await within(overview).findByText("这个世界还没有编入角色，也没有外部档案。")).toBeTruthy();
   fireEvent.change(within(overview).getByLabelText("选择要编入的角色"), { target: { value: first.id } });
   fireEvent.click(within(overview).getByRole("button", { name: "编入此世界" }));
@@ -51,7 +54,7 @@ it("世界概览保留分组，同名不合并，公开范围不渲染私有标�
   expect(within(overview).queryByRole("button", { name: "打开档案：甲" })).toBeNull();
 
   await addWorld("公开港", "public");
-  fireEvent.click(within(overview).getByRole("button", { name: "公开港" }));
+  fireEvent.click(within(overview).getByRole("button", { name: opensWorld("公开港") }));
   async function addArchive(title: string, path: string, visibility: "private" | "public", note: string, rootLabel?: string) {
     fireEvent.change(within(overview).getByLabelText("档案标题"), { target: { value: title } });
     if (rootLabel) fireEvent.change(within(overview).getByLabelText("根目录名称"), { target: { value: rootLabel } });
@@ -85,7 +88,7 @@ it("世界概览保留分组，同名不合并，公开范围不渲染私有标�
   expect(within(overview).queryByText(/public\/note\.md/)).toBeNull();
   expect(within(overview).queryByText("维护附注不要出现")).toBeNull();
   fireEvent.click(within(overview).getByRole("button", { name: "返回世界列表" }));
-  expect(within(overview).queryByRole("button", { name: /重名/ })).toBeNull();
-  expect(within(overview).getByRole("button", { name: "公开港" })).toBeTruthy();
+  expect(within(overview).queryByRole("button", { name: opensWorld("重名") })).toBeNull();
+  expect(within(overview).getByRole("button", { name: opensWorld("公开港") })).toBeTruthy();
   expect(screen.getByRole("button", { name: /雾港/ })).toBeTruthy();
 });

@@ -13,6 +13,18 @@ export function describeChange(before: Library | null, after: Library): string {
     const oldIds = new Set(before.catalog?.map(row => row.id)), nextIds = new Set(after.catalog?.map(row => row.id));
     return `条目库变动：新增 ${[...nextIds].filter(id => !oldIds.has(id)).length}、移除 ${[...oldIds].filter(id => !nextIds.has(id)).length}、更新内容`;
   }
+  const removedIds = (beforeList?: { id: string }[], afterList?: { id: string }[]) => {
+    const afterIds = new Set((afterList ?? []).map(item => item.id));
+    return (beforeList ?? []).filter(item => !afterIds.has(item.id)).length;
+  };
+  const removedWorlds = removedIds(before.worlds, after.worlds);
+  const removedArchives = removedIds(before.externalArchives, after.externalArchives);
+  // Names, titles and paths stay out of the session log.
+  if (removedWorlds || removedArchives) {
+    if (removedWorlds && removedArchives) return "移除世界与外部档案引用";
+    if (removedWorlds) return "移除世界";
+    return "移除外部档案引用";
+  }
   const changed = after.characters.filter((c, i) => c !== before.characters[i]);
   if (changed.length === 0 && before.characters.length === after.characters.length) {
     const worlds = JSON.stringify(before.worlds ?? []) !== JSON.stringify(after.worlds ?? []);

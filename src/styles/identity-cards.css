@@ -412,6 +412,13 @@
   margin-top: 13px;
   font-size: 11px;
 }
+.shelf-heading .coc-edit-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+}
 .coc-edit-actions button {
   color: #617556;
   text-decoration: underline;

@@ -64,7 +64,7 @@ export function ShelfView({
                   <h1>{filter === "全部角色" ? "角色书架" : filter}</h1>
                   <p>收藏每一个灵魂，记录每一种可能。</p>
                 </div>
-                <div className="coc-edit-actions">
+                <div className="coc-edit-actions shelf-actions">
                   {onOpenWorlds && <button className="button" onClick={onOpenWorlds}><Globe size={16} />世界概览</button>}
                   {onOpenGraph && <button className="button" onClick={onOpenGraph}><Network size={16} />关系图</button>}
                   <button

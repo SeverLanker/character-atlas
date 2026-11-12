@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { strFromU8, unzipSync } from "fflate";
 import { createCharacter, duplicateVersion, type Library } from "./model";
+import { assignCharacterWorld, createWorld, withWorld } from "./worlds";
 import { seedLibrary } from "./seed";
 import { characterFileNames, characterToMarkdown, escapeBlock, escapeInline, libraryToMarkdownZip, sanitizeFileName } from "./export/markdown";
 import { ExportMarkdownModal } from "./views/ExportMarkdownModal";
@@ -115,6 +116,28 @@ describe("单角色 Markdown", () => {
     expect(all).toContain("## 版本：后期");
     expect(all).toContain("### 简介");
     expect(all).toContain('versions: ["初始设定", "后期"]');
+  });
+  it("保留 collection 为 world 与 group，只追加公开世界名", () => {
+    const role = createCharacter("甲", "雾港");
+    const secret = createWorld("不能出现的私名", "秘密简介", "private");
+    const shown = createWorld("公开港", "公开简介", "public");
+    let library = withWorld(withWorld({ schemaVersion: 2, characters: [role] }, secret), shown);
+    library = assignCharacterWorld(library, role.id, shown.id);
+    const md = characterToMarkdown(library.characters[0], library, { exportedAt: T });
+    expect(md).toContain('world: "雾港"');
+    expect(md).toContain('group: "雾港"');
+    expect(md).toContain('public_world: "公开港"');
+    expect(md).toContain("分组：雾港");
+    expect(md).toContain("公开世界：公开港");
+    expect(md).not.toContain("不能出现的私名");
+    expect(md).not.toContain("秘密简介");
+    library = assignCharacterWorld(library, role.id, secret.id);
+    const hidden = characterToMarkdown(library.characters[0], library, { exportedAt: T });
+    expect(hidden).not.toContain("public_world");
+    expect(hidden).not.toContain("不能出现的私名");
+    expect(hidden).not.toContain("秘密简介");
+    expect(hidden).toContain('world: "雾港"');
+    expect(hidden).toContain('group: "雾港"');
   });
 });
 

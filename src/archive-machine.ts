@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { releasedRootIds } from "./external-archives";
+import type { Library } from "./model";
 import { desktop } from "./storage";
 
 export interface PickedPath { absolutePath: string; name: string }
@@ -54,4 +56,45 @@ export async function openArchive(rootId: string, relativePath: string): Promise
 export async function archiveBindings(): Promise<BoundRoot[]> {
   if (!desktop) return [];
   return invoke<BoundRoot[]>("archive_bindings");
+}
+
+/** Drop machine paths for roots that no remaining archive ref uses. Does not touch vault files. */
+export async function forgetArchiveRoots(rootIds: string[]): Promise<BoundRoot[]> {
+  if (!desktop || rootIds.length === 0) return [];
+  return invoke<BoundRoot[]>("archive_forget_roots", { rootIds });
+}
+
+/** Put previously released machine paths back. Does not read or write the vault. */
+export async function restoreArchiveRoots(roots: BoundRoot[]): Promise<void> {
+  if (!desktop || roots.length === 0) return;
+  await invoke("archive_restore_roots", { roots });
+}
+
+const releasedBindings = new Map<string, string>();
+let bindingChain: Promise<void> = Promise.resolve();
+
+/**
+ * After a library change, release desktop root mappings that no ref still uses,
+ * and put them back when undo or redo makes those refs live again.
+ * Paths stay in this session map only — not in the library, logs, or backups.
+ */
+export function syncReleasedArchiveRoots(before: Library, after: Library): Promise<void> {
+  if (!canOpenLocalFiles()) return Promise.resolve();
+  const job = bindingChain.then(() => applyBindingRelease(before, after));
+  bindingChain = job.catch(() => {});
+  return job;
+}
+
+async function applyBindingRelease(before: Library, after: Library): Promise<void> {
+  const unused = releasedRootIds(before, after);
+  const usedAfter = new Set((after.externalArchives ?? []).map((ref) => ref.rootId));
+  const usedBefore = new Set((before.externalArchives ?? []).map((ref) => ref.rootId));
+  if (unused.length) {
+    const removed = await forgetArchiveRoots(unused);
+    for (const row of removed) releasedBindings.set(row.rootId, row.absolutePath);
+  }
+  const returning = [...usedAfter].filter((id) => !usedBefore.has(id) && releasedBindings.has(id));
+  if (!returning.length) return;
+  await restoreArchiveRoots(returning.map((rootId) => ({ rootId, absolutePath: releasedBindings.get(rootId)! })));
+  for (const id of returning) releasedBindings.delete(id);
 }

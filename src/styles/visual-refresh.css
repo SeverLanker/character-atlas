@@ -37,7 +37,18 @@ button, input, textarea, select { accent-color: var(--green); }
 .breadcrumb { color: var(--c-text-soft, #697669); font-size: 12px; }
 .header-actions { color: var(--c-text-soft, #4e6654); }
 .shelf-main, .dossier-main { max-width: 1600px; }
-.shelf-heading { margin-bottom: 28px; gap: 20px; }
+.shelf-heading { margin-bottom: 28px; gap: 20px; max-width: 100%; }
+.shelf-heading .shelf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px 10px;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 0;
+}
+.shelf-heading .shelf-actions > .button { flex: 0 0 auto; white-space: nowrap; }
 .shelf-heading h1, .dossier-title-row h1 { font-size: clamp(28px, 2.5vw, 37px); color: var(--c-heading, #2c4538); letter-spacing: 2px; }
 .shelf-heading p { font-size: 13px; color: var(--c-text-soft, #697666); line-height: 1.8; }
 .shelf-banner {
@@ -199,7 +210,10 @@ button, input, textarea, select { accent-color: var(--green); }
 }
 @media (max-width: 420px) {
   .shelf-main, .dossier-main { padding: 18px 12px; }
-  .shelf-heading { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .shelf-heading { align-items: stretch; flex-direction: column; gap: 14px; max-width: 100%; }
+  .shelf-heading .shelf-actions,
+  .shelf-heading .coc-edit-actions { width: 100%; max-width: 100%; justify-content: flex-start; }
+  .shelf-main { overflow-x: clip; }
   .shelf-banner { padding: 20px; height: 285px; }
   .shelf-banner h2 { font-size: 23px; }
   .shelf-banner p { font-size: 11px; }

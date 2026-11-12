@@ -90,6 +90,34 @@ export function withArchive(library: Library, ref: ExternalArchiveRef): Library 
   return next;
 }
 
+/**
+ * Drops one archive reference. The root label stays so it can be chosen again.
+ * This never deletes, moves, or rewrites the file the reference pointed at.
+ */
+export function deleteArchiveRef(library: Library, refId: string): Library {
+  if (!isStableId(refId)) throw new Error("档案引用编号无效");
+  const next = cloneLibrary(library);
+  const rows = next.externalArchives ?? [];
+  if (!rows.some((ref) => ref.id === refId)) throw new Error("找不到这份档案引用");
+  const kept = rows.filter((ref) => ref.id !== refId);
+  if (kept.length) next.externalArchives = kept;
+  else delete next.externalArchives;
+  return next;
+}
+
+/** Root ids that archive refs used before and no remaining ref uses. */
+export function releasedRootIds(before: Library, after: Library): string[] {
+  const still = new Set((after.externalArchives ?? []).map((ref) => ref.rootId));
+  const seen = new Set<string>();
+  const released: string[] = [];
+  for (const ref of before.externalArchives ?? []) {
+    if (still.has(ref.rootId) || seen.has(ref.rootId)) continue;
+    seen.add(ref.rootId);
+    released.push(ref.rootId);
+  }
+  return released;
+}
+
 /** Keep the stable ref id. Update the pointer or its maintenance fields. Does not copy file bytes. */
 export function reviseArchive(library: Library, id: string, patch: {
   title?: string;

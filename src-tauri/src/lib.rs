@@ -360,6 +360,8 @@ pub fn run() {
             relocate_library,
             archives::archive_bindings,
             archives::archive_bind_root,
+            archives::archive_forget_roots,
+            archives::archive_restore_roots,
             archives::archive_relative,
             archives::archive_bind_parent,
             archives::archive_probe,

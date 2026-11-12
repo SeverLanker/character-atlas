@@ -3412,6 +3412,44 @@ small {
     padding: 13px 8px;
     width: 42px;
   }
+  .sidebar .brand,
+  .sidebar .sidebar-link:not(.series-link),
+  .sidebar .library-button {
+    position: relative;
+    flex-direction: column;
+    gap: 3px;
+    height: auto;
+  }
+  .sidebar .brand::after,
+  .sidebar .sidebar-link:not(.series-link)::after,
+  .sidebar .library-button::after {
+    content: attr(data-mark);
+    font-size: 9px;
+    line-height: 1;
+    letter-spacing: 0;
+    font-weight: 500;
+  }
+  .sidebar .brand:is(:hover, :focus-visible)::before,
+  .sidebar .sidebar-link:not(.series-link):is(:hover, :focus-visible)::before,
+  .sidebar .library-button:is(:hover, :focus-visible)::before {
+    content: attr(data-label);
+    position: absolute;
+    left: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--c-sidebar-title, #fff6df);
+    color: var(--c-sidebar-active-ink, #24382d);
+    font-size: 12px;
+    line-height: 1.35;
+    letter-spacing: 0;
+    font-weight: 500;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 8px 18px #10271f33;
+  }
   .sidebar-bottom {
     width: 100%;
   }

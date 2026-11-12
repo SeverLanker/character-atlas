@@ -178,16 +178,31 @@ function renderVersion(v: Version, level: number, library: Library, o: MarkdownO
   return out;
 }
 
+/**
+ * Public world label for export. `world` / `group` in frontmatter stay the
+ * shelf `collection` string so existing notes keep their old meaning.
+ * Private world names are omitted entirely.
+ */
+function publicWorldLabel(character: Character, library: Library): string | undefined {
+  if (!character.worldId) return undefined;
+  const world = library.worlds?.find((item) => item.id === character.worldId);
+  if (!world || world.visibility !== "public") return undefined;
+  const name = world.name.trim();
+  return name || undefined;
+}
+
 /** 将一位角色导出为 Markdown。默认只导出默认版本的表层资料。 */
 export function characterToMarkdown(c: Character, library: Library, o: MarkdownOptions = {}): string {
   const all = o.versions === "all";
   const current = c.versions.find((v) => v.id === o.currentVersionId) ?? defaultVersion(c);
   const versions = all ? c.versions : [current];
+  const publicWorld = publicWorldLabel(c, library);
   const fm = ["---", `name: ${yaml(c.name)}`, `world: ${yaml(c.collection)}`, `group: ${yaml(c.collection || "未分类")}`,
+    ...(publicWorld ? [`public_world: ${yaml(publicWorld)}`] : []),
     `favorite: ${c.favorite}`, all ? `versions: [${versions.map((v) => yaml(v.name)).join(", ")}]` : `version: ${yaml(current.name)}`,
     `exported_at: ${yaml(o.exportedAt ?? new Date().toISOString())}`, `includes_secret: ${Boolean(o.includeSecret)}`, "generator: \"叙册 Character Atlas\"", "---", ""].join("\n");
   let out = fm + `\n# ${escapeInline(c.name)}\n\n`;
-  const meta = [c.collection && `世界观：${escapeInline(c.collection)}`, !all && `剧情版本：${escapeInline(current.name)}`, !all && current.date && `剧情时间：${escapeInline(current.date)}`].filter(Boolean);
+  const meta = [c.collection && `分组：${escapeInline(c.collection)}`, publicWorld && `公开世界：${escapeInline(publicWorld)}`, !all && `剧情版本：${escapeInline(current.name)}`, !all && current.date && `剧情时间：${escapeInline(current.date)}`].filter(Boolean);
   if (meta.length) out += meta.join(" · ") + "\n\n";
   if (!all) {
     if (current.note.trim()) out += `> ${escapeBlock(current.note).replace(/\n/g, "\n> ")}\n\n`;

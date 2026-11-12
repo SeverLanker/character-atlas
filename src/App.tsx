@@ -1,3 +1,4 @@
+import { syncReleasedArchiveRoots } from "./archive-machine";
 import { useAgentBridge } from "./hooks/useAgentBridge";
 import { DocumentWallet } from "./components/DocumentWallet";
 import { reducedMotion } from "./motion";
@@ -195,6 +196,13 @@ export default function App() {
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(""), 4200);
   }, []);
+  const seenLibrary = useRef<Library | null>(null);
+  useEffect(() => {
+    const previous = seenLibrary.current;
+    seenLibrary.current = library;
+    if (!previous || !library || previous === library) return;
+    void syncReleasedArchiveRoots(previous, library).catch(() => notify("本机根目录映射没有更新，原文件没有改动"));
+  }, [library, notify]);
   useEffect(() => {
     if (!glitch) return;
     const timer = setTimeout(() => setGlitch(0), 450);
@@ -667,6 +675,9 @@ export default function App() {
       <aside className="sidebar">
         <button
           className="brand"
+          aria-label="叙册"
+          data-label="叙册"
+          data-mark="叙"
           onClick={() => {
             setShelf(true);
             closePanels();
@@ -689,6 +700,9 @@ export default function App() {
           className={
             "sidebar-link " + (!catalogOpen && !graphOpen && !worldOpen && shelf && filter === "全部角色" ? "active" : "")
           }
+          aria-label={`角色书架，${library.characters.length} 位`}
+          data-label="角色书架"
+          data-mark="架"
           onClick={() => {
             setShelf(true);
             closePanels();
@@ -704,6 +718,9 @@ export default function App() {
           className={
             "sidebar-link " + (!catalogOpen && !graphOpen && !worldOpen && shelf && filter === "特别收藏" ? "active" : "")
           }
+          aria-label="特别收藏"
+          data-label="特别收藏"
+          data-mark="藏"
           onClick={() => {
             setShelf(true);
             closePanels();
@@ -714,13 +731,13 @@ export default function App() {
           <Star size={18} />
           <span>特别收藏</span>
         </button>
-        <button className={"sidebar-link " + (catalogOpen ? "active" : "")} onClick={() => {
+        <button className={"sidebar-link " + (catalogOpen ? "active" : "")} aria-label={`条目库管理，${library.catalog?.length ?? 0} 条`} data-label="条目库管理" data-mark="条" onClick={() => {
           setShelf(true); setGraphOpen(false); setWorldOpen(false); setCatalogOpen(true); setEditing(false); setHidden(false);
         }}><LibraryBig size={18} /><span>条目库管理</span><small>{library.catalog?.length ?? 0}</small></button>
-        <button className={"sidebar-link " + (graphOpen ? "active" : "")} onClick={() => {
+        <button className={"sidebar-link " + (graphOpen ? "active" : "")} aria-label="关系图" data-label="关系图" data-mark="图" onClick={() => {
           setShelf(true); setCatalogOpen(false); setGraphOpen(true); setWorldOpen(false); setEditing(false); setHidden(false);
         }}><Network size={18} /><span>关系图</span></button>
-        <button className={"sidebar-link " + (worldOpen && !catalogOpen && !graphOpen ? "active" : "")} aria-label={`世界，${(library.worlds ?? []).length} 个`} onClick={openWorlds}>
+        <button className={"sidebar-link " + (worldOpen && !catalogOpen && !graphOpen ? "active" : "")} aria-label={`世界，${(library.worlds ?? []).length} 个`} data-label="世界" data-mark="世" onClick={openWorlds}>
           <Globe size={18} /><span>世界</span><small>{(library.worlds ?? []).length.toString().padStart(2, "0")}</small>
         </button>
         <div className="sidebar-section-label series-label">
@@ -776,6 +793,9 @@ export default function App() {
           </div>
           <button
             className="library-button"
+            aria-label={saveState === "error" ? "本地资料库，保存需要处理" : "本地资料库"}
+            data-label="本地资料库"
+            data-mark="库"
             onClick={() => setModal("library")}
           >
             <span className="library-icon">

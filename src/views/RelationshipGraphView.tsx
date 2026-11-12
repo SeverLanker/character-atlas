@@ -3,7 +3,7 @@ import { Maximize2, Minus, Network, Plus, Search } from "lucide-react";
 import type { Character, Library } from "../model";
 import { Portrait } from "../components/Portrait";
 import {
-  ALL_COLLECTIONS, buildRelationshipGraph, edgeLabel, filterGraph, layoutGraph, loadSavedPositions, neighbors, savePositions, type Positions,
+  ALL_COLLECTIONS, buildRelationshipGraph, edgeLabel, filterGraph, graphCaption, layoutGraph, loadSavedPositions, neighbors, savePositions, type Positions,
 } from "../graph";
 
 const SIZE = 1000, R = 34;
@@ -123,7 +123,7 @@ export function RelationshipGraphView({ library, onOpen }: { library: Library; o
               }}>
               <circle r={R + 4} className="graph-node-ring" />
               <foreignObject x={-R} y={-R} width={R * 2} height={R * 2}><Portrait image={n.portrait} className="graph-portrait" /></foreignObject>
-              <text y={R + 22} textAnchor="middle">{n.name}</text>
+              <text y={R + 22} textAnchor="middle"><title>{n.name}</title>{graphCaption(n.name)}</text>
             </g>;
           })}
         </g>

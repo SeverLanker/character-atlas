@@ -3,7 +3,7 @@ import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createCharacter, duplicateVersion, type Library, type Relationship } from "./model";
-import { ALL_COLLECTIONS, buildRelationshipGraph, edgeLabel, filterGraph, layoutGraph, loadSavedPositions, neighbors, savePositions } from "./graph";
+import { ALL_COLLECTIONS, buildRelationshipGraph, edgeLabel, filterGraph, graphCaption, layoutGraph, loadSavedPositions, neighbors, savePositions } from "./graph";
 import { RelationshipGraphView } from "./views/RelationshipGraphView";
 import App from "./App";
 import { saveLibrary } from "./storage";
@@ -27,6 +27,12 @@ function sample() {
 }
 
 describe("关系图数据", () => {
+  it("节点短标题保留短名，长名截断且不改可访问名称所用的原文", () => {
+    expect(graphCaption("林弥")).toBe("林弥");
+    expect(graphCaption("  沈砚  ")).toBe("沈砚");
+    expect(graphCaption("林弥·银叶徽记与未寄出的第七封信")).toBe("林弥·银叶徽记…");
+  });
+
   it("边去重、双向合并、忽略失效目标、自指和纯文字关系", () => {
     const { library, a, b, c } = sample();
     const g = buildRelationshipGraph(library);

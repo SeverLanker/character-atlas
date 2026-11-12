@@ -49,6 +49,13 @@ export function neighbors(graph: RelationshipGraph, id: string): Set<string> {
   }
   return result;
 }
+/** Short label drawn under a node. The button name keeps the full character name. */
+export function graphCaption(name: string, limit = 8): string {
+  const chars = [...name.trim()];
+  if (chars.length <= limit) return name.trim();
+  return chars.slice(0, Math.max(1, limit - 1)).join("") + "…";
+}
+
 export function edgeLabel(edge: GraphEdge, names: Map<string, string>): string {
   if (edge.mutual && new Set(edge.labels.map((l) => l.title)).size === 1) return edge.labels[0].title + " ⇄";
   return edge.labels.map((l) => (edge.labels.length > 1 ? `${names.get(l.from) ?? ""}→${l.title}` : l.title)).join(" / ");

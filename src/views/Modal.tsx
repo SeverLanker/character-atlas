@@ -24,12 +24,14 @@ export function Modal({
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const root = content.current;
+    const focusRoot = () => Array.from(root?.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]') ?? [])
+      .filter(node => !node.closest('[inert], [hidden], [aria-hidden="true"]')).at(-1) ?? root;
     const focusable = () =>
       Array.from(
-        root?.querySelectorAll<HTMLElement>(
-          'button:not(:disabled),input,select,textarea,[tabindex="0"]',
+        focusRoot()?.querySelectorAll<HTMLElement>(
+          'button,input,select,textarea,a[href],[tabindex]',
         ) ?? [],
-      );
+      ).filter(node => node.tabIndex >= 0 && !node.matches(':disabled') && !node.closest('[inert], [hidden], [aria-hidden="true"]'));
     if (!root?.contains(document.activeElement)) {
       if (bare) root?.focus();
       else focusable()[0]?.focus();
@@ -37,12 +39,15 @@ export function Modal({
     function key(e: KeyboardEvent) {
       if (e.key === "Tab") {
         const nodes = focusable();
+        const activeRoot = focusRoot();
         const first = nodes[0],
           last = nodes.at(-1);
-        if (e.shiftKey && document.activeElement === first) {
+        if (!nodes.length) {
+          e.preventDefault(); activeRoot?.focus();
+        } else if (e.shiftKey && (document.activeElement === first || !nodes.includes(document.activeElement as HTMLElement))) {
           e.preventDefault();
           last?.focus();
-        } else if (!e.shiftKey && (document.activeElement === last || document.activeElement === root)) {
+        } else if (!e.shiftKey && (document.activeElement === last || !nodes.includes(document.activeElement as HTMLElement))) {
           e.preventDefault();
           first?.focus();
         }

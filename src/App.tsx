@@ -879,7 +879,13 @@ export default function App() {
               openWorldId={openWorldId}
               onOpenWorld={setOpenWorldId}
               onBack={() => setOpenWorldId(null)}
-              onChange={(next) => setLibrary(next, true)}
+              onChange={(next, expected) => {
+                const release = history.lock();
+                try {
+                  if (expected && history.getState().current !== expected) throw new Error("资料库已变化，未覆盖新修改。表单已保留，请核对后重新保存。");
+                  setLibrary(next, true);
+                } finally { release(); }
+              }}
               onEnterCharacter={enter}
               canUndo={canUndo}
               canRedo={canRedo}

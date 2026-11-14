@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, Globe } from "lucide-react";
 import { Modal } from "./Modal";
 import {
@@ -49,7 +49,7 @@ export interface WorldOverviewProps {
   openWorldId: string | null;
   onOpenWorld: (id: string) => void;
   onBack: () => void;
-  onChange: (library: Library) => void;
+  onChange: (library: Library, expected?: Library) => void;
   onEnterCharacter: (character: Character) => void;
   canUndo: boolean;
   canRedo: boolean;
@@ -323,7 +323,7 @@ function ArchiveSection({ library, scope, worldId, archives, onChange, onDeleteA
   scope: WorldScope;
   worldId?: string;
   archives: ExternalArchiveRef[];
-  onChange: (library: Library) => void;
+  onChange: (library: Library, expected?: Library) => void;
   onDeleteArchive?: (ref: ExternalArchiveRef) => void;
 }) {
   const roots = library.archiveRoots ?? [];
@@ -339,6 +339,9 @@ function ArchiveSection({ library, scope, worldId, archives, onChange, onDeleteA
   const [statuses, setStatuses] = useState<Record<string, ArchiveProbe>>({});
   const [bodies, setBodies] = useState<Record<string, { paragraphs: string[]; truncated: boolean }>>({});
   const [bindings, setBindings] = useState<Record<string, string>>({});
+  const savingRef = useRef(false), live = useRef(true);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
   useEffect(() => {
     if (!desktop || scope !== "owner") return;
     let live = true;
@@ -369,6 +372,8 @@ function ArchiveSection({ library, scope, worldId, archives, onChange, onDeleteA
   }
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true);
     try {
       let next = library;
       let rootId = rootChoice;
@@ -388,10 +393,12 @@ function ArchiveSection({ library, scope, worldId, archives, onChange, onDeleteA
       const assigned = worldId ?? null;
       if (editingId) next = reviseArchive(next, editingId, { title, rootId, relativePath: relative, note, visibility, worldId: assigned });
       else next = withArchive(next, createArchiveRef({ title, rootId, relativePath: relative, note, visibility, ...(assigned ? { worldId: assigned } : {}) }));
-      onChange(next);
+      if (!live.current) return;
+      onChange(next, library);
       reset();
       setMessage("已保存档案引用");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "没有保存"); }
+    } catch (error) { if (live.current) setMessage(error instanceof Error ? error.message : "没有保存"); }
+    finally { savingRef.current = false; if (live.current) setSaving(false); }
   }
   async function read(ref: ExternalArchiveRef) {
     try {
@@ -404,7 +411,7 @@ function ArchiveSection({ library, scope, worldId, archives, onChange, onDeleteA
       <h2>外部档案</h2>
       <p className="world-note" role="note">{desktop ? DESKTOP_ARCHIVE_LIMIT : WEB_ARCHIVE_LIMIT}</p>
       {scope === "owner" && (
-        <form className="world-form" aria-label={editingId ? "重新选择外部档案" : "添加外部档案"} onSubmit={save}>
+        <form className="world-form" aria-label={editingId ? "重新选择外部档案" : "添加外部档案"} onSubmit={save} aria-busy={saving} inert={saving}>
           <label>标题<input aria-label="档案标题" value={title} onChange={(event) => setTitle(event.target.value)} required /></label>
           <label>已有根目录
             <select aria-label="已有根目录" value={rootChoice} onChange={(event) => setRootChoice(event.target.value)}>
@@ -428,6 +435,7 @@ function ArchiveSection({ library, scope, worldId, archives, onChange, onDeleteA
           </div>
         </form>
       )}
+      {saving && <p role="status">正在定位并保存档案引用…</p>}
       {message && <p role="status">{message}</p>}
       <ul className="archive-list">
         {archives.map((ref) => {

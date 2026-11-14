@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { applyReduceMotion, readReduceMotion } from "./motion";
 import "./styles/tokens.css";
 import "./styles.css";
 import "./styles/identity-cards.css";
@@ -21,6 +22,7 @@ import "./styles/documents.css";
 import "./styles/doc-motion.css";
 import "./styles/document-focus.css";
 import "./styles/document-designs.css";
+applyReduceMotion(readReduceMotion());
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
@@ -29,3 +31,4 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 
 import "./styles/library-picker.css";
 import "./styles/display-polish.css";
+import "./styles/document-polish.css";

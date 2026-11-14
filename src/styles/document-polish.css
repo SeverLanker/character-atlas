@@ -1,0 +1,88 @@
+/* Focused documents keep their own paper palette in every application theme. */
+.wallet-focus-backdrop {
+  background: radial-gradient(ellipse at 50% 38%, rgb(34 47 43 / .9), rgb(10 17 16 / .96));
+}
+.wallet-focus-panel {
+  width: min(600px, 100%);
+  max-height: calc(100dvh - 48px);
+  padding: 6px 12px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: #67746c transparent;
+  overscroll-behavior: contain;
+}
+.wallet-focus-heading {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 20px;
+  color: #f1eddf;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.wallet-focus-heading small { color: #bac5b9; font-size: 10px; letter-spacing: .18em; }
+.wallet-focus-heading strong { font-size: 18px; font-weight: 500; line-height: 1.5; }
+.wallet-focus-tools { gap: 12px; }
+.wallet-focus-tools .button,
+.wallet-focus-tools .icon-button,
+.wallet-focus-pager .button {
+  color: #f1eddf;
+  background: #293a34;
+  border: 1px solid #63776a;
+  border-radius: 10px;
+  min-height: 36px;
+  flex-shrink: 0;
+  box-shadow: none;
+}
+.wallet-focus-tools button:hover,
+.wallet-focus-pager button:not(:disabled):hover { background: #3b5045; }
+.wallet-focus-tools button:focus-visible,
+.wallet-focus-pager button:focus-visible { outline: 2px solid #e0c88b; outline-offset: 3px; box-shadow: none; }
+.wallet-focus-tools button[aria-pressed="true"] { background: #405749; border-color: #bdccad; }
+.wallet-focus-pager button:disabled { opacity: .45; }
+.wallet-focus-pager {
+  padding: 10px;
+  gap: 8px;
+  background: rgb(14 24 20 / .55);
+  border: 1px solid rgb(200 216 196 / .18);
+  border-radius: 14px;
+}
+.wallet-focus-pager > span { min-width: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.wallet-focus .document-face {
+  box-shadow: 0 14px 28px #0005, inset 0 1px 0 #ffffff50;
+}
+/* Interior pages have no cover spine. Do not inherit the cover's empty column. */
+.document-face.document-booklet-page {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "mast" "body" "mrz" "base";
+  border-left: 6px solid var(--d-accent);
+  background: linear-gradient(90deg, var(--d-paper-2), var(--d-paper) 8%, var(--d-paper) 95%, var(--d-paper-2));
+  box-shadow: 0 2px 0 var(--d-paper-2), 0 4px 0 var(--d-line), 0 14px 28px #0005;
+}
+.document-booklet-page .doc-pattern { opacity: .45; }
+.document-booklet-page .document-masthead h2 { font-size: 20px; line-height: 1.4; }
+.document-booklet-page .document-photo { width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; }
+.doc-booklet-rows > div { padding-bottom: 8px; border-bottom: 1px solid var(--d-line); }
+.doc-booklet-rows dd { line-height: 1.6; white-space: pre-wrap; }
+.motion-preference { padding-top: 16px; border-top: 1px solid var(--line); }
+
+/* Removing motion must leave the static 180-degree back face functional. */
+html[data-reduce-motion="true"] .focus-flip-scene { transform: none; }
+html[data-reduce-motion="true"] .focus-gloss { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .focus-flip-scene { transform: none; }
+  .focus-gloss { display: none; }
+}
+@media (max-width: 480px) {
+  .wallet-focus { padding: 12px; }
+  .wallet-focus-panel { max-height: calc(100dvh - 24px); padding: 4px 6px 16px; }
+  .wallet-focus-heading { margin-bottom: 12px; }
+  .wallet-focus-heading strong { font-size: 16px; }
+  .doc-booklet-body { grid-template-columns: 78px minmax(0, 1fr); gap: 14px; padding: 14px 16px; }
+  .doc-booklet-rows { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .wallet-focus-pager { flex-wrap: wrap; }
+  .wallet-focus-pager > span { flex-basis: 5rem; }
+}
+@media (max-width: 360px) {
+  .doc-booklet-body { grid-template-columns: minmax(0, 1fr); }
+  .doc-booklet-body .doc-photo-frame { max-width: 96px; }
+  .doc-back-fields { grid-template-columns: minmax(0, 1fr); }
+}

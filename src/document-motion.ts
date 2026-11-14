@@ -12,6 +12,13 @@
  *   was dropped from this branch (see the PR body).
  */
 
+import {
+  documentLabel,
+  type CharacterDocument,
+  type DocumentField,
+  type DocumentType,
+} from "./documents";
+
 /** One damped-spring integration step (semi-implicit Euler, stable at 60 Hz). */
 export function springStep(
   current: number,
@@ -77,4 +84,76 @@ export function isFocusGuardTarget(target: EventTarget | null): boolean {
 /** The focus view may only open when no delete/inherit confirm dialog is open. */
 export function canEnterFocus(confirmOpen: boolean): boolean {
   return !confirmOpen;
+}
+
+/** Booklet-style documents open around a left spine instead of flipping 180°. */
+export function isBookletType(type: DocumentType): boolean {
+  return type === "passport" || type === "police";
+}
+
+export interface BookletPageRow {
+  label: string;
+  value: string;
+}
+export interface BookletPage {
+  /** Page heading, e.g. "个人资料页" / "签发页". */
+  title: string;
+  /** Show the portrait photo on this page. */
+  photo: boolean;
+  /** Real filled fields only; empty fields are skipped. */
+  rows: BookletPageRow[];
+  /** Show the MRZ band (passport data page). */
+  mrz: boolean;
+}
+
+/**
+ * Inner pages of an opened booklet. Only fields the document actually has
+ * filled are listed — nothing is invented (no visa pages, stamps or records).
+ * The issue page is omitted entirely when none of its fields are filled, so
+ * empty fields never take up a page.
+ */
+export function bookletPages(doc: CharacterDocument): BookletPage[] {
+  if (!isBookletType(doc.type)) return [];
+  const rows = (keys: readonly DocumentField[]): BookletPageRow[] =>
+    keys
+      .filter((key) => doc.fields[key]?.trim())
+      .map((key) => ({
+        label: documentLabel(doc.type, key),
+        value: doc.fields[key]!,
+      }));
+  const issue = rows(["issuer", "issued", "expires", "notes"]);
+  const pages: BookletPage[] = [
+    doc.type === "passport"
+      ? {
+          title: "个人资料页",
+          photo: true,
+          rows: rows([
+            "holder",
+            "romanName",
+            "gender",
+            "birthday",
+            "nationality",
+            "birthplace",
+            "number",
+          ]),
+          mrz: true,
+        }
+      : {
+          title: "内页",
+          photo: true,
+          rows: rows([
+            "holder",
+            "organization",
+            "department",
+            "rank",
+            "position",
+            "number",
+          ]),
+          mrz: false,
+        },
+  ];
+  if (issue.length > 0) {
+    pages.push({ title: "签发页", photo: false, rows: issue, mrz: false });
+  }
+  return pages;
 }

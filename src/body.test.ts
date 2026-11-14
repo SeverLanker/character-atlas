@@ -38,7 +38,7 @@ function libraryWithBody(): { library: Library; body: BodyProfile } {
 describe("资料库集成", () => {
   it("独立身体图不要求体型参数，秘密清空与沿用不会改动公开图", () => {
     const c = createCharacter("图片测试"); const v = c.versions[0];
-    v.profile.bodyImages = { front: "front.png", back: "back.webp" };
+    v.profile.bodyImages = { front: "front.png", back: "back.webp", display: "diagram" };
     const library: Library = { schemaVersion: 2, characters: [c] };
     validateLibrary(library);
     expect(migrateLibrary(library).characters[0].versions[0].profile.bodyImages).toEqual(v.profile.bodyImages);
@@ -51,6 +51,8 @@ describe("资料库集成", () => {
     expect(assetRefs(library)).toEqual(expect.arrayContaining(["front.png", "back.webp", "secret.png"]));
     v.secret.overrides.bodyImages.back = "../secret.png";
     expect(() => validateLibrary(library)).toThrow(/身体图.*back/);
+    v.secret.overrides.bodyImages = { front: "", back: "", display: "invalid" as "image" };
+    expect(() => validateLibrary(library)).toThrow("身体图展示方式");
   });
   it("独立正背面图及秘密图进入完整备份，恢复后引用全部换名", async () => {
     const c = createCharacter("图片备份"); const v = c.versions[0];

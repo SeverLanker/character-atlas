@@ -1,6 +1,6 @@
 # 叙册 · Character Atlas
 
-开发分支的多类型证件夹用法见 [DOCUMENTS.md](DOCUMENTS.md)（未发布）。
+多类型证件夹自 0.5.7 提供，用法和版本边界见 [DOCUMENTS.md](DOCUMENTS.md)。
 
 本轮资料保护、操作历史、健康检查与模板草稿的入口和验证边界见 [IMPROVEMENTS.md](IMPROVEMENTS.md)。源码中的未发布功能不等同于已有安装包。
 

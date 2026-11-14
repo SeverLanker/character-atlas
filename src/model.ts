@@ -5,7 +5,7 @@ import {
   type CocSheet,
   type CocPatch,
 } from "./coc.ts";
-import { validateBody, type BodyProfile } from "./body.ts";
+import { validateBody, validateBodyImages, type BodyProfile, type BodyImages } from "./body.ts";
 import { validateDocuments, type CharacterDocument } from "./documents.ts";
 import { isSafeRelativePath, isStableId } from "./external-archives.ts";
 export type Page = "archive" | "skills" | "collection" | "status";
@@ -104,6 +104,8 @@ export interface Profile {
   display?: { hideEmpty: boolean; hiddenBasics: (keyof Basics)[] };
   /** 可选 body-validator 体型数据与正 / 背面图（secret 中整体覆盖）。 */
   body?: BodyProfile;
+  /** Optional artwork, independent of body parameters; secret overrides replace both sides. */
+  bodyImages?: BodyImages;
   /** Undefined preserves the legacy identity preview; [] explicitly means no documents. */
   documents?: CharacterDocument[];
 }
@@ -315,6 +317,8 @@ export function assetRefs(library: Library): string[] {
           ...(p.documents ?? []).map((i) => i.portrait),
           p.body?.front,
           p.body?.back,
+          p.bodyImages?.front,
+          p.bodyImages?.back,
         ])
           if (ref && !ref.startsWith("builtin:")) refs.add(ref);
       }
@@ -404,6 +408,7 @@ function validatePartialProfile(v: unknown, partial = false): void {
     try { validateBody(v.body); }
     catch (error) { check(false, error instanceof Error ? error.message : String(error)); }
   }
+  if (v.bodyImages !== undefined) validateBodyImages(v.bodyImages);
   if (v.display !== undefined) {
     check(
       isObject(v.display) &&

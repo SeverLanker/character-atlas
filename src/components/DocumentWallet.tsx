@@ -304,6 +304,8 @@ export function DocumentWallet({
   /** Card back showing (180° flip inside the focus view). Independent of the secret switch. */
   const [flipped, setFlipped] = useState(false);
   const closeFocusRef = useRef<HTMLButtonElement>(null);
+  const focusEntryRef = useRef<HTMLButtonElement>(null);
+  const wasFocused = useRef(false);
   const tiltRef = useRef<HTMLDivElement>(null);
   // Spring tilt state (twoclipping-402193): pointer moves only retarget the
   // spring; a rAF loop integrates it and stops once settled or hidden.
@@ -322,6 +324,8 @@ export function DocumentWallet({
   }, [focused]);
   useEffect(() => {
     if (focused) closeFocusRef.current?.focus();
+    else if (wasFocused.current) focusEntryRef.current?.focus();
+    wasFocused.current = focused;
   }, [focused]);
   function tiltTick() {
     const s = tiltState.current;
@@ -571,6 +575,7 @@ export function DocumentWallet({
               <button
                 className="button"
                 onClick={enterFocus}
+                ref={focusEntryRef}
                 disabled={confirm !== null}
               >
                 <Maximize2 size={14} />
@@ -749,6 +754,8 @@ export function DocumentWallet({
           className="wallet-focus"
           role="dialog"
           aria-label="聚焦查看证件"
+          aria-modal="true"
+          tabIndex={-1}
           onKeyDown={(e) => {
             // Esc exits focus only; stopPropagation keeps Modal from closing the whole wallet.
             if (e.key === "Escape") {
@@ -790,7 +797,7 @@ export function DocumentWallet({
               onPointerLeave={tiltReset}
             >
               <div className={`focus-flip-inner${flipped ? " is-flipped" : ""}`}>
-                <div className="focus-flip-face" aria-hidden={flipped || undefined}>
+                <div className="focus-flip-face" aria-hidden={flipped || undefined} inert={flipped}>
                   <DocumentFace
                     document={selected}
                     secret={secret}
@@ -801,7 +808,7 @@ export function DocumentWallet({
                     onStamped={() => setStampId(null)}
                   />
                 </div>
-                <div className="focus-flip-face focus-flip-back" aria-hidden={!flipped || undefined}>
+                <div className="focus-flip-face focus-flip-back" aria-hidden={!flipped || undefined} inert={!flipped}>
                   <DocumentFaceBack document={selected} />
                 </div>
               </div>

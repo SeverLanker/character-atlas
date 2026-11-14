@@ -6,6 +6,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import App from "./App";
@@ -14,6 +15,29 @@ import { createCharacter } from "./model";
 import { saveLibrary } from "./storage";
 
 afterEach(cleanup);
+
+it("聚焦和翻面后的 Tab 只经过可见控件，退出后回到聚焦入口", async () => {
+  const wallet = await openWallet();
+  const entry = wallet.getByRole("button", { name: "聚焦查看" });
+  fireEvent.click(entry);
+  const focus = within(wallet.getByRole("dialog", { name: "聚焦查看证件" }));
+  const flip = focus.getByRole("button", { name: "查看背面" });
+  const reveal = focus.getByRole("button", { name: "切换身份档案" });
+  reveal.focus();
+  fireEvent.keyDown(reveal, { key: "Tab" });
+  expect(document.activeElement).toBe(flip);
+  fireEvent.keyDown(flip, { key: "Tab", shiftKey: true });
+  expect(document.activeElement).toBe(reveal);
+  fireEvent.click(flip);
+  expect(reveal.closest("[inert]")).not.toBeNull();
+  const close = focus.getByRole("button", { name: "关闭聚焦查看，返回证件列表" });
+  close.focus();
+  fireEvent.keyDown(close, { key: "Tab" });
+  expect(document.activeElement).toBe(flip);
+  fireEvent.keyDown(flip, { key: "Escape" });
+  await waitFor(() => expect(document.activeElement).toBe(entry));
+  expect(screen.getByRole("dialog", { name: "证件夹" })).toBeTruthy();
+});
 
 async function openWallet() {
   const character = createCharacter("聚焦角色");

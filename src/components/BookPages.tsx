@@ -179,19 +179,26 @@ function Archive({ p, hidden, characters, currentId, onOpenCharacter, onPreview,
     </>
   );
 }
-function NarrativeAbilities({ skills }: { skills: Skill[] }) {
+export function NarrativeAbilities({ skills }: { skills: Skill[] }) {
   const [all, setAll] = useState(false);
   const [limit, setLimit] = useState(6);
   const rows = skills.filter((skill) => all || isProminentAbility(skill));
-  return <div className="prose-block">
+  const hiddenCount = skills.filter(skill => !isProminentAbility(skill)).length;
+  return <div className="prose-block ability-reading">
+    <small>ABILITIES</small>
     <h3>技能、法术与专长</h3>
-    <p className="coc-help">低阶和通用能力默认收起，重点能力始终显示。</p>
-    <button className="text-button" onClick={() => { setAll(!all); setLimit(6); }}>{all ? "仅看精选能力" : `查看全部能力（${skills.length}）`}</button>
-    {rows.slice(0, limit).map((skill) => <article className="relationship" key={skill.id}>
-      <h4>{skill.featured ? "★ " : ""}{skill.title} <small>{({ skill: "技能", spell: "法术", specialty: "专长" })[skill.kind ?? "skill"]} · {skill.rank}</small></h4>
-      <details><summary>查看说明</summary><p>{skill.text || "暂无说明"}</p></details>
+    <div className="reading-section-tools">
+      <p>展示 {Math.min(limit, rows.length)} / {rows.length} 项{!all && hiddenCount > 0 ? ` · 另有 ${hiddenCount} 项低阶或通用能力已收起` : ""}</p>
+      {hiddenCount > 0 && <button className="button small" aria-pressed={all} onClick={() => { setAll(!all); setLimit(6); }}>{all ? "仅看精选能力" : `查看全部能力（${skills.length}）`}</button>}
+    </div>
+    <div className="reading-card-list">
+    {rows.slice(0, limit).map((skill) => <article className="reading-card ability-card" key={skill.id}>
+      <h4>{skill.title || "未命名能力"}</h4>
+      <div className="ability-meta"><span>{({ skill: "技能", spell: "法术", specialty: "专长" })[skill.kind ?? "skill"]}</span>{skill.rank && <span>{skill.rank}</span>}{skill.featured && <span className="ability-featured">★ 重点</span>}</div>
+      <details><summary>查看说明<span className="sr-only">：{skill.title || "未命名能力"}</span></summary><p>{skill.text || "暂无说明"}</p></details>
     </article>)}
-    {!rows.length && <p className="coc-help">暂无精选能力，可查看全部或在编辑时标记重点。</p>}
+    </div>
+    {!rows.length && <p className="coc-help">{skills.length ? "暂无精选能力，可查看全部或在编辑时标记重点。" : "尚未记录能力，可在编辑档案时从条目库添加。"}</p>}
     {rows.length > limit && <button className="text-button" onClick={() => setLimit(limit + 6)}>再显示 6 项能力</button>}
   </div>;
 }
@@ -394,11 +401,11 @@ function BodyMap({
 function Status({ p, hidden }: { p: Profile; hidden: boolean }) {
   const [area, setArea] = useState("全部");
   const [query, setQuery] = useState("");
-  const availableAreas = [...new Set([...areas, ...(p.body ? bodyRegionAreas : []), ...p.conditions.map((c) => c.area).filter(Boolean)])];
+  const availableAreas = [...new Set([...areas, ...(p.body || p.bodyImages ? bodyRegionAreas : []), ...p.conditions.map((c) => c.area).filter(Boolean)])];
   const selectedArea = availableAreas.includes(area) ? area : "全部";
   const search = query.trim().toLocaleLowerCase();
   const rows = p.conditions.filter(
-    (c) => (p.body ? areaMatches(c.area, selectedArea) : selectedArea === "全部" || c.area === selectedArea || c.area === "全身") &&
+    (c) => (p.body || p.bodyImages ? areaMatches(c.area, selectedArea) : selectedArea === "全部" || c.area === selectedArea || c.area === "全身") &&
       (!search || `${c.title} ${c.text} ${c.area}`.toLocaleLowerCase().includes(search)),
   );
   return (
@@ -414,14 +421,14 @@ function Status({ p, hidden }: { p: Profile; hidden: boolean }) {
           en="A MOMENT IN THE STORY"
         />
         <div className="body-map-wrap">
-          {p.body
-            ? <BodyDiagram body={p.body} conditions={p.conditions} active={selectedArea} onSelect={setArea} />
+          {p.body || p.bodyImages
+            ? <BodyDiagram body={p.body} images={p.bodyImages} conditions={p.conditions} active={selectedArea} onSelect={setArea} />
             : <BodyMap active={selectedArea} onSelect={setArea} p={p} />}
-          <span className="body-side-label">ANTERIOR VIEW · 点击部位查看</span>
+          {!p.body && !p.bodyImages && <span className="body-side-label">ANTERIOR VIEW · 点击部位查看</span>}
         </div>
         <div className="status-footnote">
           <HeartPulse size={16} />
-          <span>由作者记录 · 随当前剧情版本保存</span>
+          <span>由作者记录 · 随当前剧情版本保存<br />编辑档案 → 身体图，可替换图片或选用 SVG 示意</span>
         </div>
         <div className="folio-bottom">
           <span>BODY STUDY / MANUAL RECORD</span>

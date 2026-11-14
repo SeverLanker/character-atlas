@@ -152,10 +152,15 @@ function sectionList(library: Library, o: MarkdownOptions): Section[] {
     { key: "body", render: (p, h) => {
       const b = p.body; if (!b) return "";
       const morphs = Object.entries(b.morphs).filter(([, v]) => v !== 0);
-      const imgs = [image(b.front, "正面", o), image(b.back, "背面", o)].filter(Boolean).join(" ");
+      const imgs = p.bodyImages ? "" : [image(b.front, "正面", o), image(b.back, "背面", o)].filter(Boolean).join(" ");
       return `${h} 身体参数（body-validator）\n\n| 项目 | 数值 |\n| --- | --- |\n| 体型 | ${bodyTypeLabels[b.body_type]} |\n| 身高 | ${b.height_cm} cm |\n| 腿长 | ${b.leg_length} |\n| 头部比例 | ${b.head_scale} |\n` +
         (morphs.length ? `| 形变 | ${morphs.map(([k, v]) => `${escapeCell(k)} ${v}`).join("、")} |\n` : "") +
         (b.notes.trim() ? `\n${escapeBlock(b.notes)}\n` : "") + (imgs ? `\n${imgs}\n` : "");
+    } },
+    { key: "bodyImages", render: (p, h) => {
+      if (!p.bodyImages) return "";
+      const imgs = [image(p.bodyImages.front, "身体正面", o), image(p.bodyImages.back, "身体背面", o)].filter(Boolean).join("\n\n");
+      return `${h} 身体图\n\n${imgs || "未设置可导出的正／背面图。"}\n`;
     } },
   ];
 }

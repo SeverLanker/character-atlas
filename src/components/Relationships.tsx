@@ -37,14 +37,16 @@ export function Relationships({ items, characters, currentId, onOpen }: {
 }) {
   const incoming = characters.filter(c => c.id !== currentId && defaultVersion(c).profile.relationships.some(r => r.targetCharacterId === currentId));
   if (!items.length && !incoming.length) return null;
-  return <div className="prose-block"><small>CONNECTIONS</small><h3>人际关系</h3>
+  return <div className="prose-block connection-reading"><small>CONNECTIONS</small><h3>人际关系</h3>
+    <div className="reading-card-list">
     {items.map(row => {
       const target = characters.find(c => c.id === row.targetCharacterId);
-      return <div key={row.id} className="relationship"><h4>{row.title || target?.name || '未命名关系'}</h4>
-        {target && onOpen ? <button className="text-button character-link" onClick={() => onOpen(target)}>打开 {target.name} 的档案 ↗</button> : row.targetCharacterId ? <small>关联角色不可用，保留原记录</small> : null}
+      return <article key={row.id} className="reading-card connection-card"><h4>{row.title || target?.name || '未命名关系'}</h4>
         <ReadingText text={row.text}/>
-      </div>;
+        {target && onOpen ? <footer><button className="text-button character-link" onClick={() => onOpen(target)}>打开 {target.name} 的档案 ↗</button></footer> : row.targetCharacterId ? <small>关联角色不可用，保留原记录</small> : null}
+      </article>;
     })}
+    </div>
     {!!incoming.length && <details className="incoming-relations"><summary>谁关联了此角色 · {incoming.length}</summary><p>来自其他角色默认公开版本的关联。</p>{incoming.map(c => <button className="button small" key={c.id} onClick={() => onOpen?.(c)}>{c.name} ↗</button>)}</details>}
   </div>;
 }

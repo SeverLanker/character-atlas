@@ -46,6 +46,15 @@ function sample() {
 }
 
 describe("单角色 Markdown", () => {
+  it("独立身体图按公开与秘密范围导出，替代旧体型内图片引用", () => {
+    const { library, a } = sample(); const v = a.versions[0];
+    v.profile.bodyImages = { front: "public-art.png", back: "", display: "diagram" };
+    v.secret.overrides.bodyImages = { front: "secret-art.png", back: "" };
+    const options = { assetPath: (ref: string) => "assets/" + ref };
+    const md = characterToMarkdown(a, library, options);
+    expect(md).toContain("assets/public-art.png"); expect(md).not.toContain("assets/front_1.png"); expect(md).not.toContain("secret-art.png");
+    expect(characterToMarkdown(a, library, { ...options, includeSecret: true })).toContain("assets/secret-art.png");
+  });
   it("覆盖各字段并带 frontmatter，空字段与隐藏字段跳过", () => {
     const { library, a } = sample();
     const md = characterToMarkdown(a, library, { exportedAt: T });

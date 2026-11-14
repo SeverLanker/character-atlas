@@ -1,6 +1,7 @@
 import type { HistoryAction } from "../useLibraryHistory";
 import { CatalogPicker } from "./LibraryPicker";
 import { BodyImport } from "./BodyImport";
+import { BodyImageEditor } from "./BodyImageEditor";
 import { RelationshipEditor } from "./Relationships";
 import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import {
@@ -269,7 +270,7 @@ export function Editor(props: EditorProps) {
     ],
     skills: ["coc", "attributes", "skills"],
     collection: ["items", "gallery"],
-    status: ["coc", "conditions", "statusNote", "body"],
+    status: ["coc", "conditions", "statusNote", "body", "bodyImages"],
   };
   function prose(
     key:
@@ -654,8 +655,11 @@ export function Editor(props: EditorProps) {
                     onPatch={(coc) => patch({ coc })}
                   />
                   {prose("statusNote", "状态记录备注", 3)}
-                  <BodyImport body={p.body} hidden={hidden} onUpload={props.onUpload}
-                    onChange={(body) => patch({ body })}
+                  <BodyImageEditor images={p.bodyImages ?? (p.body ? { front: p.body.front, back: p.body.back } : undefined)} context={`${c.id}/${v.id}/${hidden}`} hidden={hidden} onUpload={props.onUpload}
+                    onChange={bodyImages => patch({ bodyImages })}
+                    onInherit={hidden && v.secret.overrides.bodyImages !== undefined ? () => props.onInherit(["bodyImages"]) : undefined} />
+                  <BodyImport body={p.body} hidden={hidden}
+                    onChange={(body) => patch({ body, ...(!body && !p.bodyImages && p.body && (p.body.front || p.body.back) ? { bodyImages: { front: p.body.front, back: p.body.back } } : {}) })}
                     onInherit={hidden && v.secret.overrides.body !== undefined ? () => props.onInherit(["body"]) : undefined} />
                   <p className="editor-empty">标题建议“系统名 · 状态或功能名”。正文可按参数、功能状态、历史变化分段填写；部位支持自由输入，例如皮肤、感官、恢复力。</p>
                   <ListEditor

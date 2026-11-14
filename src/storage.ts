@@ -332,6 +332,10 @@ export async function copyIncomingAssets(library: Library, assets: Record<string
           if (map.has(profile.body.front)) profile.body.front = map.get(profile.body.front)!;
           if (map.has(profile.body.back)) profile.body.back = map.get(profile.body.back)!;
         }
+        if (profile.bodyImages) {
+          if (map.has(profile.bodyImages.front)) profile.bodyImages.front = map.get(profile.bodyImages.front)!;
+          if (map.has(profile.bodyImages.back)) profile.bodyImages.back = map.get(profile.bodyImages.back)!;
+        }
       }
 }
 export async function restoreBackup(bytes: Uint8Array): Promise<Library> {

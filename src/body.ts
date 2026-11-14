@@ -5,6 +5,8 @@
 export const BODY_SCHEMA = "bodyval.character/1";
 export const bodyTypes = ["adult_female", "adult_male", "teen_female", "teen_male", "child"] as const;
 export type BodyType = (typeof bodyTypes)[number];
+/** Independent artwork: no body measurements or model parameters are implied. */
+export interface BodyImages { front: string; back: string; display?: "image" | "diagram" }
 export const bodyTypeLabels: Record<BodyType, string> = {
   adult_female: "成年女性", adult_male: "成年男性", teen_female: "少女", teen_male: "少年", child: "儿童",
 };
@@ -29,6 +31,15 @@ const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v =
 const finite = (v: unknown, min: number, max: number) => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 const refPattern = /^[a-zA-Z0-9_-]+\.(png|jpg|jpeg|webp|gif)$/;
 function fail(message: string): never { throw new Error("体型数据无效：" + message); }
+
+export function validateBodyImages(value: unknown): asserts value is BodyImages {
+  if (!isObject(value)) fail("身体图必须为对象");
+  if (value.display !== undefined && value.display !== "image" && value.display !== "diagram") fail("身体图展示方式");
+  for (const side of ["front", "back"] as const) {
+    const ref = value[side];
+    if (typeof ref !== "string" || (ref !== "" && !refPattern.test(ref))) fail("身体图 " + side + " 图片引用");
+  }
+}
 
 /** 校验叙册内保存的 body 字段（严格）。 */
 export function validateBody(v: unknown): asserts v is BodyProfile {

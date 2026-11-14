@@ -395,7 +395,7 @@ export function DocumentWallet({
   function tiltTick() {
     const s = tiltState.current;
     const node = tiltRef.current;
-    if (!node) {
+    if (!node || reducedMotion()) {
       s.raf = 0;
       return;
     }
@@ -853,6 +853,10 @@ export function DocumentWallet({
             }}
           />
           <div className="wallet-focus-panel">
+            <div className="wallet-focus-heading">
+              <small>{documentTemplates[selected.type].en}</small>
+              <strong>{selected.title || documentTemplates[selected.type].name}</strong>
+            </div>
             <div className="wallet-focus-tools">
               {booklet ? (
                 <button
@@ -963,7 +967,7 @@ export function DocumentWallet({
                 </button>
               </div>
             )}
-            <p className="wallet-focus-hint">点击空白处返回证件列表</p>
+            <p className="wallet-focus-hint">点击空白处或按 Esc 返回证件列表</p>
           </div>
         </div>
       )}

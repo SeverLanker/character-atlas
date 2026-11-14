@@ -87,7 +87,7 @@ it("聚焦查看：进入后只剩证件本身，关闭按钮可退出", async (
     wallet.getByRole("dialog", { name: "聚焦查看证件" }),
   ).toBeTruthy();
   expect(
-    wallet.getByText("点击空白处返回证件列表"),
+    wallet.getByText("点击空白处或按 Esc 返回证件列表"),
   ).toBeTruthy();
   // The whole picker (list, tools, actions, editor) is hidden in focus view.
   expect(

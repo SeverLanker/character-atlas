@@ -32,3 +32,4 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 import "./styles/library-picker.css";
 import "./styles/display-polish.css";
 import "./styles/document-polish.css";
+import "./styles/reading-cards.css";

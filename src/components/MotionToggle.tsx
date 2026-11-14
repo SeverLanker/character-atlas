@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { readReduceMotion, saveReduceMotion } from "../motion";
+import { saveReduceMotion } from "../motion";
 
 export function MotionToggle() {
-  const [checked, setChecked] = useState(readReduceMotion);
+  // Startup applies the saved preference. Thereafter the live state is authoritative,
+  // including when storage fails and the preference only lasts for this session.
+  const [checked, setChecked] = useState(() => document.documentElement.dataset.reduceMotion === "true");
   const [error, setError] = useState(false);
   return <section className="motion-preference" aria-label="动态效果">
     <label className="app-theme-follow"><input type="checkbox" checked={checked} onChange={event => {

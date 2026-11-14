@@ -17,6 +17,8 @@ it("设置切换即时生效并在重开后保留，系统减弱动效优先", (
 });
 it("存储不可用时仍能关闭动效并明确提示未持久化", () => {
   vi.stubGlobal("localStorage", { getItem: () => { throw Error("denied"); }, setItem: () => { throw Error("denied"); } });
-  render(<MotionToggle />); fireEvent.click(screen.getByRole("checkbox"));
+  const view = render(<MotionToggle />); fireEvent.click(screen.getByRole("checkbox"));
   expect(reducedMotion()).toBe(true); expect(screen.getByRole("status").textContent).toContain("未能保存");
+  view.unmount(); render(<MotionToggle />);
+  expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
 });

@@ -34,3 +34,5 @@ import "./styles/display-polish.css";
 import "./styles/document-polish.css";
 import "./styles/reading-cards.css";
 import "./styles/body-study.css";
+import "./styles/body-artwork.css";
+import "./styles/body-silhouette.css";

@@ -22,10 +22,10 @@ export function BodyImageEditor({ images = emptyImages, context, hidden, onChang
       const ref = await onUpload(file);
       if (!mounted.current) return;
       const latest = current.current;
-      if (latest.context !== before.context || latest.images.front !== before.images.front || latest.images.back !== before.images.back || latest.images.display !== before.images.display) {
+      if (latest.context !== before.context || latest.images.front !== before.images.front || latest.images.back !== before.images.back || latest.images.display !== before.images.display || latest.images.model !== before.images.model) {
         setMessage("身体图或当前档案已变化，未覆盖新内容，请重新选择图片。"); return;
       }
-      latest.onChange({ ...latest.images, [side]: ref, display: "image" });
+      latest.onChange({ ...latest.images, [side]: ref, display: "image", model: undefined });
       setMessage((side === "front" ? "正面" : "背面") + "图已更新。");
     } catch (error) {
       if (mounted.current) setMessage("上传失败：" + (error instanceof Error ? error.message : String(error)));
@@ -39,9 +39,9 @@ export function BodyImageEditor({ images = emptyImages, context, hidden, onChang
     <p className="editor-help">可直接上传 PNG、JPEG 或 WebP，也可使用 Body Validator 导出的正／背面图，无需先导入参数。图片随当前剧情版本保存。{hidden ? "当前编辑秘密档案，修改后独立保存。" : ""}</p>
     <fieldset disabled={busy} className="body-image-fields" aria-busy={busy}>
       <legend className="sr-only">替换正面与背面图片</legend>
-      <label className="field body-image-style"><span>身体图样式</span><select value={images.display ?? "image"} onChange={event => onChange({ ...images, display: event.target.value as BodyImages["display"] })}>
-        <option value="image">自定义图片</option><option value="diagram">SVG 人体示意</option>
-      </select><small>SVG 为部位记录示意；切换样式会保留已上传图片。</small></label>
+      <label className="field body-image-style"><span>身体图样式</span><select value={images.model ? "model" : images.display ?? "image"} onChange={event => onChange(event.target.value === "model" ? { ...images, model: "porcelain" } : { ...images, model: undefined, display: event.target.value as BodyImages["display"] })}>
+        <option value="image">自定义图片</option><option value="model">风格化 3D · 瓷质人体</option><option value="diagram">SVG 人体示意（备用）</option>
+      </select><small>3D 支持旋转和部位选择；切换样式会保留图片。SVG 可作备用。</small></label>
       {(["front", "back"] as const).map(side => {
         const label = side === "front" ? "正面" : "背面";
         return <div className="body-image-slot" key={side}>

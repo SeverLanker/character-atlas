@@ -36,6 +36,21 @@ function libraryWithBody(): { library: Library; body: BodyProfile } {
 }
 
 describe("资料库集成", () => {
+  it("3D 样式独立继承，保留图片回退，非法样式被校验拒绝", () => {
+    const c = createCharacter("三维测试"), v = c.versions[0];
+    v.profile.bodyImages = { front: "public.png", back: "", display: "image", model: "porcelain" };
+    v.secret.enabled = true;
+    const library: Library = { schemaVersion: 2, characters: [c] };
+    validateLibrary(library);
+    expect(migrateLibrary(library).characters[0].versions[0].profile.bodyImages).toEqual(v.profile.bodyImages);
+    expect(effectiveProfile(v, true).bodyImages?.model).toBe("porcelain");
+    v.secret.overrides.bodyImages = { front: "secret.png", back: "", display: "diagram" };
+    expect(effectiveProfile(v, true).bodyImages?.model).toBeUndefined();
+    expect(effectiveProfile(v, false).bodyImages?.front).toBe("public.png");
+    expect(v.profile.body).toBeUndefined();
+    v.secret.overrides.bodyImages.model = "external" as "porcelain";
+    expect(() => validateLibrary(library)).toThrow("身体图模型样式");
+  });
   it("独立身体图不要求体型参数，秘密清空与沿用不会改动公开图", () => {
     const c = createCharacter("图片测试"); const v = c.versions[0];
     v.profile.bodyImages = { front: "front.png", back: "back.webp", display: "diagram" };
@@ -57,13 +72,14 @@ describe("资料库集成", () => {
   it("独立正背面图及秘密图进入完整备份，恢复后引用全部换名", async () => {
     const c = createCharacter("图片备份"); const v = c.versions[0];
     const ref = await putImage(new File([new Uint8Array([2, 4, 6])], "body.png", { type: "image/png" }));
-    v.profile.bodyImages = { front: ref, back: ref };
+    v.profile.bodyImages = { front: ref, back: ref, model: "porcelain" };
     v.secret.overrides.bodyImages = { front: "", back: ref };
     const restored = await restoreBackup(await exportBackup({ schemaVersion: 2, characters: [c] }));
     const next = restored.characters[0].versions[0];
     const changed = next.profile.bodyImages!.front;
     expect(changed).not.toBe(ref);
     expect(next.profile.bodyImages!.back).toBe(changed);
+    expect(next.profile.bodyImages!.model).toBe("porcelain");
     expect(next.secret.overrides.bodyImages).toEqual({ front: "", back: changed });
     expect(await readAsset(changed)).toEqual(new Uint8Array([2, 4, 6]));
   });

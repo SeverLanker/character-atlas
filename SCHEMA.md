@@ -139,6 +139,7 @@ interface ExternalArchiveRef {
 | coc? | CocSheet | 可省略整个字段；若填写则完整字段必填 |
 | display? | Display | 可省略 |
 | body? | BodyProfile | 可省略；body-validator 体型数据与人体图，见下文 |
+| bodyImages? | BodyImages | 可省略；独立正背面图片和展示样式，见下文 |
 
 所有必填列表无内容时用 `[]`。长文可使用换行，应用不将正文作为 HTML 执行；不需要嵌入 `<p>` 等标签。文字没有业务字数上限，但受文件与浏览器存储容量约束。
 
@@ -179,6 +180,19 @@ interface CatalogEntry extends Entry {
 `source`、`sourceId`、`extra` 均为可选字段，旧资料无需迁移，schemaVersion 仍为 2；旧版本打开含这些字段的资料库时会忽略它们。CSV / TSV 导入导出中对应列为「来源」（别名：出处、source）和「来源编号」（别名：来源id、sourceId、source_id）；其他未识别列存入 `extra`，导出时作为额外列写回。
 
 ## 体型 Body（可选，0.4.x 起）
+
+独立图片不要求 `body` 参数。0.5.10 起可使用下列 `bodyImages`；`model` 为后续未发布 3D 功能的可选字段：
+
+```ts
+interface BodyImages {
+  front: string; // 本机图片引用或 ""
+  back: string;  // 本机图片引用或 ""
+  display?: "image" | "diagram"; // 省略按图片；diagram 为备用 SVG
+  model?: "porcelain"; // 启用原创瓷质 3D；省略不启用
+}
+```
+
+启用 `model` 不删除图片，`display` 继续指定 3D 不可用时的回退。切换回图片 / SVG 时移除 `model`。秘密档案整体覆盖 `bodyImages`，未覆盖时沿用公开设置；完整 ZIP 收集保留的图片，迁移及恢复换名保留样式字段。0.5.10 忽略未知的 `model` 并按原图片 / SVG 展示；0.5.9 及更早版本的备份不识别 `bodyImages` 图片引用。3D 不产生外部模型路径，不写入虚构体型参数，schemaVersion 保持 2。
 
 保存 [body-validator](https://github.com/SeverLanker/body-validator) 的角色参数和导出的正 / 背面图。旧资料没有此字段，无需迁移；schemaVersion 仍为 2。
 

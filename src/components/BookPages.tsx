@@ -428,7 +428,7 @@ function Status({ p, hidden }: { p: Profile; hidden: boolean }) {
         </div>
         <div className="status-footnote">
           <HeartPulse size={16} />
-          <span>由作者记录 · 随当前剧情版本保存<br />编辑档案 → 身体图，可替换图片或选用 SVG 示意</span>
+          <span>由作者记录 · 随当前剧情版本保存<br />编辑档案 → 身体图，可替换图片、选用 3D 或备用 SVG</span>
         </div>
         <div className="folio-bottom">
           <span>BODY STUDY / MANUAL RECORD</span>

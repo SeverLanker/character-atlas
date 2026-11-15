@@ -2,7 +2,7 @@
 .body-artwork { display: grid; gap: 12px; inline-size: 100%; min-inline-size: 0; }
 .body-artwork-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 14px; color: var(--book-accent); font: 11px/1.7 var(--font-sans); }
 .body-artwork-heading > :first-child { letter-spacing: .18em; }
-.body-artwork .body-artwork-map { display: block; inline-size: 100%; block-size: auto; max-block-size: 650px; aspect-ratio: 2 / 3; border-radius: 6px; }
+.body-artwork .body-artwork-map { display: block; inline-size: 100%; block-size: auto; max-block-size: 650px; aspect-ratio: 1280 / 1580; border-radius: 6px; }
 .body-artwork-region { cursor: pointer; outline: none; --region-color: #517963; }
 .body-artwork-region > rect { fill: transparent; stroke: transparent; stroke-width: 3; }
 .body-artwork-region:hover > rect, .body-artwork-region:focus-visible > rect, .body-artwork-region[aria-pressed="true"] > rect { fill: #58765e0d; stroke: var(--region-color); }

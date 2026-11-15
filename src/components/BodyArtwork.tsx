@@ -5,12 +5,12 @@ import { BodyDiagram } from "./BodyDiagram";
 
 // Front-facing artwork: the character's right is on the viewer's left.
 const regions = [
-  { area: "头部", x: 390, y: 150, w: 220, h: 220 },
-  { area: "躯干", x: 390, y: 370, w: 220, h: 365 },
-  { area: "右臂", x: 12, y: 367, w: 378, h: 78 },
-  { area: "左臂", x: 610, y: 367, w: 378, h: 78 },
-  { area: "右腿", x: 250, y: 735, w: 250, h: 560 },
-  { area: "左腿", x: 500, y: 735, w: 250, h: 560 },
+  { area: "头部", x: 485, y: 140, w: 230, h: 225 },
+  { area: "躯干", x: 510, y: 365, w: 180, h: 390 },
+  { area: "右臂", x: 20, y: 360, w: 490, h: 90 },
+  { area: "左臂", x: 690, y: 360, w: 490, h: 90 },
+  { area: "右腿", x: 350, y: 755, w: 250, h: 585 },
+  { area: "左腿", x: 600, y: 755, w: 250, h: 585 },
 ];
 
 /** Built-in illustration only; never writes an image or body measurement to a profile. */
@@ -23,9 +23,9 @@ export function BodyArtwork({ conditions, active, onSelect }: {
   return <div className="body-artwork">
     {diagram || failed ? <BodyDiagram images={{ front: "", back: "", display: "diagram" }} conditions={conditions} active={active} onSelect={onSelect} /> : <>
       <div className="body-artwork-heading"><span>FIGURE STUDY</span><span>维特鲁威 · 人体习作</span></div>
-      <svg className="body-map body-artwork-map" viewBox="0 0 1000 1500" role="group" aria-label="身体部位选择" aria-describedby={descriptionId}>
+      <svg className="body-map body-artwork-map" viewBox="-40 -40 1280 1580" role="group" aria-label="身体部位选择" aria-describedby={descriptionId}>
         <desc id={descriptionId}>绿发角色的动漫风人体比例插图，双臂平展，双腿分开。左右按角色自身方向标记。</desc>
-        <image href="/art/body-vitruvian-anime.png" width="1000" height="1500" preserveAspectRatio="xMidYMid meet" onError={() => setFailed(true)} />
+        <image href="/art/body-vitruvian-anime.svg" x="-40" y="-40" width="1280" height="1580" preserveAspectRatio="xMidYMid meet" onError={() => setFailed(true)} />
         {regions.map(r => {
           const matches = conditions.filter(c => c.area !== "全身" && areaMatches(c.area, r.area));
           const level = matches.some(c => c.severity === "danger") ? "danger" : matches.some(c => c.severity === "notice") ? "notice" : "stable";
@@ -41,8 +41,8 @@ export function BodyArtwork({ conditions, active, onSelect }: {
           </g>;
         })}
       </svg>
-      <p className="body-artwork-caption">{active === "全部" ? "内置插图 · 点击部位查看记录" : "当前筛选 · " + active}</p>
+      <p className="body-artwork-caption">{active === "全部" ? "SVG 人体习作 · 点击部位查看记录" : "当前筛选 · " + active}</p>
     </>}
-    {failed ? <p className="body-diagram-note" role="status">插图暂时无法显示，已使用 SVG 示意。</p> : <button className="text-button body-marker-toggle" aria-pressed={diagram} onClick={() => setDiagram(!diagram)}>{diagram ? "返回动漫插图" : "切换为 SVG 示意"}</button>}
+    {failed ? <p className="body-diagram-note" role="status">插图暂时无法显示，已使用 SVG 示意。</p> : <button className="text-button body-marker-toggle" aria-pressed={diagram} onClick={() => setDiagram(!diagram)}>{diagram ? "返回动漫 SVG" : "查看中性人体示意"}</button>}
   </div>;
 }

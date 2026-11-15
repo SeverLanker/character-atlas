@@ -1,4 +1,5 @@
 import { BodyDiagram } from "./BodyDiagram";
+import { BodyArtwork } from "./BodyArtwork";
 import { areaMatches, bodyRegionAreas } from "../body";
 import { Relationships } from "./Relationships";
 import type { Character } from "../model";
@@ -338,74 +339,14 @@ function Collection({
   );
 }
 const areas = ["全部", "头部", "躯干", "左臂", "右臂", "左腿", "右腿"];
-function BodyMap({
-  active,
-  onSelect,
-  p,
-}: {
-  active: string;
-  onSelect: (s: string) => void;
-  p: Profile;
-}) {
-  const regions = [
-    { area: "头部", x: 460, y: 275, w: 110, h: 155 },
-    { area: "躯干", x: 395, y: 430, w: 235, h: 325 },
-    { area: "左臂", x: 35, y: 435, w: 355, h: 100 },
-    { area: "右臂", x: 635, y: 435, w: 355, h: 100 },
-    { area: "左腿", x: 315, y: 755, w: 195, h: 490 },
-    { area: "右腿", x: 515, y: 755, w: 195, h: 490 },
-  ];  return (
-    <svg
-      className="body-map"
-      viewBox="0 0 1025 1535"
-      role="group"
-      aria-label="身体部位选择"
-    >
-      <image href="/art/body-proportions.png" width="1025" height="1535" preserveAspectRatio="xMidYMid meet" />
-      {regions.map((r) => {
-        const matches = p.conditions.filter((c) => c.area === r.area);
-        const danger = matches.some((c) => c.severity === "danger");
-        return (
-          <g
-            key={r.area}
-            tabIndex={0}
-            role="button"
-            aria-label={r.area}
-            onClick={() => onSelect(active === r.area ? "全部" : r.area)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onSelect(active === r.area ? "全部" : r.area);
-              }
-            }}
-            className={"body-region " + (active === r.area ? "selected" : "")}
-          >
-            <rect x={r.x} y={r.y} width={r.w} height={r.h} rx="15" />
-            {matches.length > 0 && (
-              <g className={danger ? "danger-marker" : "notice-marker"}>
-                <circle
-                  cx={r.x + r.w / 2}
-                  cy={r.y + r.h / 2}
-                  r="30"
-                  opacity=".16"
-                />
-                <circle cx={r.x + r.w / 2} cy={r.y + r.h / 2} r="11" />
-              </g>
-            )}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
 function Status({ p, hidden }: { p: Profile; hidden: boolean }) {
   const [area, setArea] = useState("全部");
   const [query, setQuery] = useState("");
-  const availableAreas = [...new Set([...areas, ...(p.body || p.bodyImages ? bodyRegionAreas : []), ...p.conditions.map((c) => c.area).filter(Boolean)])];
+  const availableAreas = [...new Set([...areas, ...bodyRegionAreas, ...p.conditions.map((c) => c.area).filter(Boolean)])];
   const selectedArea = availableAreas.includes(area) ? area : "全部";
   const search = query.trim().toLocaleLowerCase();
   const rows = p.conditions.filter(
-    (c) => (p.body || p.bodyImages ? areaMatches(c.area, selectedArea) : selectedArea === "全部" || c.area === selectedArea || c.area === "全身") &&
+    (c) => areaMatches(c.area, selectedArea) &&
       (!search || `${c.title} ${c.text} ${c.area}`.toLocaleLowerCase().includes(search)),
   );
   return (
@@ -423,8 +364,7 @@ function Status({ p, hidden }: { p: Profile; hidden: boolean }) {
         <div className="body-map-wrap">
           {p.body || p.bodyImages
             ? <BodyDiagram body={p.body} images={p.bodyImages} conditions={p.conditions} active={selectedArea} onSelect={setArea} />
-            : <BodyMap active={selectedArea} onSelect={setArea} p={p} />}
-          {!p.body && !p.bodyImages && <span className="body-side-label">ANTERIOR VIEW · 点击部位查看</span>}
+            : <BodyArtwork active={selectedArea} onSelect={setArea} conditions={p.conditions} />}
         </div>
         <div className="status-footnote">
           <HeartPulse size={16} />

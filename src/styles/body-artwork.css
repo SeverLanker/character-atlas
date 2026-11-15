@@ -1,0 +1,19 @@
+/* Default archive illustration. User-provided body images keep their own presentation. */
+.body-artwork { display: grid; gap: 12px; inline-size: 100%; min-inline-size: 0; }
+.body-artwork-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 14px; color: var(--book-accent); font: 11px/1.7 var(--font-sans); }
+.body-artwork-heading > :first-child { letter-spacing: .18em; }
+.body-artwork .body-artwork-map { display: block; inline-size: 100%; block-size: auto; max-block-size: 650px; aspect-ratio: 2 / 3; border-radius: 6px; }
+.body-artwork-region { cursor: pointer; outline: none; --region-color: #517963; }
+.body-artwork-region > rect { fill: transparent; stroke: transparent; stroke-width: 3; }
+.body-artwork-region:hover > rect, .body-artwork-region:focus-visible > rect, .body-artwork-region[aria-pressed="true"] > rect { fill: #58765e0d; stroke: var(--region-color); }
+.body-artwork-region:focus-visible > rect { stroke-width: 6; stroke-dasharray: 8 5; }
+.body-artwork-region[aria-pressed="true"] > rect { stroke-width: 5; fill: #58765e16; }
+.body-artwork-region[data-related="true"] > rect { stroke: var(--region-color); stroke-dasharray: 9 7; }
+.body-artwork-region[data-level="notice"] { --region-color: #b28030; }
+.body-artwork-region[data-level="danger"] { --region-color: #ad5145; }
+.body-artwork-marker { pointer-events: none; }
+.body-artwork-marker > circle { fill: #fffbef; stroke: var(--region-color); stroke-width: 2.5; }
+.body-artwork-marker > .body-artwork-marker-core { fill: var(--region-color); stroke: none; }
+.body-artwork-caption { margin: 0; text-align: center; font: 11px/1.7 var(--font-sans); color: var(--book-accent); }
+.body-artwork .body-marker-toggle { font-size: 12px; padding: 6px 10px; }
+.body-artwork button:focus-visible { outline: 2px solid var(--book-accent); outline-offset: 3px; }

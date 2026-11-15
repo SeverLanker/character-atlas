@@ -1,0 +1,10 @@
+/* A continuous vector study. Colours follow the paper theme, including dark pages. */
+.body-silhouette-study { color: var(--book-ink, #33483e); pointer-events: none; }
+.body-silhouette-study .silhouette-shade { stop-color: color-mix(in srgb, var(--book-paper, #f5efdd) 58%, var(--book-accent, #53695c)); }
+.body-silhouette-study .silhouette-light { stop-color: color-mix(in srgb, var(--book-paper, #f5efdd) 89%, var(--book-accent, #53695c)); }
+.body-silhouette-study .silhouette-paper { stop-color: var(--book-paper, #f5efdd); }
+.body-silhouette-study > .silhouette-contour { stroke: var(--book-accent, #53695c); stroke-width: 2.8; stroke-linejoin: round; }
+.body-silhouette-study .silhouette-volume { stroke: none; }
+.body-silhouette-study .silhouette-lines { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.body-silhouette-study .silhouette-detail { stroke-width: 2.5; opacity: .34; }
+.body-silhouette-study .silhouette-fine { stroke-width: 1.8; opacity: .27; }

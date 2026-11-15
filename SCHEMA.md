@@ -181,7 +181,7 @@ interface CatalogEntry extends Entry {
 
 ## 体型 Body（可选，0.4.x 起）
 
-独立图片不要求 `body` 参数。0.5.10 起可使用下列 `bodyImages`；`model` 为后续未发布 3D 功能的可选字段：
+独立图片不要求 `body` 参数。0.5.10 起可使用下列 `bodyImages`；`model` 为 0.5.11 起 3D 功能的可选字段：
 
 ```ts
 interface BodyImages {

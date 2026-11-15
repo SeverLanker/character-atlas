@@ -894,17 +894,19 @@ export function DocumentWallet({
             >
               {booklet ? (
                 <div className={`focus-booklet${bookletOpen ? " is-open" : ""}`}>
-                  {bookletOpen && pages[bookletPageIndex] && (
+                  {pages.map((page, index) => (
                     <div
-                      className="focus-booklet-page"
-                      key={bookletPageIndex}
+                      className={`focus-booklet-page${bookletOpen && index === bookletPageIndex ? " is-current" : ""}`}
+                      key={page.title}
+                      aria-hidden={!bookletOpen || index !== bookletPageIndex || undefined}
+                      inert={!bookletOpen || index !== bookletPageIndex}
                     >
                       <BookletPageView
                         document={selected}
-                        page={pages[bookletPageIndex]}
+                        page={page}
                       />
                     </div>
-                  )}
+                  ))}
                   <div
                     className="focus-booklet-cover"
                     aria-hidden={bookletOpen || undefined}
@@ -941,8 +943,8 @@ export function DocumentWallet({
               )}
               <span className="focus-gloss" aria-hidden="true" />
             </div>
-            {booklet && bookletOpen && pages[bookletPageIndex] && (
-              <div className="wallet-focus-pager">
+            {booklet && pages[bookletPageIndex] && (
+              <div className="wallet-focus-pager" aria-hidden={!bookletOpen || undefined} inert={!bookletOpen}>
                 <button
                   className="button small"
                   onClick={() => setBookletPage(Math.max(bookletPageIndex - 1, 0))}

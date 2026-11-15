@@ -20,7 +20,7 @@ import { createCharacter } from "./model";
 import { saveLibrary } from "./storage";
 
 /** The focus stylesheet, read as text: the grid-stacking fix lives in CSS, so the regression guard reads the rules themselves (?raw is emptied by this repo's vitest setup). Tests run from the repo root. */
-const focusCss = readFileSync("src/styles/document-focus.css", "utf8");
+const focusCss = readFileSync("src/styles/document-focus.css", "utf8").replace(/\r\n/g, "\n");
 
 afterEach(cleanup);
 
@@ -234,9 +234,13 @@ describe("聚焦查看：小册子开合（护照 / 警官证）", () => {
       expect(
         focus.queryByRole("button", { name: "查看背面" }),
       ).toBeNull();
-      expect(
-        focus.queryByText(/第 \d+ \/ \d+ 页/),
-      ).toBeNull();
+      expect(focus.queryByRole("button", { name: "下一页" })).toBeNull();
+      const sheets = document.querySelectorAll(".focus-booklet-page");
+      expect(sheets).toHaveLength(2);
+      for (const sheet of sheets) {
+        expect(sheet.getAttribute("aria-hidden")).toBe("true");
+        expect(sheet.hasAttribute("inert")).toBe(true);
+      }
 
       fireEvent.click(focus.getByRole("button", { name: "打开证件" }));
       expect(
@@ -254,17 +258,21 @@ describe("聚焦查看：小册子开合（护照 / 警官证）", () => {
       );
       expect(issuePage.getByText(issuer)).toBeTruthy();
       expect(
-        focus.queryByLabelText(`${coverName} · ${firstPage}`),
+        focus.queryByRole("article", { name: `${coverName} · ${firstPage}` }),
       ).toBeNull();
+      // All sheets stay mounted, so the tallest page sets the closed/open size.
+      expect(document.querySelectorAll(".focus-booklet-page")[0]).toBe(sheets[0]);
+      expect(document.querySelectorAll(".focus-booklet-page")[1]).toBe(sheets[1]);
 
       fireEvent.click(focus.getByRole("button", { name: "合上证件" }));
       expect(
         focus.getByRole("button", { name: "打开证件" }),
       ).toBeTruthy();
-      expect(focus.queryByText(/第 \d+ \/ \d+ 页/)).toBeNull();
+      expect(focus.queryByRole("button", { name: "下一页" })).toBeNull();
       expect(
-        focus.queryByLabelText(`${coverName} · 签发页`),
+        focus.queryByRole("article", { name: `${coverName} · 签发页` }),
       ).toBeNull();
+      expect(document.querySelectorAll(".focus-booklet-page")).toHaveLength(2);
     });
   }
 
@@ -307,6 +315,24 @@ describe("聚焦查看：翻面不再用绝对定位的背面", () => {
     // both faces share grid-area 1/1, and the back is not absolute anymore.
     expect(cssBlock(".focus-flip-inner")).toContain("display: grid");
     expect(cssBlock(".focus-flip-face")).toContain("grid-area: 1 / 1");
+    expect(cssBlock(".focus-flip-face")).toContain("display: grid");
+    expect(cssBlock(".focus-flip-face")).toContain("align-self: stretch");
+    expect(cssBlock(".focus-booklet-page,\n.focus-booklet-cover")).toContain("align-self: stretch");
+    expect(cssBlock(".focus-flip-face > .document-face,")).toContain("align-self: stretch");
     expect(cssBlock(".focus-flip-back")).not.toContain("absolute");
   });
+});
+
+it("工作证反复翻面：隐藏面不可访问且长背面字段保留", async () => {
+  const wallet = await openWallet("work", { holder: "长姓名".repeat(40), organization: "长单位".repeat(60), position: "长职务".repeat(60) });
+  const focus = openFocus(wallet);
+  for (let count = 0; count < 2; count++) {
+    fireEvent.click(focus.getByRole("button", { name: "查看背面" }));
+    const back = focus.getByRole("article", { name: "工作证背面" });
+    expect(within(back).getByText("长单位".repeat(60))).toBeTruthy();
+    expect(focus.queryByRole("button", { name: "切换身份档案" })).toBeNull();
+    fireEvent.click(focus.getByRole("button", { name: "查看正面" }));
+    expect(focus.queryByRole("article", { name: "工作证背面" })).toBeNull();
+    expect(focus.getByRole("button", { name: "切换身份档案" })).toBeTruthy();
+  }
 });

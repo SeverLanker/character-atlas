@@ -63,11 +63,14 @@
 .focus-flip-inner.is-flipped { transform: rotateY(180deg); }
 .focus-flip-face {
   grid-area: 1 / 1;
-  align-self: start;
+  display: grid;
+  align-self: stretch;
   min-width: 0;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  transition: visibility 0s;
 }
+.focus-flip-face[aria-hidden="true"] { visibility: hidden; transition-delay: 300ms; }
 .focus-flip-back {
   transform: rotateY(180deg);
 }
@@ -163,19 +166,28 @@
 .focus-booklet-page,
 .focus-booklet-cover {
   grid-area: 1 / 1;
-  align-self: start;
+  display: grid;
+  align-self: stretch;
   min-width: 0;
 }
+/* Stretch the paper itself, not just its wrapper, to the tallest mounted face. */
+.focus-flip-face > .document-face,
+.focus-booklet-page > .document-face,
+.focus-booklet-cover > .document-face { align-self: stretch; }
+.focus-booklet-page:not(.is-current),
+.wallet-focus-pager[aria-hidden="true"] { visibility: hidden; }
 .focus-booklet-cover {
   transform-origin: left center;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  transition: transform 600ms cubic-bezier(.34, 1.25, .5, 1);
+  transition: transform 600ms cubic-bezier(.34, 1.25, .5, 1), visibility 0s;
 }
 .focus-booklet.is-open .focus-booklet-cover {
   transform: rotateY(-160deg);
+  visibility: hidden;
+  transition-delay: 0s, 300ms;
 }
-.focus-booklet-page {
+.focus-booklet-page.is-current {
   animation: booklet-page-in 300ms cubic-bezier(.2, .8, .3, 1) both;
 }
 @keyframes booklet-page-in {
@@ -222,10 +234,12 @@
 @media (prefers-reduced-motion: reduce) {
   .wallet-focus-panel { animation: none; }
   .focus-flip-inner { transition: none; }
+  .focus-flip-face { transition: none; }
   .focus-booklet-cover { transition: none; }
   .focus-booklet-page { animation: none; }
 }
 html[data-reduce-motion="true"] .wallet-focus-panel { animation: none; }
 html[data-reduce-motion="true"] .focus-flip-inner { transition: none; }
+html[data-reduce-motion="true"] .focus-flip-face { transition: none; }
 html[data-reduce-motion="true"] .focus-booklet-cover { transition: none; }
 html[data-reduce-motion="true"] .focus-booklet-page { animation: none; }

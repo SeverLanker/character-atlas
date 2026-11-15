@@ -1,0 +1,29 @@
+/* An optional porcelain study, in the existing archive palette. */
+.body-study { inline-size: 100%; min-inline-size: 0; color: var(--book-ink); }
+.body-study-heading { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px; border-block-end: 1px solid var(--book-line); padding-block-end: 14px; margin-block-end: 14px; }
+.body-study-heading small { font: 10px/1.6 var(--font-sans); letter-spacing: .17em; color: var(--book-accent); }
+.body-study-heading h3 { font-size: 22px; font-weight: 500; margin: 4px 0 0; }
+.body-study-heading > span { font-size: 11px; color: var(--book-accent); }
+.body-study-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-block-end: 12px; }
+.body-study-tools .button { padding: 6px 10px; min-block-size: 34px; }
+.body-study-tools .icon-button { inline-size: 34px; block-size: 34px; font-size: 20px; }
+.body-study-tools .text-button { font-size: 12px; padding: 6px; }
+.body-study-stage { position: relative; isolation: isolate; inline-size: 100%; block-size: clamp(300px, 45vw, 540px); border: 1px solid var(--book-line); border-radius: 90px 90px 16px 16px; overflow: hidden; background: radial-gradient(ellipse at 45% 32%, color-mix(in srgb, var(--book-paper) 94%, white), color-mix(in srgb, var(--book-paper) 84%, var(--book-accent))); }
+.body-study-stage canvas { position: relative; z-index: 1; display: block; inline-size: 100%; block-size: 100%; touch-action: none; }
+.body-study-orbit { position: absolute; inset: 10% 10% 14%; border: 1px solid var(--book-line); border-radius: 50%; opacity: .65; pointer-events: none; }
+.body-study-orbit::after { content: ""; position: absolute; inset: -8% 50%; border-inline-start: 1px dashed var(--book-line); }
+.body-study-caption { position: absolute; z-index: 2; inset-inline: 12px; inset-block-end: 12px; text-align: center; pointer-events: none; color: var(--book-ink); font: 11px/1.5 var(--font-sans); letter-spacing: .1em; }
+.body-study-message { padding: 12px; font-size: 13px; line-height: 1.7; }
+.body-study-stage .body-study-message { position: absolute; inset: 35% 10% auto; text-align: center; }
+.body-study-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-block: 14px; font-size: 11px; }
+.body-study-legend span::before { content: ""; display: inline-block; inline-size: 7px; block-size: 7px; border-radius: 50%; margin-inline-end: 5px; background: #779788; }
+.body-study-legend [data-level="notice"]::before { background: #bc9653; }
+.body-study-legend [data-level="danger"]::before { background: #b95e51; }
+.body-study-legend [data-level="active"]::before { background: #567d72; }
+.body-study-regions { display: flex; flex-wrap: wrap; gap: 6px; }
+.body-study-regions button { color: var(--book-ink); background: transparent; border: 1px solid var(--book-line); border-radius: 4px; font: 11px/1.5 var(--font-sans); padding: 5px 9px; cursor: pointer; }
+.body-study-regions button[aria-pressed="true"] { color: var(--book-paper); background: var(--book-accent); border-color: var(--book-accent); }
+.body-study button:focus-visible { outline: 2px solid var(--book-accent); outline-offset: 3px; }
+.body-study-note { font-size: 11px; line-height: 1.7; color: var(--book-ink); opacity: .78; margin-block: 12px 0; }
+.body-study-content[hidden] { display: none; }
+@media (max-width: 480px) { .body-study-stage { block-size: 360px; } }

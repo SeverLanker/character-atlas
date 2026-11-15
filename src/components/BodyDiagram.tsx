@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { bodyRegions, bodyTypeLabels, regionHasCondition, type BodyProfile, type BodyImages } from "../body";
 import type { Condition } from "../model";
 import { imageUrl } from "../storage";
+import { BodyStudy3D } from "./BodyStudy3D";
 
 const W = 1000, H = 1500;
 
@@ -42,9 +43,14 @@ export function BodySilhouette({ body, view = "front" }: { body?: BodyProfile; v
   );
 }
 
-export function BodyDiagram({ body, images, conditions, active, onSelect }: {
+type DiagramProps = {
   body?: BodyProfile; images?: BodyImages; conditions: Condition[]; active: string; onSelect: (area: string) => void;
-}) {
+};
+export function BodyDiagram(props: DiagramProps) {
+  return props.images?.model === "porcelain" ? <BodyStudy3D {...props} fallback={<BodyDiagram2D {...props} />} /> : <BodyDiagram2D {...props} />;
+}
+
+function BodyDiagram2D({ body, images, conditions, active, onSelect }: DiagramProps) {
   const pictures = images ?? body;
   const [view, setView] = useState<"front" | "back">(() => !pictures?.front && pictures?.back ? "back" : "front");
   const [markers, setMarkers] = useState(false);

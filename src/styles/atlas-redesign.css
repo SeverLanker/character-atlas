@@ -1,0 +1,123 @@
+/*
+ * 界面重设计层（最后加载，纯视觉，不改任何功能/DOM/数据）。
+ * 方向：「编辑部式」——更紧凑的首屏、更强的标题层级、更清晰的微标签、
+ * 更宽的内容网格与更从容的弹窗。颜色全部走主题 token，四套主题通用。
+ */
+:root {
+  --rd-radius: 14px;
+  --rd-ring: color-mix(in srgb, var(--ink) 9%, transparent);
+  --rd-lift: 0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent), 0 10px 28px -12px color-mix(in srgb, var(--ink) 22%, transparent);
+  --rd-lift-hover: 0 2px 4px color-mix(in srgb, var(--ink) 10%, transparent), 0 22px 44px -16px color-mix(in srgb, var(--ink) 32%, transparent);
+}
+
+/* ---------- 顶栏：半透明磨砂，滚动时内容从下方穿过 ---------- */
+.app-header {
+  position: sticky; top: 0; z-index: 15;
+  height: 60px;
+  background: color-mix(in srgb, var(--paper) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border-bottom: 1px solid var(--rd-ring);
+}
+
+/* ---------- 标题层级 ---------- */
+.shelf-heading h1, .dossier-title-row h1 {
+  font-weight: 700; letter-spacing: .02em; line-height: 1.15;
+}
+.shelf-heading .eyebrow, .dossier-title-row .eyebrow {
+  font-size: 11px; font-weight: 600; letter-spacing: .18em;
+  color: color-mix(in srgb, var(--accent) 80%, var(--ink));
+}
+.shelf-heading p { font-size: 14px; color: color-mix(in srgb, var(--muted) 85%, var(--ink)); }
+.sidebar-section-label { font-size: 11px; font-weight: 600; letter-spacing: .14em; }
+
+/* ---------- 侧栏：当前项带左侧强调条、更大点击区 ---------- */
+.sidebar-link { padding: 10px 12px; border-radius: 10px; font-size: 13px; transition: background-color .18s, color .18s, translate .18s; }
+.sidebar-link:hover { translate: 2px 0; }
+.sidebar-link.active { font-weight: 600; }
+.sidebar-link small { font-variant-numeric: tabular-nums; }
+
+/* ---------- 书架横幅：压缩高度，把首屏让给角色 ---------- */
+.shelf-banner {
+  border-radius: var(--rd-radius);
+  box-shadow: var(--rd-lift);
+}
+
+/* ---------- 工具栏：搜索框与按钮圆角统一 ---------- */
+.shelf-controls input[type="search"], .shelf-controls input[type="text"],
+.shelf-controls select, .shelf-controls .button {
+  border-radius: 999px;
+}
+.shelf-count h2 { font-size: 17px; font-weight: 700; }
+
+/* ---------- 角色网格：宽屏 3 列，卡片悬停抬升 ---------- */
+.character-grid:not(.character-list) { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 22px; }
+.character-card {
+  border-radius: var(--rd-radius);
+  box-shadow: var(--rd-lift);
+  transition: box-shadow .28s, translate .28s cubic-bezier(.2, .7, .2, 1), border-color .2s;
+}
+.character-card:hover { translate: 0 -4px; box-shadow: var(--rd-lift-hover); }
+
+/* ---------- 档案页：书页分页签更像标签页 ---------- */
+.book-tabs { gap: 6px; border-bottom: 1px solid var(--rd-ring); }
+.book-tabs button { border-radius: 10px 10px 0 0; transition: background-color .18s, color .18s; }
+.book-tabs button:not(.active):hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.book-tabs button.active { font-weight: 700; }
+.book-spread { border-radius: var(--rd-radius); }
+.dossier-actions { gap: 8px; flex-wrap: wrap; }
+
+/* ---------- 按钮与弹窗 ---------- */
+.button { border-radius: 10px; font-weight: 600; }
+.modal, .modal-card, [role="dialog"] { border-radius: 18px; }
+[role="dialog"] { max-width: min(640px, calc(100vw - 32px)); }
+.modal-backdrop, .modal-overlay { backdrop-filter: blur(6px) saturate(.9); }
+
+/* ---------- 细节 ---------- */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce), (hover: none) {
+  html { scroll-behavior: auto; }
+  .character-card:hover, .sidebar-link:hover { translate: none; }
+}
+html[data-reduce-motion="true"] .character-card:hover,
+html[data-reduce-motion="true"] .sidebar-link:hover { translate: none; }
+
+/* ---------- 设置弹窗：更宽、双列操作、吸顶标题、分区分隔 ---------- */
+.modal.library-settings-modal { width: min(760px, 100%); padding: 0 28px 28px; scroll-padding-top: 80px; }
+.modal.library-settings-modal > header {
+  position: sticky; top: 0; z-index: 3;
+  margin: 0 -28px 18px; padding: 22px 28px 14px;
+  background: var(--c-modal-bg, var(--paper));
+  border-bottom: 1px solid var(--rd-ring);
+}
+.library-settings-modal .backup-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.library-settings-modal .backup-action { height: 100%; border-radius: 12px; }
+.library-settings-modal .library-stats > div { border-radius: 12px; }
+.library-settings-modal .app-theme-picker,
+.library-settings-modal .library-tip ~ section,
+.library-settings-modal .library-tip ~ div:not(.operation-busy) { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--rd-ring); }
+@media (max-width: 640px) { .library-settings-modal .backup-actions { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- 窄屏：横幅与工具栏 ---------- */
+@media (max-width: 760px) {
+  .shelf-heading { flex-wrap: wrap; gap: 14px; }
+  .shelf-controls { flex-wrap: wrap; gap: 8px; }
+  .shelf-banner { height: auto; min-height: 220px; padding: 24px 22px; }
+  .shelf-banner p { max-width: none; text-wrap: balance; }
+  .app-header { padding: 0 16px; }
+  .character-grid:not(.character-list) { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- 复查修正 ---------- */
+.shelf-controls select { padding-inline: 14px 28px; text-indent: 0; }
+.shelf-controls label:has(select) { gap: 8px; }
+.recovery-panel > .button, .recovery-panel > .text-button { margin: 4px 10px 8px 0; vertical-align: middle; }
+.recovery-panel > .text-button { display: inline-flex; align-items: center; min-height: 32px; }
+.library-settings-modal > header { box-shadow: 0 8px 14px -10px color-mix(in srgb, var(--ink) 30%, transparent); }
+.library-settings-modal button:disabled { opacity: 1; color: var(--muted); background: color-mix(in srgb, var(--muted) 12%, transparent); border-color: var(--rd-ring); cursor: not-allowed; }
+.library-settings-modal input[type="file"] { max-width: 100%; font-size: 12px; }
+.library-settings-modal input[type="file"]::file-selector-button { margin-right: 10px; padding: 6px 12px; border: 1px solid var(--rd-ring); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; cursor: pointer; }
+.library-settings-modal .backup-action:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.library-settings-modal > header { z-index: 50; top: -1px; }
+.shelf-controls .sort-control { padding-inline: 12px; box-sizing: border-box; }
+.shelf-controls .sort-control select { border-radius: 0; padding-inline: 0 4px; }

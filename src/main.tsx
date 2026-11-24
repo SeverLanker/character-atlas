@@ -36,3 +36,6 @@ import "./styles/reading-cards.css";
 import "./styles/body-study.css";
 import "./styles/body-artwork.css";
 import "./styles/body-silhouette.css";
+import "./styles/art-polish.css";
+import "./styles/atlas-redesign.css";
+import "./styles/knockout-card.css";

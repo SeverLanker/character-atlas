@@ -1,0 +1,69 @@
+/*
+ * 镂空视频证件（参考 Jhey Tompkins 的 Knockout Video Card 的混合模式思路，独立实现）。
+ *
+ * 层叠（自下而上）：
+ *   .doc-ko-video   视频，铺满整张证件，随鼠标反向位移（视差）
+ *   .doc-ko-group   白纸 + 黑色大字，整组 mix-blend-mode: screen
+ *                   → screen 下白色把视频提亮成白（看不见），黑色不改变视频（透出）
+ *   .doc-pattern    原有防伪底纹（降低强度）
+ *   其余内容         原有证件正文，不变
+ *   .doc-ko-glare   跟随倾斜光点的高光
+ * 大字占证件顶部一行（::before 在网格里占位，保证正文不被盖住）。
+ */
+.document-face.doc-ko {
+  container-type: inline-size;
+  --ko-h: clamp(46px, 13.5cqw, 84px);
+  grid-template-areas: "ko" "mast" "body" "notes" "foot" "mrz" "base";
+  background: #fff;
+  color: #14171a;
+  --d-ink: #14171a;
+  --d-muted: #5d636a;
+}
+.document-face.doc-ko::before {
+  content: "";
+  grid-area: ko;
+  height: calc(var(--ko-h) + 12px);
+}
+.document-face.doc-ko > .doc-ko-video {
+  position: absolute; inset: -6%; z-index: 0;
+  width: 112%; height: 112%; max-width: none;
+  object-fit: cover; pointer-events: none;
+  filter: brightness(.7) contrast(1.2) saturate(1.25);
+  translate: calc((50% - var(--light-x, 50%)) * .1) calc((40% - var(--light-y, 40%)) * .1);
+  transition: translate .25s ease-out;
+}
+.document-face.doc-ko > .doc-ko-group {
+  position: absolute; inset: 0; z-index: 1;
+  background: #fff;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+.document-face.doc-ko .doc-ko-word {
+  position: absolute; left: 0; right: 0; top: 10px; height: var(--ko-h);
+  padding-inline: 20px;
+  display: flex; align-items: center;
+  font-family: Archivo, "Segoe UI Black", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+  font-weight: 900; letter-spacing: -.02em; line-height: 1;
+  font-size: min(calc(var(--ko-h) * .94), calc((100cqw - 40px) / var(--ko-n)));
+  color: #000;
+  white-space: nowrap; overflow: hidden;
+}
+.document-face.doc-ko .doc-ko-word::after { content: attr(data-word); }
+.document-face.doc-ko > .doc-pattern { z-index: 1 !important; opacity: .5; mix-blend-mode: multiply; }
+.document-face.doc-ko > .doc-ko-glare {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  background:
+    radial-gradient(circle at var(--light-x, 50%) var(--light-y, 40%), #ffffff55, transparent 46%),
+    linear-gradient(115deg, transparent 38%, #ffffff30 50%, transparent 62%);
+  mix-blend-mode: soft-light;
+}
+/* 白纸上正文保持深色，主证件徽标等原有配色不动 */
+.document-face.doc-ko .document-masthead h2 { color: #14171a; }
+.document-face.doc-ko .document-photo { box-shadow: 0 0 0 3px #fff, 0 6px 16px #00000024; }
+html[data-reduce-motion="true"] .document-face.doc-ko > .doc-ko-video { translate: none; transition: none; }
+
+/* 设置里的证件样式选择 */
+.doc-style-preference { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.doc-style-preference h3 { margin: 0 0 12px; font-size: 14px; color: var(--ink); }
+.doc-style-preference select { width: 100%; }
+@media print { .document-face.doc-ko > .doc-ko-video { display: none; } .document-face.doc-ko > .doc-ko-group { display: none; } }

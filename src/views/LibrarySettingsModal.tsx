@@ -10,6 +10,7 @@ import { ImportPanel } from "../components/ImportPanel";
 import { Modal } from "./Modal";
 import { ThemePicker } from "../components/ThemePicker";
 import { MotionToggle } from "../components/MotionToggle";
+import { DocStyleToggle } from "../components/DocStyleToggle";
 import { AgentAuditToggle } from "../components/AgentAuditToggle";
 import { OperationHistory } from "../components/OperationHistory";
 import { LibraryHealth } from "../components/LibraryHealth";
@@ -46,7 +47,7 @@ export function LibrarySettingsModal({
   const restoreInput = useRef<HTMLInputElement>(null);
   return (
         <Modal
-          title="本地资料库"
+          className="library-settings-modal" title="本地资料库"
           onClose={() => {
             if (!busy) onClose();
           }}
@@ -164,6 +165,7 @@ export function LibrarySettingsModal({
             备份包含秘密档案，请妥善保管。
           </p>
           {themePref && onThemeChange && <ThemePicker value={themePref} onChange={onThemeChange} />}
+          <DocStyleToggle />
           <MotionToggle />
           {history && <OperationHistory history={history} disabled={busy} />}
           <LibraryHealth library={library} disabled={busy} />

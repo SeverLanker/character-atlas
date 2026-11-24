@@ -50,6 +50,8 @@ import {
 } from "../documents";
 import { ImageInput } from "./Editor";
 import { Portrait } from "./Portrait";
+import { KnockoutLayers } from "./KnockoutLayers";
+import { useDocStyle } from "../doc-style";
 
 const icons = {
   identity: IdCard,
@@ -99,13 +101,16 @@ export function DocumentFace({
   const trigger = secret?.enabled ? secret.trigger : undefined;
   const title = doc.title || template.name;
   const clinical = hidden && secret?.theme === "clinical";
+  const docStyle = useDocStyle();
+  const knockout = docStyle !== "classic" && doc.type !== "passport" && doc.type !== "police";
   const typedText = (key: string, text: string, on: boolean) =>
     on ? <TypeReveal id={`${doc.id}:${key}:${hidden ? "s" : "p"}`} text={text} /> : text;
   return (
     <article
-      className={`document-face document-${doc.type}${primary ? " is-primary" : ""}`}
+      className={`document-face document-${doc.type}${primary ? " is-primary" : ""}${knockout ? " doc-ko" : ""}`}
       aria-label={`${title}预览${primary ? "（主证件）" : ""}`}
     >
+      {knockout && <KnockoutLayers style={docStyle} word={doc.fields.holder || title} />}
       <span className="doc-pattern" aria-hidden="true" />
       <span className="doc-micro" aria-hidden="true">{microtext.repeat(6)}</span>
       {(doc.type === "passport" || doc.type === "police") && <span className="doc-spine" aria-hidden="true"><span>{doc.type === "passport" ? "PASSPORT · 护照" : "WARRANT CARD"}</span></span>}
